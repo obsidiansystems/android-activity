@@ -2,3 +2,9 @@
 	path = nixpkgs
 	url = https://github.com/ryantrinkle/nixpkgs
 	branch = ghcjs2
+[submodule "reflex"]
+	path = reflex
+	url = obsidianinc.dyndns.org:/srv/git/reflex.git
+[submodule "reflex-dom"]
+	path = reflex-dom
+	url = obsidianinc.dyndns.org:/srv/git/reflex-dom.git
