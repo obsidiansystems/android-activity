@@ -10,7 +10,7 @@
 	url = obsidianinc.dyndns.org:/srv/git/reflex-dom.git
 [submodule "gtk2hs"]
 	path = gtk2hs
-	url = https://github.com/gtk2hs/gtk2hs
+	url = https://github.com/ryantrinkle/gtk2hs
 [submodule "ghcjs-dom"]
 	path = ghcjs-dom
 	url = https://github.com/ghcjs/ghcjs-dom
