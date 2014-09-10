@@ -17,3 +17,6 @@
 [submodule "webkit"]
 	path = webkit
 	url = https://github.com/ryantrinkle/webkit
+[submodule "clay"]
+	path = clay
+	url = https://github.com/ryantrinkle/clay
