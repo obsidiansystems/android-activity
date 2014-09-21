@@ -24,17 +24,16 @@ let
     };
   };
   backendCabal = backendHaskellPackages.cabal.override { Cabal = backendHaskellPackages.Cabal_1_18_1_3; };
-in {src, name, version}:
+in {name, version}:
 let
   # Break recursion
   appName = name;
   appVersion = version;
-  appSrc = src;
 
   common = haskellPackages: cabal: haskellPackages.cabal.mkDerivation (self: {
     pname = "${appName}-common";
     version = appVersion;
-    src = "${src}/common";
+    src = ../common;
     buildDepends = with haskellPackages; [
       mtl
       text
@@ -51,8 +50,8 @@ let
   });
 in pkgs.stdenv.mkDerivation (rec {
   name = "${appName}-${appVersion}";
-  static = "${src}/static";
-  marketing = "${src}/marketing";
+  static = ../static;
+  marketing = ../marketing;
   builder = builtins.toFile "builder.sh" ''
     source $stdenv/setup
 
@@ -93,7 +92,7 @@ in pkgs.stdenv.mkDerivation (rec {
     in backendCabal.mkDerivation (self: {
       pname = "${appName}-backend";
       version = appVersion;
-      src = "${src}/backend";
+      src = ../backend;
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
@@ -142,7 +141,7 @@ in pkgs.stdenv.mkDerivation (rec {
     in with haskellPackages; cabal.mkDerivation (self: rec {
       pname = "${appName}-frontend-${appVersion}";
       version = appVersion;
-      src = "${appSrc}/frontend";
+      src = ../frontend;
 
       buildDepends = [
         (common haskellPackages cabal)
