@@ -145,7 +145,7 @@ in pkgs.stdenv.mkDerivation (rec {
 
       buildDepends = [
         (common haskellPackages cabal)
-        time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs
+        time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed
       ];
       buildTools = [ ghc.ghc.parent.cabalInstallGhcjs ];
     });
