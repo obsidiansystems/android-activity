@@ -1,7 +1,7 @@
 let
   enableProfiling = false;
   pkgs = import ./nixpkgs {};
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc763_profiling else pkgs.haskellPackages_ghc763;
+  backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc783_profiling else pkgs.haskellPackages_ghc783;
   backendHaskellPackages = backendHaskellPackagesBase.override {
     extension = self: super: {
       snapServer = super.snapServer.override {
@@ -23,17 +23,41 @@ let
       });
     };
   };
-  backendCabal = backendHaskellPackages.cabal.override { Cabal = backendHaskellPackages.Cabal_1_18_1_3; };
+  backendCabal = backendHaskellPackages.cabal;
 in {name, version}:
 let
   # Break recursion
   appName = name;
   appVersion = version;
 
-  common = haskellPackages: cabal: haskellPackages.cabal.mkDerivation (self: {
+  libraryHeader = ''
+    library
+      exposed-modules: $(cd src ; find * -iname '*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
+  '';
+  executableHeader = executableName: ''
+    executable ${executableName}
+      main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
+  '';
+  mkPreConfigure = pname: ghcPkgName: executableName: ''
+    if ! ls | grep ".*\\.cabal$" ; then
+      cat >"${pname}.cabal" <<EOF
+    name: ${pname}
+    version: ${appVersion}
+    cabal-version: >= 1.2
+    ${if executableName != null then executableHeader executableName else libraryHeader}
+      hs-source-dirs: src
+      build-depends: $(${ghcPkgName} list --global | cat | sed -n 's/^    \([^(].*\)-[0-9.]*$/\1/p' | grep -v 'bin-package-db\|haskeline\|terminfo' | tr '\n' , | sed 's/,$//')
+      other-extensions: TemplateHaskell
+      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
+    EOF
+    fi
+  '';
+
+  common = haskellPackages: cabal: ghcPkgName: haskellPackages.cabal.mkDerivation (self: rec {
     pname = "${appName}-common";
     version = appVersion;
     src = ../common;
+    preConfigure = mkPreConfigure pname ghcPkgName null;
     buildDepends = with haskellPackages; [
       mtl
       text
@@ -66,8 +90,8 @@ in pkgs.stdenv.mkDerivation (rec {
     let
       groundhog = cabal.mkDerivation (self: {
         pname = "groundhog";
-        version = "0.4.2.2";
-        sha256 = "0b5bsz62zhqb281xrd8ak7iv4dp9am1cn15lxwynsmcgwa3ahhp6";
+        version = "0.5.1";
+        sha256 = "1v6by5jxymgyxy27m853z1b7xg5gksvm42kpc5rxr3aw1qssqbn5";
         buildDepends = [
           blazeBuilder monadControl monadLogger mtl text time transformers
           transformersBase
@@ -75,29 +99,33 @@ in pkgs.stdenv.mkDerivation (rec {
       });
       groundhogTh = cabal.mkDerivation (self: {
         pname = "groundhog-th";
-        version = "0.4.2.2";
-        sha256 = "1b0vlmp9n1qh472lybk3cc7prxmx1561bhf44w46jkl897qji0lx";
+        version = "0.5.1";
+        sha256 = "1pw3xd4mcivav3w43xg022byf8jgqir56hf978ly6a560bm3m8xp";
         buildDepends = [ groundhog text time yaml ];
       });
       groundhogPostgresql = cabal.mkDerivation (self: {
         pname = "groundhog-postgresql";
-        version = "0.4.2.2";
-        sha256 = "1d3gni5lld84m3irz9pdndixghkf3cmi7l3mcvh46xk76grg3bza";
+        version = "0.5.1";
+        sha256 = "0d1dc5gscg5q3jh25sb407az107phwbv199a40pgvg5zkhlaphq8";
         buildDepends = [
           attoparsec blazeBuilder groundhog monadControl monadLogger
           postgresqlLibpq postgresqlSimple resourcePool text time
           transformers
         ];
       });
-    in backendCabal.mkDerivation (self: {
+      ghcPkgName = "ghc-pkg";
+      myCommon = common backendHaskellPackages backendCabal ghcPkgName;
+    in backendCabal.mkDerivation (self: rec {
       pname = "${appName}-backend";
       version = appVersion;
       src = ../backend;
+      common = myCommon;
+      preConfigure = mkPreConfigure pname ghcPkgName "backend";
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
       buildDepends = [
-        (common backendHaskellPackages backendCabal)
+        myCommon
         MonadCatchIOTransformers mtl snap snapCore snapServer snapLoaderStatic text time lens postgresqlSimple resourcePool aeson attoparsec vector tagged derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace yaml websocketsSnap MaybeT clientsession smtpMail blazeHtml timezoneSeries timezoneOlson fileEmbed these groundhog groundhogTh groundhogPostgresql focus filepath httpClient
       ];
       jailbreak = true;
@@ -138,13 +166,16 @@ in pkgs.stdenv.mkDerivation (rec {
             });
           };
         };
+        ghcPkgName = "ghcjs-pkg";
+        myCommon = common haskellPackages haskellPackages.cabal ghcPkgName;
     in with haskellPackages; cabal.mkDerivation (self: rec {
-      pname = "${appName}-frontend-${appVersion}";
+      pname = "${appName}-frontend";
       version = appVersion;
       src = ../frontend;
-
+      common = myCommon;
+      preConfigure = mkPreConfigure pname ghcPkgName "frontend";
       buildDepends = [
-        (common haskellPackages cabal)
+        myCommon
         time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed
       ];
       buildTools = [ ghc.ghc.parent.cabalInstallGhcjs ];
