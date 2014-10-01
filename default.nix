@@ -113,6 +113,12 @@ in pkgs.stdenv.mkDerivation (rec {
           transformers
         ];
       });
+      focusBackend = cabal.mkDerivation (self: {
+        pname = "focus-backend";
+        version = "0.1";
+        src = ./backend;
+        buildDepends = [ groundhog mtl focus ];
+      });
       ghcPkgName = "ghc-pkg";
       myCommon = common backendHaskellPackages backendCabal ghcPkgName;
     in backendCabal.mkDerivation (self: rec {
@@ -126,7 +132,7 @@ in pkgs.stdenv.mkDerivation (rec {
       '';
       buildDepends = [
         myCommon
-        MonadCatchIOTransformers mtl snap snapCore snapServer snapLoaderStatic text time lens postgresqlSimple resourcePool aeson attoparsec vector tagged derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace yaml websocketsSnap MaybeT clientsession smtpMail blazeHtml timezoneSeries timezoneOlson fileEmbed these groundhog groundhogTh groundhogPostgresql focus filepath httpClient
+        focusBackend MonadCatchIOTransformers mtl snap snapCore snapServer snapLoaderStatic text time lens postgresqlSimple resourcePool aeson attoparsec vector tagged derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace yaml websocketsSnap MaybeT clientsession smtpMail blazeHtml timezoneSeries timezoneOlson fileEmbed these groundhog groundhogTh groundhogPostgresql focus filepath httpClient
       ];
       jailbreak = true;
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
