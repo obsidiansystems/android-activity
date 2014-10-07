@@ -169,7 +169,7 @@ in pkgs.stdenv.mkDerivation (rec {
               pname = "focus-js";
               version = "0.1";
               src = ./js;
-              buildDepends = [ aeson attoparsec text time vector ghcjsBase ghcjsDom ];
+              buildDepends = [ reflex aeson attoparsec text time vector ghcjsBase ghcjsDom ];
             });
           };
         };
