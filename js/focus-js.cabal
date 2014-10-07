@@ -25,7 +25,8 @@ library
     time,
     ghcjs-base,
     ghcjs-dom,
-    reflex
+    reflex,
+    semigroups
 
   exposed-modules:
     Focus.JS.Request,
