@@ -18,6 +18,8 @@ import Database.Groundhog.Expression
 import Database.Groundhog.Generic
 import Database.Groundhog.Instances
 import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding
 import Data.Time
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -42,6 +44,17 @@ data TableListener n
                    }
 
 type Listeners n = Map ByteString (TableListener n)
+
+notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
+notifyEntity aid a = do
+  _ <- executeRaw False ("NOTIFY " <> show (entityName $ entityDef a) <> ", ?") [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (aid, a)]
+  return ()
+
+notifyEntityId :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a, Key a BackendSpecific ~ DefaultKey a, PrimitivePersistField (Key a BackendSpecific), DefaultKeyId a) => Id a -> m ()
+notifyEntityId aid = do
+  a <- get $ fromId aid
+  maybe (return ()) (notifyEntity aid) a
+  return ()
 
 tableListenerWithAutoKey :: (PersistEntity a, DefaultKeyId a, DefaultKey a ~ AutoKey a, DefaultKey a ~ Key a BackendSpecific, PrimitivePersistField (DefaultKey a), FromJSON (IdData a)) => ((Id a, a) -> n) -> TableListener n
 tableListenerWithAutoKey n = TableListener
