@@ -183,7 +183,7 @@ in pkgs.stdenv.mkDerivation (rec {
       preConfigure = mkPreConfigure pname ghcPkgName "frontend";
       buildDepends = [
         myCommon
-        time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed
+        time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed MonadRandom randomShuffle
       ];
       buildTools = [ ghc.ghc.parent.cabalInstallGhcjs ];
     });
