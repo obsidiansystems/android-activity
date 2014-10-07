@@ -42,4 +42,3 @@ getTime :: PersistBackend m => m UTCTime
 getTime = do
   Just [PersistUTCTime t] <- queryRaw False "select current_timestamp(3) at time zone 'utc'" [] id
   return t
-

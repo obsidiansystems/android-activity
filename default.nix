@@ -4,6 +4,7 @@ let
   backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc783_profiling else pkgs.haskellPackages_ghc783;
   backendHaskellPackages = backendHaskellPackagesBase.override {
     extension = self: super: {
+#      network = self.network_2_6_0_2;
       snapServer = super.snapServer.override {
         cabal = self.cabal.override {
           extension = self: super: {
@@ -117,7 +118,7 @@ in pkgs.stdenv.mkDerivation (rec {
         pname = "focus-backend";
         version = "0.1";
         src = ./backend;
-        buildDepends = [ groundhog mtl focus ];
+        buildDepends = [ groundhog mtl focus lens aeson snap resourcePool text network stm postgresqlSimple groundhogPostgresql websocketsSnap websockets ];
       });
       ghcPkgName = "ghc-pkg";
       myCommon = common backendHaskellPackages backendCabal ghcPkgName;

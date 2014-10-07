@@ -25,7 +25,7 @@ library
     time
 
   exposed-modules:
-    Focus.Request, Focus.Schema
+    Focus.Request, Focus.Schema, Focus.Misc
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

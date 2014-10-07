@@ -18,12 +18,24 @@ import Data.Int
 --import qualified Data.Map as Map
 import Language.Haskell.TH
 import Data.Proxy
+import Data.Monoid
 
 class HasId a => DefaultKeyId a where
   toIdData :: Proxy a -> DefaultKey a -> IdData a
   fromIdData :: Proxy a -> IdData a -> DefaultKey a
 
+class (IsUniqueKey (Key a (Unique (DefaultKeyUnique a))), IsUniqueKey (DefaultKey a)) => DefaultKeyIsUnique a where
+  type DefaultKeyUnique a :: (* -> *) -> *
+  defaultKeyToKey :: DefaultKey a -> Key a (Unique (DefaultKeyUnique a))
+
+class GetByDefault a where
+  getByDefault :: PersistBackend m => DefaultKey a -> m (Maybe a)
+
 type IdDataIs a b = IdData a ~ b
+
+class IsSumType a ~ HFalse => HasSingleConstructor a where
+  type SingleConstructor a :: (* -> *) -> *
+  singleConstructor :: Proxy a -> SingleConstructor a (ConstructorMarker a)
 
 makeDefaultKeyIdInt64 :: Name -> Name -> Q [Dec]
 makeDefaultKeyIdInt64 n k = do
@@ -33,6 +45,10 @@ makeDefaultKeyIdInt64 n k = do
       toIdData _ dk = case $(lamE [conP k [varP pv]] (varE pv)) dk of
         PersistInt64 x -> x
       fromIdData _ = $(conE k) . PersistInt64
+{-
+    instance IdDataIs $(conT n) Int64 => DefaultKeyIsUnique $(conT n) where
+      type DefaultKeyUnique $(conT n) = AutoKey
+-}
     |]
 
 makeDefaultKeyIdSimple :: Name -> Name -> Q [Dec]
