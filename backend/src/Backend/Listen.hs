@@ -76,10 +76,10 @@ handleListen listeners l runGroundhog = ifTop $ do
     conn <- acceptRequest pc
     senderThread <- forkIO $ do
       let send = sendBinaryData conn . encode
-      mapM send startingValues
+      send startingValues
       forever $ do
         change <- atomically $ readTChan changes
-        send change
+        send [change]
     handle (\ConnectionClosed -> return ()) $ forever $ receiveDataMessage conn
 
 listenDB :: forall n. Listeners n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan n, IO ())
