@@ -4,7 +4,7 @@ let
   backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc783_profiling else pkgs.haskellPackages_ghc783;
   backendHaskellPackages = backendHaskellPackagesBase.override {
     extension = self: super: {
-#      network = self.network_2_6_0_2;
+      network = self.network_2_6_0_2;
       snapServer = super.snapServer.override {
         cabal = self.cabal.override {
           extension = self: super: {
@@ -13,6 +13,7 @@ let
               rev = "72e180d6324244ac65773872d42f25d4bcc083a4";
               sha256 = "ed6e7155d9c9f9ede2b13bc8c1eacdbff4b83b0f9bb42de2c8f0d1275aeab406";
             };
+            jailbreak = true; # Necessary to use network-2.6.*
           };
         };
       };
@@ -70,6 +71,7 @@ let
       timezoneOlson
       focus
       network
+      networkUri
       semigroups
     ];
   });
@@ -141,6 +143,7 @@ in pkgs.stdenv.mkDerivation (rec {
   frontend =
     let haskellPackages = pkgs.haskellPackages_ghcjs.override {
           extension = self: super: with self; {
+            network = self.network_2_6_0_2;
             reflex = cabal.mkDerivation (self: {
               pname = "reflex";
               version = "0.1";
