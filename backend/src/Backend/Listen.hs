@@ -46,24 +46,23 @@ data TableListener n
 type Listeners n = Map ByteString (TableListener n)
 
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
-notifyEntity aid a = do
-  _ <- executeRaw False ("NOTIFY " <> show (entityName $ entityDef a) <> ", ?") [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (aid, a)]
-  return ()
+notifyEntity aid _ = notifyEntityId aid
 
-notifyEntityId :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a, Key a BackendSpecific ~ DefaultKey a, PrimitivePersistField (Key a BackendSpecific), DefaultKeyId a) => Id a -> m ()
+notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> m ()
 notifyEntityId aid = do
-  a <- get $ fromId aid
-  maybe (return ()) (notifyEntity aid) a
+  let cmd = "NOTIFY " <> show (entityName $ entityDef (undefined :: a)) <> ", ?"
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode aid]
   return ()
 
 tableListenerWithAutoKey :: (PersistEntity a, DefaultKeyId a, DefaultKey a ~ AutoKey a, DefaultKey a ~ Key a BackendSpecific, PrimitivePersistField (DefaultKey a), FromJSON (IdData a)) => ((Id a, a) -> n) -> TableListener n
 tableListenerWithAutoKey n = TableListener
       { tableListenerGetInitial = liftM (map $ n . first toId) selectAll
       , tableListenerGetUpdate = \xidStr -> do
-        mVals <- forM (maybeToList $ decodeValue' xidStr) $ \xid -> do
-          mx <- get $ fromId xid
-          return $ fmap ((,) xid) mx
-        return $ map n $ catMaybes mVals
+        Just xid <- return $ decodeValue' xidStr
+        mx <- get $ fromId xid
+        case mx of
+          Nothing -> return []
+          Just x -> return [n (xid, x)]
       }
 
 handleListen :: (PersistBackend m, ToJSON n) => Listeners n -> TChan n -> (forall x. m x -> Handler b a x) -> Handler b a ()
@@ -80,13 +79,18 @@ handleListen listeners l runGroundhog = ifTop $ do
       forever $ do
         change <- atomically $ readTChan changes
         send [change]
-    handle (\ConnectionClosed -> return ()) $ forever $ receiveDataMessage conn
+    let handleConnectionException = handle $ \e -> case e of
+          ConnectionClosed -> return ()
+          _ -> print e
+    handleConnectionException $ forever $ receiveDataMessage conn
 
 listenDB :: forall n. Listeners n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan n, IO ())
 listenDB listeners withConn = do
   nChan <- newBroadcastTChanIO
   daemonThread <- forkIO $ withConn $ \conn -> do
-    forM_ (Map.keys listeners) $ \k -> execute_ conn $ fromString $ "LISTEN " <> show k
+    forM_ (Map.keys listeners) $ \k -> do
+      let cmd = fromString $ "LISTEN " <> show k
+      execute_ conn cmd
     forever $ do
       PG.Notification _ channel message <- PG.getNotification conn
       case Map.lookup channel listeners of
