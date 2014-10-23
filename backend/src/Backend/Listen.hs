@@ -83,6 +83,7 @@ handleListen listeners l runGroundhog = ifTop $ do
           ConnectionClosed -> return ()
           _ -> print e
     handleConnectionException $ forever $ receiveDataMessage conn
+    killThread senderThread
 
 listenDB :: forall n. Listeners n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan n, IO ())
 listenDB listeners withConn = do
