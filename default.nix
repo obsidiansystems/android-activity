@@ -86,7 +86,7 @@ in pkgs.stdenv.mkDerivation (rec {
     cp -r $static $out/static
     cp -r $marketing $out/marketing
     ln -s $backend/bin/backend $out
-    ln -s $frontend/bin/frontend.jsexe $out
+    ln -st $out $frontend/bin/*
   '';
   backend =
     with backendHaskellPackages;
@@ -172,7 +172,7 @@ in pkgs.stdenv.mkDerivation (rec {
               pname = "focus-js";
               version = "0.1";
               src = ./js;
-              buildDepends = [ reflex aeson attoparsec text time vector ghcjsBase ghcjsDom ];
+              buildDepends = [ focus reflex aeson attoparsec text time vector ghcjsBase ghcjsDom ];
             });
           };
         };
@@ -187,8 +187,8 @@ in pkgs.stdenv.mkDerivation (rec {
       buildDepends = [
         myCommon
         time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed MonadRandom randomShuffle
+        httpTypes # For oauth-netDocuments
       ];
       buildTools = [ ghc.ghc.parent.cabalInstallGhcjs ];
     });
 })
-

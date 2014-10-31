@@ -1,6 +1,8 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, GADTs, ScopedTypeVariables, FunctionalDependencies, RecursiveDo, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving, EmptyDataDecls, NoMonomorphismRestriction, TemplateHaskell, PolyKinds, TypeOperators, DeriveFunctor, LambdaCase, CPP, ForeignFunctionInterface, JavaScriptFFI, DeriveDataTypeable, ConstraintKinds #-}
 module Focus.JS.Request where
 
+import Focus.Request
+
 import GHCJS.DOM
 import GHCJS.DOM.DOMWindow
 import GHCJS.DOM.Types hiding (Event)
@@ -27,6 +29,14 @@ import GHCJS.Foreign
 import GHCJS.Marshal
 import Data.Monoid
 import Data.Time.Clock
+import qualified Data.Text as T
+import Data.Text.Encoding
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
+import Data.String
+import Data.Aeson
+import Control.Concurrent.MVar
+import Control.Monad
 
 -- Note: The C preprocessor will fail if you use a single-quote in the name
 #ifdef __GHCJS__
@@ -60,6 +70,8 @@ getScrollLeft e = do
   Just d <- fromJSRef x
   return d
 
+--TODO: These should not be using decodeURIComponent; these fields should be parsed first, *then* decodeURICompoent should be called on individual values
+--TODO: These should have IO in the raw versions as well
 JS(getWindowLocationHash_, "decodeURIComponent(window.location.hash)", JSRef String)
 getWindowLocationHash :: IO String
 getWindowLocationHash = do
@@ -71,6 +83,8 @@ getWindowLocationSearch :: IO String
 getWindowLocationSearch = do
   Just h <- fromJSRef $ getWindowLocationSearch_
   return h
+
+JS(windowClose, "window.close()", IO ())
 
 JS(notificationRequestPermission_, "Notification.requestPermission()", IO ())
 JS(notificationCheckPermission_, "Notification.checkPermission()", IO (JSRef Int))
@@ -117,3 +131,48 @@ JS(xhrSetResponseType, "($1).responseType = $2", JSRef XMLHttpRequest -> JSStrin
 
 JS(setStyle_, "$1.style[$2] = $3", JSRef HTMLElement -> JSString -> JSString -> IO ())
 setStyle el attr val = setStyle_ (unHTMLElement (toHTMLElement el)) (toJSString attr) (toJSString val)
+
+syncApi :: (Request r, ToJSON a, FromJSON a) => r a -> IO a
+syncApi req = do
+  v <- newEmptyMVar
+  asyncApi req $ putMVar v --TODO: Error handling
+  takeMVar v
+
+asyncApi :: (Request r, ToJSON a, FromJSON a) => r a -> (a -> IO b) -> IO ()
+asyncApi r f = do
+  let reqJson = encode $ SomeRequest r
+  _ <- mkPost "/api" (fromString $ T.unpack $ decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
+    Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 $ fromJSString $ rspJson
+    f rsp
+  return ()
+
+mkRequest :: String -> (JSRef XMLHttpRequest -> IO ()) -> String -> (JSString -> IO a) -> IO (JSRef XMLHttpRequest)
+mkRequest = mkRequestGeneric Nothing (xhrGetResponseText)
+
+mkGet :: String -> (JSString -> IO a) -> IO (JSRef XMLHttpRequest)
+mkGet = mkRequest "GET" xhrSend
+
+mkPost :: String -> JSString -> (JSString -> IO a) -> IO (JSRef XMLHttpRequest)
+mkPost url d = mkRequest "POST" (flip xhrSendWithData d) url
+
+mkBinaryRequest :: String -> (JSRef XMLHttpRequest -> IO ()) -> String -> (ByteString -> IO a) -> IO (JSRef XMLHttpRequest)
+mkBinaryRequest = mkRequestGeneric (Just "arraybuffer") (bufferByteString 0 0 <=< xhrGetResponse)
+
+mkBinaryGet :: String -> (ByteString -> IO a) -> IO (JSRef XMLHttpRequest)
+mkBinaryGet = mkBinaryRequest "GET" xhrSend
+
+mkRequestGeneric :: Maybe String -> (JSRef XMLHttpRequest -> IO r) -> String -> (JSRef XMLHttpRequest -> IO ()) -> String -> (r -> IO a) -> IO (JSRef XMLHttpRequest)
+mkRequestGeneric responseType convertResponse method send url cb = do
+  xhr <- newXhr
+  xhrOpen xhr (fromString method) (fromString url) jsTrue
+  maybe (return ()) (xhrSetResponseType xhr . toJSString) responseType
+  rec callback <- syncCallback AlwaysRetain True $ do
+        readyState <- fromJSRef =<< xhrGetReadyState xhr
+        if readyState == Just 4
+           then do
+             _ <- cb =<< convertResponse xhr
+             release callback --TODO: We're assuming that the request will only be called with readyState == 4 once; is this valid?
+           else return ()
+  xhrSetOnReadyStateChange xhr callback
+  _ <- send xhr
+  return xhr
