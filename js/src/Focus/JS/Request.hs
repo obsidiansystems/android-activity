@@ -118,17 +118,6 @@ documentContains :: (IsDocument self, IsElement e) => self -> e -> IO Bool
 documentContains doc e = fmap fromJSBool $ documentContains_ (unDocument (toDocument doc)) (unElement (toElement e))
 JS(eval, "eval($1)", JSString -> IO ())
 
-data XMLHttpRequest
-JS(newXhr, "new XMLHttpRequest()", IO (JSRef XMLHttpRequest))
-JS(xhrOpen, "($1).open(($2), ($3), ($4))", JSRef XMLHttpRequest -> JSString -> JSString -> JSBool -> IO ())
-JS(xhrSend, "($1).send()", JSRef XMLHttpRequest -> IO ())
-JS(xhrSendWithData, "($1).send(($2))", JSRef XMLHttpRequest -> JSString -> IO ())
-JS(xhrSetOnReadyStateChange, "($1).onreadystatechange = ($2)", JSRef XMLHttpRequest -> JSFun (IO ()) -> IO ())
-JS(xhrGetReadyState, "($1).readyState", JSRef XMLHttpRequest -> IO (JSRef Int))
-JS(xhrGetResponseText, "($1).responseText", JSRef XMLHttpRequest -> IO (JSString))
-JS(xhrGetResponse, "($1).response", JSRef XMLHttpRequest -> IO (JSRef a))
-JS(xhrSetResponseType, "($1).responseType = $2", JSRef XMLHttpRequest -> JSString -> IO ())
-
 JS(setStyle_, "$1.style[$2] = $3", JSRef HTMLElement -> JSString -> JSString -> IO ())
 setStyle el attr val = setStyle_ (unHTMLElement (toHTMLElement el)) (toJSString attr) (toJSString val)
 
@@ -145,6 +134,17 @@ asyncApi r f = do
     Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 $ fromJSString $ rspJson
     f rsp
   return ()
+
+data XMLHttpRequest
+JS(newXhr, "new XMLHttpRequest()", IO (JSRef XMLHttpRequest))
+JS(xhrOpen, "($1).open(($2), ($3), ($4))", JSRef XMLHttpRequest -> JSString -> JSString -> JSBool -> IO ())
+JS(xhrSend, "($1).send()", JSRef XMLHttpRequest -> IO ())
+JS(xhrSendWithData, "($1).send(($2))", JSRef XMLHttpRequest -> JSString -> IO ())
+JS(xhrSetOnReadyStateChange, "($1).onreadystatechange = ($2)", JSRef XMLHttpRequest -> JSFun (IO ()) -> IO ())
+JS(xhrGetReadyState, "($1).readyState", JSRef XMLHttpRequest -> IO (JSRef Int))
+JS(xhrGetResponseText, "($1).responseText", JSRef XMLHttpRequest -> IO (JSString))
+JS(xhrGetResponse, "($1).response", JSRef XMLHttpRequest -> IO (JSRef a))
+JS(xhrSetResponseType, "($1).responseType = $2", JSRef XMLHttpRequest -> JSString -> IO ())
 
 mkRequest :: String -> (JSRef XMLHttpRequest -> IO ()) -> String -> (JSString -> IO a) -> IO (JSRef XMLHttpRequest)
 mkRequest = mkRequestGeneric Nothing (xhrGetResponseText)
