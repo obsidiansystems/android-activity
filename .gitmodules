@@ -4,10 +4,10 @@
 	branch = ghcjs2
 [submodule "reflex"]
 	path = reflex
-	url = obsidianinc.dyndns.org:/srv/git/reflex.git
+	url = git@github.com:ryantrinkle/reflex.git
 [submodule "reflex-dom"]
 	path = reflex-dom
-	url = obsidianinc.dyndns.org:/srv/git/reflex-dom.git
+	url = git@github.com:ryantrinkle/reflex-dom.git
 [submodule "gtk2hs"]
 	path = gtk2hs
 	url = https://github.com/ryantrinkle/gtk2hs

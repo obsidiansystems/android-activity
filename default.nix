@@ -144,24 +144,8 @@ in pkgs.stdenv.mkDerivation (rec {
     let haskellPackages = pkgs.haskellPackages_ghcjs.override {
           extension = self: super: with self; {
             network = self.network_2_6_0_2;
-            reflex = cabal.mkDerivation (self: {
-              pname = "reflex";
-              version = "0.1";
-              src = ./reflex;
-              buildDepends = [
-                time mtl lens semigroups dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace these testFramework testFrameworkQuickcheck2 strict
-              ];
-              jailbreak = true;
-            });
-            reflexDom = cabal.mkDerivation (self: {
-              pname = "reflex-dom";
-              version = "0.1";
-              src = ./reflex-dom;
-              buildDepends = [
-                aeson dependentMap dependentSum ghcjsDom lens MemoTrie monadLoops mtl reflex safe semigroups text these time transformers vectorSpace reflex
-              ];
-              jailbreak = true;
-            });
+            reflex = self.callPackage ./reflex {};
+            reflexDom = self.callPackage ./reflex-dom {};
             focus = cabal.mkDerivation (self: {
               pname = "focus-core";
               version = "0.1";
