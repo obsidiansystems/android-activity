@@ -27,11 +27,19 @@ library
     ghcjs-base,
     ghcjs-dom,
     reflex,
-    semigroups
+    reflex-dom,
+    semigroups,
+    transformers,
+    lens,
+    these,
+    mtl,
+    dependent-map
 
   exposed-modules:
     Focus.JS.Request,
-    Focus.JS.Listen
+    Focus.JS.Listen,
+    Focus.JS.WebSocket,
+    Focus.JS.GoogleMap
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

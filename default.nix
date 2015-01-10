@@ -156,7 +156,7 @@ in pkgs.stdenv.mkDerivation (rec {
               pname = "focus-js";
               version = "0.1";
               src = ./js;
-              buildDepends = [ focus reflex aeson attoparsec text time vector ghcjsBase ghcjsDom ];
+              buildDepends = [ focus reflex reflexDom aeson attoparsec text time vector ghcjsBase ghcjsDom ];
             });
           };
         };
