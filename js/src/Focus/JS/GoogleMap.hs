@@ -180,10 +180,6 @@ googleMapPolylineSetPath p c1 c2 = do
   d <- toJSRef $ snd c2
   googleMapPolylineSetPath_ (unGoogleMapPolyline p) a b c d
 
-newtype Place = Place { unPlace :: JSRef Place }
-JS(googleMapsPlacesGetLat_, "$1.geometry.location.lat()", JSRef Place -> IO (JSRef Double))
-JS(googleMapsPlacesGetLng_, "$1.geometry.location.lng()", JSRef Place -> IO (JSRef Double))
-
 newtype GeocoderPlace = GeocoderPlace { unGeocoderPlace :: JSRef GeocoderPlace } deriving (Typeable)
 JS(googleMapsGeocoderPlace_, "new google.maps.Geocoder().geocode({ address: $1 }, $2)", JSRef String -> JSFun (JSArray GeocoderPlace -> JSRef () -> IO ()) -> IO ())
 
@@ -194,8 +190,8 @@ googleMapsGeocoderPlace s f =  do
         a' <- forM a $ \p -> do
           Just formatted_address <- fromJSRef =<< getProp "formatted_address" p
           locationRef <- getProp "location" =<< getProp "geometry" p
-          Just lat <- fromJSRef =<< getProp "k" locationRef
-          Just lng <- fromJSRef =<< getProp "A" locationRef
+          Just lat <- fromJSRef =<< placeDetailsLat_ locationRef
+          Just lng <- fromJSRef =<< placeDetailsLng_ locationRef
           return $ (formatted_address, (lat, lng))
         f a'
         release cb
@@ -227,13 +223,16 @@ googleMapsAutocompletePlace s f =  do
   g <- googleMapsPlacesAutocompleteService_
   googleMapsPlacesGetPlacePredictions_ g s' cb
 
+JS(placeDetailsLat_, "$1.lat()", JSRef PlaceDetails -> IO (JSRef Double))
+JS(placeDetailsLng_, "$1.lng()", JSRef PlaceDetails -> IO (JSRef Double))
+
 googleMapsAutocompletePlaceDetails :: PlacesAutocompletePredictionReference -> ((Double, Double)-> IO ()) -> IO ()
 googleMapsAutocompletePlaceDetails ref f = do
   rec cb <- syncCallback2 AlwaysRetain True $ \result status -> if isNull result then return () else do
         locationRef <- getProp "location" =<< getProp "geometry" result
-        Just lat <- fromJSRef =<< getProp "lat" locationRef
-        Just lng <- fromJSRef =<< getProp "lng" locationRef
-        f $ (lat, lng)
+        Just lat <- fromJSRef =<< placeDetailsLat_ locationRef
+        Just lng <- fromJSRef =<< placeDetailsLng_ locationRef
+        f (lat, lng)
         release cb
   let ref' = unPlacesAutocompletePredictionReference ref
   googleMapsPlacesServiceGetDetails_ ref' cb
