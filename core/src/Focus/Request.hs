@@ -75,7 +75,10 @@ instance ToJSON HNil where
 
 makeRequest :: Name -> DecsQ
 makeRequest n = do
-  (TyConI (DataD _ _ _ cons _)) <- reify n
+  x <- reify n
+  let cons = case x of
+       (TyConI (DataD _ _ _ cs _)) -> cs
+       (TyConI (NewtypeD _ _ _ c _)) -> [c]
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(conT n) where
@@ -87,7 +90,10 @@ makeRequest n = do
 
 makeJson :: Name -> DecsQ
 makeJson n = do
-  (TyConI (DataD _ _ _ cons _)) <- reify n
+  x <- reify n
+  let cons = case x of
+       (TyConI (DataD _ _ _ cs _)) -> cs
+       (TyConI (NewtypeD _ _ _ c _)) -> [c]
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON $(conT n) where

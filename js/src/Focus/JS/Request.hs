@@ -5,7 +5,7 @@ import Focus.Request
 
 import GHCJS.DOM
 import GHCJS.DOM.DOMWindow
-import GHCJS.DOM.Types hiding (Event)
+import GHCJS.DOM.Types hiding (Event, XMLHttpRequest)
 import GHCJS.DOM.Document
 import GHCJS.DOM.Node
 import GHCJS.DOM.NamedNodeMap

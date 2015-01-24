@@ -1,7 +1,7 @@
 let
   enableProfiling = false;
   pkgs = import ./nixpkgs {};
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc783_profiling else pkgs.haskellPackages_ghc783;
+  backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc784_profiling else pkgs.haskellPackages_ghc784;
   backendHaskellPackages = backendHaskellPackagesBase.override {
     extension = self: super: {
       network = self.network_2_6_0_2;
@@ -23,6 +23,7 @@ let
         src = ./core;
         buildDepends = with self; [ aeson attoparsec text time vector ];
       });
+      stripe = self.callPackage ./hs-stripe {};
     };
   };
   backendCabal = backendHaskellPackages.cabal;
@@ -73,6 +74,7 @@ let
       network
       networkUri
       semigroups
+      stripe
     ];
   });
 in pkgs.stdenv.mkDerivation (rec {
@@ -146,6 +148,7 @@ in pkgs.stdenv.mkDerivation (rec {
             network = self.network_2_6_0_2;
             reflex = self.callPackage ./reflex {};
             reflexDom = self.callPackage ./reflex-dom {};
+            stripe = self.callPackage ./hs-stripe {};
             focus = cabal.mkDerivation (self: {
               pname = "focus-core";
               version = "0.1";
@@ -170,9 +173,9 @@ in pkgs.stdenv.mkDerivation (rec {
       preConfigure = mkPreConfigure pname ghcPkgName "frontend";
       buildDepends = [
         myCommon
-        time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed randomFu MonadRandom
+        pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed randomFu MonadRandom stripe
         httpTypes # For oauth-netDocuments
       ];
-      buildTools = [ ghc.ghc.parent.cabalInstallGhcjs ];
+      buildTools = [ ghc.ghc.parent.cabalInstall ];
     });
 })

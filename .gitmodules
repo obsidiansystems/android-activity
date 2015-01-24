@@ -20,3 +20,6 @@
 [submodule "clay"]
 	path = clay
 	url = https://github.com/ryantrinkle/clay
+[submodule "hs-stripe"]
+	path = hs-stripe
+	url = ministryofdevelopment.dyndns.org:/srv/git/hs-stripe.git
