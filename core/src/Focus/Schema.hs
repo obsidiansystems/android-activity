@@ -3,6 +3,7 @@ module Focus.Schema where
 
 import Data.Aeson
 import Data.Int
+import Data.Text
 import Data.Typeable
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -34,3 +35,5 @@ class ShowPretty a where
   showPretty :: a -> String
   default showPretty :: Show a => a -> String
   showPretty = show
+
+type Email = Text --TODO: Validation
