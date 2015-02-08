@@ -2,12 +2,6 @@
 	path = nixpkgs
 	url = https://github.com/ryantrinkle/nixpkgs
 	branch = ghcjs2
-[submodule "reflex"]
-	path = reflex
-	url = git@github.com:ryantrinkle/reflex.git
-[submodule "reflex-dom"]
-	path = reflex-dom
-	url = git@github.com:ryantrinkle/reflex-dom.git
 [submodule "gtk2hs"]
 	path = gtk2hs
 	url = https://github.com/ryantrinkle/gtk2hs
@@ -23,3 +17,9 @@
 [submodule "hs-stripe"]
 	path = hs-stripe
 	url = ministryofdevelopment.dyndns.org:/srv/git/hs-stripe.git
+[submodule "reflex-dom"]
+	path = reflex-dom
+	url = https://github.com/ryantrinkle/reflex-dom.git
+[submodule "reflex"]
+	path = reflex
+	url = https://github.com/ryantrinkle/reflex.git
