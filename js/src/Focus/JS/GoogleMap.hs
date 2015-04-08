@@ -251,3 +251,34 @@ geocodeSearch googleLogoPath googleLogoClass  = do
       eLocation <- liftM (fmap Just) $ performEventAsync $ fmap (\(address, ref) cb -> liftIO $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
   holdDyn Nothing $ eLocation
 
+searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
+searchInputResult r = el "li" $ do
+  (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
+  return $ tag (current r) (_el_clicked li)
+
+searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Map k (String, a) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
+searchInput initial results = searchInput' initial results searchInputResultsList
+
+searchInput' :: forall t m a k. (MonadWidget t m, Ord k) => Map k (String, a) -> Event t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Event t (String, a))) -> m (Event t String, Event t (String, a))
+searchInput' initial results listBuilder = do
+  rec input <- textInput $ def { _textInputConfig_setValue = eSetValue } -- & _textInputConfig_attributes .~ constDyn $ Map.fromList [("class", "form-control"), ("placeholder", "Search")]
+      dResults <- holdDyn initial $ leftmost [eClearResults, results]
+      eMadeChoice <- listBuilder dResults
+      let eSetValue = fmap fst eMadeChoice
+          eSelectionMade = fmap (const Nothing) eSetValue
+          eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (updated $ _textInput_value input)]
+          eInputEmpty = fmapMaybe id $ fmap (\i -> if i == "" then Just Map.empty else Nothing) eInputChanged
+          eClearResults = leftmost [eInputEmpty, fmap (const Map.empty) eMadeChoice]
+  return (eInputChanged, eMadeChoice)
+
+searchInputResultsList :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (String, a)) -> m (Event t (String, a))
+searchInputResultsList results = searchInputResultsList' results (flip list searchInputResult)
+
+searchInputResultsList' :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Dynamic t (Map k (Event t (String, a))))) -> m (Event t (String, a))
+searchInputResultsList' results builder = do
+  let hideDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: none;")]
+      showDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: block;")]
+  attrs <- mapDyn (\rs -> if Map.null rs then hideDropdown else showDropdown) results
+  resultsList <- elDynAttr "ul" attrs $ builder results
+  liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
+
