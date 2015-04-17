@@ -50,7 +50,8 @@ notifyEntity aid _ = notifyEntityId aid
 
 notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> m ()
 notifyEntityId aid = do
-  let cmd = "NOTIFY " <> show (entityName $ entityDef (undefined :: a)) <> ", ?"
+  let proxy = undefined :: proxy (PhantomDb m)
+  let cmd = "NOTIFY " <> show (entityName $ entityDef proxy (undefined :: a)) <> ", ?"
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode aid]
   return ()
 

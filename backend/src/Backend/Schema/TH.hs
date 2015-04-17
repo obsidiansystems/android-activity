@@ -74,7 +74,7 @@ instance (PersistField (DefaultKey a), DefaultKeyId a) => PersistField (Id a) wh
   fromPersistValues vs = do
     (a, vs') <- fromPersistValues vs
     return (toId a, vs')
-  dbType _ = dbType (undefined :: DefaultKey a)
+  dbType p _ = dbType p (undefined :: DefaultKey a)
 
 instance (PrimitivePersistField (DefaultKey a), DefaultKeyId a) => PrimitivePersistField (Id a) where
   toPrimitivePersistValue p = toPrimitivePersistValue p . fromId

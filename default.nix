@@ -1,24 +1,66 @@
+/*
+let overrideCabal = drv: f: (drv.override (args: args // {
+      mkDerivation = drv: args.mkDerivation (drv // f drv);
+    })) // {
+      overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
+    };
+    nixpkgs = import ./nixpkgs { config.allowUnfree = true; };
+    extendHaskellPackages = haskellPackages: haskellPackages.override {
+      overrides = self: super: {
+        reflex = self.callPackage ./reflex {};
+        reflex-dom = self.callPackage ./reflex-dom {};
+      };
+    };
+in rec {
+  inherit nixpkgs;
+  ghc = extendHaskellPackages nixpkgs.pkgs.haskell-ng.packages.ghc7101;
+  ghcjs = extendHaskellPackages nixpkgs.pkgs.haskell-ng.packages.ghcjs;
+  platforms = [ "ghcjs" ] ++ (if !nixpkgs.stdenv.isDarwin then [ "ghc" ] else []);
+}
+*/
 let
   enableProfiling = false;
-  pkgs = import ./nixpkgs {};
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskellPackages_ghc784_profiling else pkgs.haskellPackages_ghc784;
-  backendHaskellPackages = backendHaskellPackagesBase.override {
-    extension = self: super: {
-      network = self.network_2_6_0_2;
-      snapServer = super.snapServer.override {
-        cabal = self.cabal.override {
-          extension = self: super: {
-            src = pkgs.fetchgit {
-              url = https://github.com/ryantrinkle/snap-server.git;
-              rev = "72e180d6324244ac65773872d42f25d4bcc083a4";
-              sha256 = "ed6e7155d9c9f9ede2b13bc8c1eacdbff4b83b0f9bb42de2c8f0d1275aeab406";
-            };
-            jailbreak = true; # Necessary to use network-2.6.*
-          };
-        };
-      };
-      focus = self.cabal.mkDerivation (selfInner: {
+  pkgs = import ./nixpkgs { config.allowUnfree = true; };
+  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc784 else pkgs.haskell-ng.packages.ghc784;
+  overrideCabal = drv: f: (drv.override (args: args // {
+    mkDerivation = drv: args.mkDerivation (drv // f drv);
+  })) // {
+    overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
+  };
+  /*
+  extendHaskellPackages = haskellPackages: haskellPackages.override {
+    overrides = self: super: {
+      reflex = self.callPackage ./reflex {};
+      reflex-dom = self.callPackage ./reflex-dom {};
+    };
+  };
+  */
+
+  extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
+    overrides = self: super: {
+      snap = self.mkDerivation ({
+        pname = "snap";
+        version = "0.14.0.2";
+        /* revision = "1"; */
+        sha256 = "1yv1snkibsqd7cdxyqi7c8gvnv1hzzhw5jlk19kps526n5xvay7r";
+        editedCabalFile = "1640756ec7bfd3130869dce451904d6cc762ab6c8b8128982933fba80f325c92";
+        isLibrary = true;
+        isExecutable = true;
+        buildDepends = with haskellPackages; [
+          aeson attoparsec base bytestring cereal clientsession comonad
+          configurator containers directory directory-tree dlist errors
+          filepath hashable heist lens logict MonadCatchIO-transformers mtl
+          mwc-random old-time pwstore-fast regex-posix snap-core snap-server
+          stm syb template-haskell text time transformers
+          unordered-containers vector vector-algorithms xmlhtml
+        ];
+        homepage = "http://snapframework.com/";
+        description = "Top-level package for the Snap Web Framework";
+        license = pkgs.stdenv.lib.licenses.bsd3;
+      });
+      focus = self.mkDerivation ({
         pname = "focus";
+        license = null;
         version = "0.1";
         src = ./core;
         buildDepends = with self; [ aeson attoparsec text time vector ];
@@ -26,7 +68,8 @@ let
       stripe = self.callPackage ./hs-stripe {};
     };
   };
-  backendCabal = backendHaskellPackages.cabal;
+  backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+  backendCabal = backendHaskellPackagesBase.Cabal_1_22_0_0;
 in {name, version}:
 let
   # Break recursion
@@ -93,51 +136,58 @@ in pkgs.stdenv.mkDerivation (rec {
   backend =
     with backendHaskellPackages;
     let
-      groundhog = cabal.mkDerivation (self: {
+    /*
+      groundhog = mkDerivation ({
         pname = "groundhog";
+        license = null;
         version = "0.5.1";
         sha256 = "1v6by5jxymgyxy27m853z1b7xg5gksvm42kpc5rxr3aw1qssqbn5";
         buildDepends = [
-          blazeBuilder monadControl monadLogger mtl text time transformers
-          transformersBase
+          blaze-builder monad-control monad-logger mtl text time transformers
+          transformers-base
         ];
       });
-      groundhogTh = cabal.mkDerivation (self: {
+      groundhogTh = mkDerivation ({
         pname = "groundhog-th";
+        license = null;
         version = "0.5.1";
         sha256 = "1pw3xd4mcivav3w43xg022byf8jgqir56hf978ly6a560bm3m8xp";
         buildDepends = [ groundhog text time yaml ];
       });
-      groundhogPostgresql = cabal.mkDerivation (self: {
+      groundhogPostgresql = mkDerivation ({
         pname = "groundhog-postgresql";
+        license = null;
         version = "0.5.1";
         sha256 = "0d1dc5gscg5q3jh25sb407az107phwbv199a40pgvg5zkhlaphq8";
         buildDepends = [
-          attoparsec blazeBuilder groundhog monadControl monadLogger
-          postgresqlLibpq postgresqlSimple resourcePool text time
+          attoparsec blaze-builder groundhog monad-control monad-logger
+          postgresql-libpq postgresql-simple resource-pool text time
           transformers
         ];
       });
-      focusBackend = cabal.mkDerivation (self: {
+      */
+      focusBackend = backendHaskellPackages.mkDerivation ({
         pname = "focus-backend";
+        license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = [ groundhog mtl focus lens aeson snap resourcePool text network stm postgresqlSimple groundhogPostgresql websocketsSnap websockets ];
+        buildDepends = [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets ];
       });
       ghcPkgName = "ghc-pkg";
-      myCommon = common backendHaskellPackages backendCabal ghcPkgName;
-    in backendCabal.mkDerivation (self: rec {
+      /*myCommon = common backendHaskellPackages backendCabal ghcPkgName;*/
+    in backendHaskellPackages.mkDerivation (rec {
       pname = "${appName}-backend";
+      license = null;
       version = appVersion;
       src = ../backend;
-      common = myCommon;
+      /*common = myCommon;*/
       preConfigure = mkPreConfigure pname ghcPkgName "backend";
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
       buildDepends = [
-        myCommon
-        focusBackend MonadCatchIOTransformers mtl snap snapCore snapServer snapLoaderStatic text time lens postgresqlSimple resourcePool aeson attoparsec vector tagged derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace yaml websocketsSnap MaybeT clientsession smtpMail blazeHtml timezoneSeries timezoneOlson fileEmbed these groundhog groundhogTh groundhogPostgresql focus filepath httpClient singletons
+        backendCabal
+        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap MaybeT clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ];
       jailbreak = true;
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
