@@ -1,23 +1,3 @@
-/*
-let overrideCabal = drv: f: (drv.override (args: args // {
-      mkDerivation = drv: args.mkDerivation (drv // f drv);
-    })) // {
-      overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
-    };
-    nixpkgs = import ./nixpkgs { config.allowUnfree = true; };
-    extendHaskellPackages = haskellPackages: haskellPackages.override {
-      overrides = self: super: {
-        reflex = self.callPackage ./reflex {};
-        reflex-dom = self.callPackage ./reflex-dom {};
-      };
-    };
-in rec {
-  inherit nixpkgs;
-  ghc = extendHaskellPackages nixpkgs.pkgs.haskell-ng.packages.ghc7101;
-  ghcjs = extendHaskellPackages nixpkgs.pkgs.haskell-ng.packages.ghcjs;
-  platforms = [ "ghcjs" ] ++ (if !nixpkgs.stdenv.isDarwin then [ "ghc" ] else []);
-}
-*/
 let
   enableProfiling = false;
   pkgs = import ./nixpkgs { config.allowUnfree = true; };
@@ -32,9 +12,32 @@ let
     overrides = self: super: {
       reflex = self.callPackage ./reflex {};
       reflex-dom = self.callPackage ./reflex-dom {};
+      focus = self.mkDerivation ({
+        pname = "focus-core";
+        version = "0.1";
+        license = null;
+        src = ./core;
+        buildDepends = with self; [ aeson attoparsec text time vector ];
+      });
+      stripe = self.mkDerivation ({
+        pname = "stripe";
+        license = null;
+        src = ./hs-stripe;
+        buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-base ghcjs-dom reflex-dom ];
+        version = "0.8.3";
+        buildTools = [ frontendHaskellPackages.Cabal ];
+      });
+      focus-js = self.mkDerivation ({
+        license = null;
+        pname = "focus-js";
+        version = "0.1";
+        src = ./js;
+        buildDepends = with self; [ focus reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom ];
+      });
     };
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+  frontendCabal = frontendHaskellPackages.Cabal_1_22_0_0;
 
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: {
@@ -72,6 +75,13 @@ let
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
         version = "0.8.3";
       });
+      focusBackend = backendHaskellPackages.mkDerivation ({
+        pname = "focus-backend";
+        license = null;
+        version = "0.1";
+        src = ./backend;
+        buildDepends = with self; [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe ];
+      });
     };
   };
   backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
@@ -105,10 +115,11 @@ let
     fi
   '';
 
-  common = haskellPackages: cabal: ghcPkgName: haskellPackages.cabal.mkDerivation (self: rec {
+  common = haskellPackages: cabal: ghcPkgName: haskellPackages.mkDerivation (rec {
     pname = "${appName}-common";
     version = appVersion;
     src = ../common;
+    license = null;
     preConfigure = mkPreConfigure pname ghcPkgName null;
     buildDepends = with haskellPackages; [
       mtl
@@ -117,11 +128,11 @@ let
       lens
       aeson
       transformers
-      timezoneSeries
-      timezoneOlson
+      timezone-series
+      timezone-olson
       focus
       network
-      networkUri
+      network-uri
       semigroups
       stripe
     ];
@@ -142,27 +153,20 @@ in pkgs.stdenv.mkDerivation (rec {
   backend =
     with backendHaskellPackages;
     let
-      focusBackend = backendHaskellPackages.mkDerivation ({
-        pname = "focus-backend";
-        license = null;
-        version = "0.1";
-        src = ./backend;
-        buildDepends = [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe ];
-      });
+
       ghcPkgName = "ghc-pkg";
-      /*myCommon = common backendHaskellPackages backendCabal ghcPkgName;*/
+      backendCommon = common backendHaskellPackages backendCabal ghcPkgName;
     in backendHaskellPackages.mkDerivation (rec {
       pname = "${appName}-backend";
       license = null;
       version = appVersion;
       src = ../backend;
-      /*common = myCommon;*/
       preConfigure = mkPreConfigure pname ghcPkgName "backend";
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
       buildDepends = [
-        /* myCommon */
+        backendCommon
         backendCabal
         template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap MaybeT clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ];
@@ -174,38 +178,16 @@ in pkgs.stdenv.mkDerivation (rec {
   frontend =
     with frontendHaskellPackages;
     let
-      focus = mkDerivation ({
-        pname = "focus-core";
-        version = "0.1";
-        license = null;
-        src = ./core;
-        buildDepends = [ aeson attoparsec text time vector ];
-      });
-      stripe = mkDerivation ({
-        pname = "stripe";
-        license = null;
-        src = ./hs-stripe;
-        buildDepends = [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-base ghcjs-dom reflex-dom ];
-        version = "0.8.3";
-        buildTools = [ frontendHaskellPackages.Cabal ];
-      });
-      focus-js = mkDerivation ({
-        license = null;
-        pname = "focus-js";
-        version = "0.1";
-        src = ./js;
-        buildDepends = [ focus reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom ];
-      });
       ghcPkgName = "ghcjs-pkg";
+      frontendCommon = common frontendHaskellPackages frontendCabal ghcPkgName;
       in frontendHaskellPackages.mkDerivation (rec {
         pname = "${appName}-frontend";
         version = appVersion;
         license = null;
         src = ../frontend;
-        /* common = myCommon; */
         preConfigure = mkPreConfigure pname ghcPkgName "frontend";
         buildDepends = [
-          /* myCommon */
+          frontendCommon
           pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
         ];
