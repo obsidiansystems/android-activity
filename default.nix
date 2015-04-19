@@ -65,7 +65,13 @@ let
         src = ./core;
         buildDepends = with self; [ aeson attoparsec text time vector ];
       });
-      stripe = self.callPackage ./hs-stripe {};
+      stripe = self.mkDerivation ({
+        pname = "stripe";
+        license = null;
+        src = ./hs-stripe;
+        buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
+        version = "0.8.3";
+      });
     };
   };
   backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
@@ -136,42 +142,12 @@ in pkgs.stdenv.mkDerivation (rec {
   backend =
     with backendHaskellPackages;
     let
-    /*
-      groundhog = mkDerivation ({
-        pname = "groundhog";
-        license = null;
-        version = "0.5.1";
-        sha256 = "1v6by5jxymgyxy27m853z1b7xg5gksvm42kpc5rxr3aw1qssqbn5";
-        buildDepends = [
-          blaze-builder monad-control monad-logger mtl text time transformers
-          transformers-base
-        ];
-      });
-      groundhogTh = mkDerivation ({
-        pname = "groundhog-th";
-        license = null;
-        version = "0.5.1";
-        sha256 = "1pw3xd4mcivav3w43xg022byf8jgqir56hf978ly6a560bm3m8xp";
-        buildDepends = [ groundhog text time yaml ];
-      });
-      groundhogPostgresql = mkDerivation ({
-        pname = "groundhog-postgresql";
-        license = null;
-        version = "0.5.1";
-        sha256 = "0d1dc5gscg5q3jh25sb407az107phwbv199a40pgvg5zkhlaphq8";
-        buildDepends = [
-          attoparsec blaze-builder groundhog monad-control monad-logger
-          postgresql-libpq postgresql-simple resource-pool text time
-          transformers
-        ];
-      });
-      */
       focusBackend = backendHaskellPackages.mkDerivation ({
         pname = "focus-backend";
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets ];
+        buildDepends = [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe ];
       });
       ghcPkgName = "ghc-pkg";
       /*myCommon = common backendHaskellPackages backendCabal ghcPkgName;*/
@@ -189,6 +165,8 @@ in pkgs.stdenv.mkDerivation (rec {
         backendCabal
         template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap MaybeT clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ];
+      isExecutable = true;
+      isLibrary = false;
       jailbreak = true;
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
     });
