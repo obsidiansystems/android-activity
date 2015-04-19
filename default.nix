@@ -21,20 +21,20 @@ in rec {
 let
   enableProfiling = false;
   pkgs = import ./nixpkgs { config.allowUnfree = true; };
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc784 else pkgs.haskell-ng.packages.ghc784;
+  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc784 else pkgs.haskell-ng.packages.ghc784; /* TODO re-add profiling */
+  frontendHaskellPackagesBase = pkgs.haskell-ng.packages.ghcjs;
   overrideCabal = drv: f: (drv.override (args: args // {
     mkDerivation = drv: args.mkDerivation (drv // f drv);
   })) // {
     overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
   };
-  /*
-  extendHaskellPackages = haskellPackages: haskellPackages.override {
+  extendFrontendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: {
       reflex = self.callPackage ./reflex {};
       reflex-dom = self.callPackage ./reflex-dom {};
     };
   };
-  */
+  frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
 
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: {
@@ -162,6 +162,7 @@ in pkgs.stdenv.mkDerivation (rec {
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
       buildDepends = [
+        /* myCommon */
         backendCabal
         template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap MaybeT clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ];
@@ -171,39 +172,43 @@ in pkgs.stdenv.mkDerivation (rec {
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
     });
   frontend =
-    let haskellPackages = pkgs.haskellPackages_ghcjs.override {
-          extension = self: super: with self; {
-            network = self.network_2_6_0_2;
-            reflex = self.callPackage ./reflex {};
-            reflexDom = self.callPackage ./reflex-dom {};
-            stripe = self.callPackage ./hs-stripe {};
-            focus = cabal.mkDerivation (self: {
-              pname = "focus-core";
-              version = "0.1";
-              src = ./core;
-              buildDepends = [ aeson attoparsec text time vector ];
-            });
-            focusJs = cabal.mkDerivation (self: {
-              pname = "focus-js";
-              version = "0.1";
-              src = ./js;
-              buildDepends = [ focus reflex reflexDom aeson attoparsec text time vector ghcjsBase ghcjsDom ];
-            });
-          };
-        };
-        ghcPkgName = "ghcjs-pkg";
-        myCommon = common haskellPackages haskellPackages.cabal ghcPkgName;
-    in with haskellPackages; cabal.mkDerivation (self: rec {
-      pname = "${appName}-frontend";
-      version = appVersion;
-      src = ../frontend;
-      common = myCommon;
-      preConfigure = mkPreConfigure pname ghcPkgName "frontend";
-      buildDepends = [
-        myCommon
-        pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependentSum dependentMap MemoTrie transformers monadLoops vectorSpace haskellSrcExts safe timezoneOlson timezoneSeries these network ghcjsDom reflex reflexDom focus focusJs fileEmbed randomFu MonadRandom stripe
-        httpTypes # For oauth-netDocuments
-      ];
-      buildTools = [ ghc.ghc.parent.cabalInstall ];
+    with frontendHaskellPackages;
+    let
+      focus = mkDerivation ({
+        pname = "focus-core";
+        version = "0.1";
+        license = null;
+        src = ./core;
+        buildDepends = [ aeson attoparsec text time vector ];
+      });
+      stripe = mkDerivation ({
+        pname = "stripe";
+        license = null;
+        src = ./hs-stripe;
+        buildDepends = [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-base ghcjs-dom reflex-dom ];
+        version = "0.8.3";
+        buildTools = [ frontendHaskellPackages.Cabal ];
+      });
+      focus-js = mkDerivation ({
+        license = null;
+        pname = "focus-js";
+        version = "0.1";
+        src = ./js;
+        buildDepends = [ focus reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom ];
+      });
+      ghcPkgName = "ghcjs-pkg";
+      in frontendHaskellPackages.mkDerivation (rec {
+        pname = "${appName}-frontend";
+        version = appVersion;
+        license = null;
+        src = ../frontend;
+        /* common = myCommon; */
+        preConfigure = mkPreConfigure pname ghcPkgName "frontend";
+        buildDepends = [
+          /* myCommon */
+          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
+          http-types # For oauth-netDocuments
+        ];
+        buildTools = [ frontendHaskellPackages.Cabal ];
     });
 })

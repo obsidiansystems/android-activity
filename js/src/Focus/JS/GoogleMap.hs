@@ -60,7 +60,7 @@ data MapMarkerInfo
                   }
     deriving (Typeable, Show, Read, Eq, Ord)
 
-deriving instance Typeable Any
+--deriving instance Typeable Any
 
 googleMap :: forall t m a k. (MonadWidget t m, Ord k, Show k) => Dynamic t (Map k MapMarkerInfo) -> m ()
 googleMap dTargetMarkers = do
