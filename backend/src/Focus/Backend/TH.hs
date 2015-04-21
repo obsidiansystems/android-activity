@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, TypeFamilies, UndecidableInstances #-}
-module Backend.TH where
+module Focus.Backend.TH where
 
 import Language.Haskell.TH
 import Control.Monad.State (mapStateT)

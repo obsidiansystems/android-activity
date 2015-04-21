@@ -46,6 +46,20 @@ let
         src = ./js;
         buildDepends = with self; [ focus reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom ];
       });
+      crypto-numbers = self.mkDerivation ({
+        pname = "crypto-numbers";
+        version = "0.2.2";
+        sha256 = "1ia39al01hb65h23ql0mr5vwzj8slv98i7a22cix8p0b6an1w3vv";
+        buildDepends = with self; [ crypto-random vector ];
+        testDepends = with self; [
+          byteable crypto-random HUnit QuickCheck test-framework
+          test-framework-hunit test-framework-quickcheck2 vector
+        ];
+        homepage = "http://github.com/vincenthz/hs-crypto-numbers";
+        description = "Cryptographic numbers: functions and algorithms";
+        license = self.stdenv.lib.licenses.bsd3;
+        platforms = self.ghc.meta.platforms;
+      });
     };
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
@@ -116,7 +130,7 @@ let
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
         version = "0.8.3";
       });
-      focusBackend = backendHaskellPackages.mkDerivation ({
+      focus-backend = backendHaskellPackages.mkDerivation ({
         pname = "focus-backend";
         license = null;
         version = "0.1";
@@ -205,7 +219,6 @@ in pkgs.stdenv.mkDerivation (rec {
   backend =
     with backendHaskellPackages;
     let
-
       ghcPkgName = "ghc-pkg";
       backendCommon = common backendHaskellPackages ghcPkgName;
     in backendHaskellPackages.mkDerivation (rec {
@@ -219,6 +232,7 @@ in pkgs.stdenv.mkDerivation (rec {
       '';
       buildDepends = [ # TODO: Get rid of spurious dependencies
         backendCommon
+        focus-backend
 #        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
       isExecutable = true;

@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonomorphismRestriction #-}
-module Backend.Account where
+module Focus.Backend.Account where
 
-import Backend.DB
-import Backend.MonadEmail
-import Backend.Schema.TH
+import Focus.Backend.DB
+import Focus.Backend.MonadEmail
+import Focus.Backend.Schema.TH
 
 import Focus.Account
 import Focus.Brand

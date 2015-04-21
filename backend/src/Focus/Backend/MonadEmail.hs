@@ -1,4 +1,4 @@
-module Backend.MonadEmail where
+module Focus.Backend.MonadEmail where
 
 import Network.Mail.Mime (Mail (..))
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, UndecidableInstances, ConstraintKinds #-}
-module Backend.Schema.TH where
+module Focus.Backend.Schema.TH where
 
 import Focus.Schema
 

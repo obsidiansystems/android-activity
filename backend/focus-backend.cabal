@@ -39,7 +39,7 @@ library
     websockets-snap
 
   exposed-modules:
-    Backend.DB, Backend.TH, Backend.Schema.TH, Backend.Listen, Backend.MonadEmail, Backend.Account
+    Focus.Backend.DB, Focus.Backend.TH, Focus.Backend.Schema.TH, Focus.Backend.Listen, Focus.Backend.MonadEmail, Focus.Backend.Account
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

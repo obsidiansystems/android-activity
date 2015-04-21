@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances #-}
-module Backend.Listen where
+module Focus.Backend.Listen where
 
-import Backend.Schema.TH
+import Focus.Backend.Schema.TH
 import Focus.Schema
 
 import Focus.Request

@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonomorphismRestriction, ConstraintKinds #-}
 
-module Backend.DB where
+module Focus.Backend.DB where
 
 import Focus.Schema
-import Backend.Schema.TH
+import Focus.Backend.Schema.TH
 
 --import Database.Groundhog
 --import Database.Groundhog.TH
