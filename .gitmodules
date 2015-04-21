@@ -1,28 +1,28 @@
 [submodule "nixpkgs"]
 	path = nixpkgs
-	url = https://github.com/ryantrinkle/nixpkgs
+	url = git@github.com:ryantrinkle/nixpkgs
 	branch = ghcjs2
 [submodule "gtk2hs"]
 	path = gtk2hs
-	url = https://github.com/ryantrinkle/gtk2hs
+	url = git@github.com:ryantrinkle/gtk2hs
 [submodule "ghcjs-dom"]
 	path = ghcjs-dom
-	url = https://github.com/ghcjs/ghcjs-dom
+	url = git@github.com:ghcjs/ghcjs-dom
 [submodule "webkit"]
 	path = webkit
-	url = https://github.com/ryantrinkle/webkit
+	url = git@github.com:ryantrinkle/webkit
 [submodule "clay"]
 	path = clay
-	url = https://github.com/ryantrinkle/clay
+	url = git@github.com:ryantrinkle/clay
 [submodule "hs-stripe"]
 	path = hs-stripe
 	url = ministryofdevelopment.dyndns.org:/srv/git/hs-stripe.git
 [submodule "reflex-dom"]
 	path = reflex-dom
-	url = https://github.com/ryantrinkle/reflex-dom.git
+	url = git@github.com:ryantrinkle/reflex-dom.git
 [submodule "reflex"]
 	path = reflex
-	url = https://github.com/ryantrinkle/reflex.git
+	url = git@github.com:ryantrinkle/reflex.git
 [submodule "groundhog"]
 	path = groundhog
-	url = https://github.com/lykahb/groundhog.git
+	url = git@github.com:lykahb/groundhog.git
