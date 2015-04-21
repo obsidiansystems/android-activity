@@ -41,6 +41,19 @@ let
 
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: {
+      groundhog = self.mkDerivation ({
+        pname = "groundhog";
+        version = "0.7.0.3";
+        sha256 = "0n5c501wfyqcl1iy4017yyxp95kz7mb4lgc0mjjk9si36ixkww9r";
+        buildDepends = with self; [
+          aeson attoparsec base64-bytestring blaze-builder monad-control
+          monad-logger mtl scientific text time transformers transformers-base
+        ];
+        homepage = "http://github.com/lykahb/groundhog";
+        description = "Type-safe datatype-database mapping library";
+        license = self.stdenv.lib.licenses.bsd3;
+        platforms = self.ghc.meta.platforms;
+      });
       groundhog-th = overrideCabal super.groundhog-th (drv: {
         src = ./groundhog/groundhog-th;
       });
