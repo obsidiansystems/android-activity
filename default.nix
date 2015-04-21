@@ -92,7 +92,7 @@ let
         license = pkgs.stdenv.lib.licenses.bsd3;
       });
       focus = self.mkDerivation ({
-        pname = "focus";
+        pname = "focus-core";
         license = null;
         version = "0.1";
         src = ./core;
@@ -135,7 +135,7 @@ let
   };
   backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
   backendCabal = backendHaskellPackagesBase.Cabal_1_22_0_0;
-in {name, version}:
+in {name, version, backendDepends ? (p: []), frontendDepends ? (p: []), commonDepends ? (p: [])}:
 let
   # Break recursion
   appName = name;
@@ -149,7 +149,7 @@ let
     executable ${executableName}
       main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
   '';
-  mkPreConfigure = pname: ghcPkgName: executableName: ''
+  mkPreConfigure = pname: ghcPkgName: executableName: depends: ''
     if ! ls | grep ".*\\.cabal$" ; then
       cat >"${pname}.cabal" <<EOF
     name: ${pname}
@@ -157,7 +157,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: $(${ghcPkgName} list --global | cat | sed -n 's/^    \([^(].*\)-[0-9.]*$/\1/p' | grep -v 'bin-package-db\|haskeline\|terminfo' | tr '\n' , | sed 's/,$//')
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
@@ -169,8 +169,8 @@ let
     version = appVersion;
     src = ../common;
     license = null;
-    preConfigure = mkPreConfigure pname ghcPkgName null;
-    buildDepends = with haskellPackages; [
+    preConfigure = mkPreConfigure pname ghcPkgName null buildDepends;
+    buildDepends = with haskellPackages; [ # TODO: Get rid of spurious dependencies
       mtl
       text
       time
@@ -184,7 +184,7 @@ let
       network-uri
       semigroups
       stripe
-    ];
+    ] ++ commonDepends haskellPackages;
   });
 in pkgs.stdenv.mkDerivation (rec {
   name = "${appName}-${appVersion}";
@@ -210,19 +210,21 @@ in pkgs.stdenv.mkDerivation (rec {
       license = null;
       version = appVersion;
       src = ../backend;
-      preConfigure = mkPreConfigure pname ghcPkgName "backend";
+      preConfigure = mkPreConfigure pname ghcPkgName "backend" buildDepends;
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
-      buildDepends = [
+      buildDepends = [ # TODO: Get rid of spurious dependencies
         backendCommon
         backendCabal
         template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
-      ];
+      ] ++ backendDepends backendHaskellPackages;
       isExecutable = true;
-      isLibrary = false;
-      jailbreak = true;
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
+      passthru = {
+        common = backendCommon;
+        haskellPackages = backendHaskellPackages;
+      };
     });
   frontend =
     with frontendHaskellPackages;
@@ -234,12 +236,17 @@ in pkgs.stdenv.mkDerivation (rec {
         version = appVersion;
         license = null;
         src = ../frontend;
-        preConfigure = mkPreConfigure pname ghcPkgName "frontend";
-        buildDepends = [
+        preConfigure = mkPreConfigure pname ghcPkgName "frontend" buildDepends;
+        buildDepends = [ # TODO: Get rid of spurious dependencies
           frontendCommon
           pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
-        ];
+        ] ++ frontendDepends frontendHaskellPackages;
         buildTools = [ frontendHaskellPackages.Cabal ];
+        isExecutable = true;
+        passthru = {
+          common = frontendCommon;
+          haskellPackages = frontendHaskellPackages;
+        };
     });
 })
