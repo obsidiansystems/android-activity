@@ -17,6 +17,13 @@ let
     timezone-olson = overrideCabal super.timezone-olson (drv: {
       jailbreak = true; # To allow time >= 1.5
     });
+    focus = self.mkDerivation ({
+      pname = "focus-core";
+      license = null;
+      version = "0.1";
+      src = ./core;
+      buildDepends = with self; [ aeson attoparsec stripe text time vector network-uri timezone-series ];
+    });
   };
 
   backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc7101 else pkgs.haskell-ng.packages.ghc7101; /* TODO re-add profiling */
@@ -25,13 +32,6 @@ let
     overrides = self: super: sharedOverrides self super // {
       reflex = self.callPackage ./reflex {};
       reflex-dom = self.callPackage ./reflex-dom {};
-      focus = self.mkDerivation ({
-        pname = "focus-core";
-        version = "0.1";
-        license = null;
-        src = ./core;
-        buildDepends = with self; [ aeson attoparsec network-uri text time vector ];
-      });
       stripe = self.mkDerivation ({
         pname = "stripe";
         license = null;
@@ -115,13 +115,6 @@ let
         homepage = "http://snapframework.com/";
         description = "Top-level package for the Snap Web Framework";
         license = pkgs.stdenv.lib.licenses.bsd3;
-      });
-      focus = self.mkDerivation ({
-        pname = "focus-core";
-        license = null;
-        version = "0.1";
-        src = ./core;
-        buildDepends = with self; [ aeson attoparsec text time vector network-uri ];
       });
       stripe = self.mkDerivation ({
         pname = "stripe";

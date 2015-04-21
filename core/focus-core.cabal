@@ -20,9 +20,12 @@ library
                , containers
                , mtl
                , network-uri
+               , old-locale
+               , stripe
                , template-haskell
                , text
                , time
+               , timezone-series
                , transformers
                , vector
 
@@ -33,6 +36,8 @@ library
     , Focus.Request
     , Focus.Route
     , Focus.Schema
+    , Focus.Subscription
+    , Focus.Time
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
