@@ -13,19 +13,26 @@ Cabal-version: >=1.2
 library
   hs-source-dirs: src
 
-  build-depends:
-    base,
-    aeson,
-    attoparsec,
-    template-haskell,
-    text,
-    vector,
-    bytestring,
-    containers,
-    time
+  build-depends: base
+               , aeson
+               , attoparsec
+               , bytestring
+               , containers
+               , mtl
+               , network-uri
+               , template-haskell
+               , text
+               , time
+               , transformers
+               , vector
 
   exposed-modules:
-    Focus.Request, Focus.Schema, Focus.Misc
+      Focus.Account
+    , Focus.Brand
+    , Focus.Misc
+    , Focus.Request
+    , Focus.Route
+    , Focus.Schema
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

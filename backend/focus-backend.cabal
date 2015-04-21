@@ -14,29 +14,32 @@ library
   hs-source-dirs: src
 
   build-depends:
-    base,
     focus-core,
-    groundhog,
-    template-haskell,
-    mtl,
-    time,
-    containers,
-    snap,
     aeson,
-    lens,
+    base,
     bytestring,
-    resource-pool,
+    containers,
     groundhog,
-    text,
-    network,
-    stm,
-    postgresql-simple,
+    groundhog-th,
     groundhog-postgresql,
-    websockets-snap,
-    websockets
+    lens,
+    mtl,
+    network,
+    postgresql-simple,
+    resource-pool,
+    mime-mail,
+    pwstore-fast,
+    smtp-mail,
+    snap,
+    stm,
+    template-haskell,
+    text,
+    time,
+    websockets,
+    websockets-snap
 
   exposed-modules:
-    Backend.DB, Backend.TH, Backend.Schema.TH, Backend.Listen
+    Backend.DB, Backend.TH, Backend.Schema.TH, Backend.Listen, Backend.MonadEmail, Backend.Account
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

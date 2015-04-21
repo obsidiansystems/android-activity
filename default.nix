@@ -17,7 +17,7 @@ let
         version = "0.1";
         license = null;
         src = ./core;
-        buildDepends = with self; [ aeson attoparsec text time vector ];
+        buildDepends = with self; [ aeson attoparsec network-uri text time vector ];
       });
       stripe = self.mkDerivation ({
         pname = "stripe";
@@ -96,7 +96,7 @@ let
         license = null;
         version = "0.1";
         src = ./core;
-        buildDepends = with self; [ aeson attoparsec text time vector ];
+        buildDepends = with self; [ aeson attoparsec text time vector network-uri ];
       });
       stripe = self.mkDerivation ({
         pname = "stripe";
@@ -110,7 +110,7 @@ let
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = with self; [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe ];
+        buildDepends = with self; [ groundhog groundhog-th mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe smtp-mail ];
       });
       timezone-series = overrideCabal super.timezone-series (drv: {
         jailbreak = true;
