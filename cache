@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -eu
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+if ! type -P nix-shell >/dev/null ; then
+  . ~/.nix-profile/etc/profile.d/nix.sh
+  if ! type -P nix-shell >/dev/null ; then
+    echo "It looks like Nix isn't working.  Please make sure you can run nix-shell, then retry the $0, or submit an issue at $REPO/issues"
+    exit 1
+  fi
+fi
+
+ROOTS=$(nix-build -I "$DIR" -j 8 --no-out-link -E "import ./.")
+
+nix-copy-closure --gzip --to "$1" $ROOTS
