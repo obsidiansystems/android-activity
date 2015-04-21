@@ -194,13 +194,11 @@ let
 in pkgs.stdenv.mkDerivation (rec {
   name = "${appName}-${appVersion}";
   static = ../static;
-  marketing = ../marketing;
   builder = builtins.toFile "builder.sh" ''
     source $stdenv/setup
 
     mkdir -p $out
     cp -r $static $out/static
-    cp -r $marketing $out/marketing
     ln -s $backend/bin/backend $out
     ln -st $out $frontend/bin/*
   '';
