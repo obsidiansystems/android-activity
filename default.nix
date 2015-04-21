@@ -1,7 +1,7 @@
 let
   enableProfiling = false;
   pkgs = import ./nixpkgs { config.allowUnfree = true; };
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc784 else pkgs.haskell-ng.packages.ghc784; /* TODO re-add profiling */
+  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc7101 else pkgs.haskell-ng.packages.ghc7101; /* TODO re-add profiling */
   frontendHaskellPackagesBase = pkgs.haskell-ng.packages.ghcjs;
   overrideCabal = drv: f: (drv.override (args: args // {
     mkDerivation = drv: args.mkDerivation (drv // f drv);
@@ -41,6 +41,23 @@ let
 
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: {
+      groundhog-th = overrideCabal super.groundhog-th (drv: {
+        src = ./groundhog/groundhog-th;
+      });
+      snap-loader-static = overrideCabal super.snap-loader-static (drv: {
+        jailbreak = true;
+      });
+      th-desugar = self.mkDerivation ({
+        pname = "th-desugar";
+        version = "1.5";
+        sha256 = "18ailfvwiljscyzjxci6k9h05kf9wwb6dy3ms6q928cr80qnr4d5";
+        buildDepends = with self; [ mtl syb th-lift ];
+        testDepends = with self; [ hspec HUnit mtl syb th-lift ];
+        homepage = "http://www.cis.upenn.edu/~eir/packages/th-desugar";
+        description = "Functions to desugar Template Haskell";
+        license = self.stdenv.lib.licenses.bsd3;
+        platforms = self.ghc.meta.platforms;
+      });
       snap = self.mkDerivation ({
         pname = "snap";
         version = "0.14.0.2";
@@ -49,7 +66,7 @@ let
         editedCabalFile = "1640756ec7bfd3130869dce451904d6cc762ab6c8b8128982933fba80f325c92";
         isLibrary = true;
         isExecutable = true;
-        buildDepends = with haskellPackages; [
+        buildDepends = with self; [
           aeson attoparsec base bytestring cereal clientsession comonad
           configurator containers directory directory-tree dlist errors
           filepath hashable heist lens logict MonadCatchIO-transformers mtl
@@ -81,6 +98,25 @@ let
         version = "0.1";
         src = ./backend;
         buildDepends = with self; [ groundhog mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe ];
+      });
+      timezone-series = overrideCabal super.timezone-series (drv: {
+        jailbreak = true;
+      });
+      timezone-olson = overrideCabal super.timezone-olson (drv: {
+        jailbreak = true;
+      });
+      singletons = self.mkDerivation ({
+        pname = "singletons";
+        version = "1.1.1";
+        sha256 = "1pbz42i2vxmw3sf3f4sqvgyp9a1b1q5my7xq64h37a9g6jd2246a";
+        buildDepends = with self; [ mtl th-desugar ];
+        homepage = "http://www.cis.upenn.edu/~eir/packages/singletons";
+        description = "A framework for generating singleton types";
+        license = self.stdenv.lib.licenses.bsd3;
+        platforms = self.ghc.meta.platforms;
+        jailbreak = true;
+        doCheck = false;
+        doHaddock = false;
       });
     };
   };
@@ -168,7 +204,7 @@ in pkgs.stdenv.mkDerivation (rec {
       buildDepends = [
         backendCommon
         backendCabal
-        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap MaybeT clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
+        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap /* MaybeT  */ clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ];
       isExecutable = true;
       isLibrary = false;

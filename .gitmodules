@@ -23,3 +23,6 @@
 [submodule "reflex"]
 	path = reflex
 	url = https://github.com/ryantrinkle/reflex.git
+[submodule "groundhog"]
+	path = groundhog
+	url = https://github.com/lykahb/groundhog.git
