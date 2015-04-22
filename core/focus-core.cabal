@@ -21,6 +21,7 @@ library
     text,
     vector,
     bytestring,
+    base64-bytestring,
     containers,
     time
 

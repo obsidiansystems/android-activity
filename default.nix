@@ -30,7 +30,7 @@ let
         version = "0.1";
         license = null;
         src = ./core;
-        buildDepends = with self; [ aeson attoparsec text time vector ];
+        buildDepends = with self; [ aeson attoparsec text time vector base64-bytestring ];
       });
       stripe = self.mkDerivation ({
         pname = "stripe";
@@ -107,7 +107,7 @@ let
         license = null;
         version = "0.1";
         src = ./core;
-        buildDepends = with self; [ aeson attoparsec text time vector ];
+        buildDepends = with self; [ aeson attoparsec text time vector base64-bytestring ];
       });
       stripe = self.mkDerivation ({
         pname = "stripe";
@@ -241,6 +241,7 @@ in pkgs.stdenv.mkDerivation (rec {
         preConfigure = mkPreConfigure pname ghcPkgName "frontend" buildDepends;
         buildDepends = [ # TODO: Get rid of spurious dependencies
           frontendCommon
+          focus focus-js
 #          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
         ] ++ frontendDepends frontendHaskellPackages;
