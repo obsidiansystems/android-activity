@@ -34,7 +34,8 @@ library
     lens,
     these,
     mtl,
-    dependent-map
+    dependent-map,
+    data-default
 
   exposed-modules:
     Focus.JS.Request,

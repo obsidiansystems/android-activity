@@ -16,6 +16,7 @@ library
   build-depends: base
                , aeson
                , attoparsec
+               , base64-bytestring
                , bytestring
                , containers
                , mtl

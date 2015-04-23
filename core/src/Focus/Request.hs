@@ -4,6 +4,7 @@ module Focus.Request where
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Parser
+import Data.ByteString (ByteString)
 import qualified Data.Attoparsec.Lazy as LA
 import qualified Data.ByteString.Lazy as LBS
 import Language.Haskell.TH
@@ -12,6 +13,7 @@ import Control.Applicative
 import Data.Text (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.ByteString.Base64 as B64
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -150,3 +152,9 @@ conArity c = case c of
   RecC _ ts -> length ts
   InfixC _ _ _ -> 2
   ForallC _ _ c' -> conArity c'
+
+instance ToJSON ByteString where
+    toJSON = toJSON . B64.encode
+ 
+instance FromJSON ByteString where
+    parseJSON o = either fail return . B64.decode =<< parseJSON o

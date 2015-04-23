@@ -22,7 +22,7 @@ let
       license = null;
       version = "0.1";
       src = ./core;
-      buildDepends = with self; [ aeson attoparsec stripe text time vector network-uri timezone-series ];
+      buildDepends = with self; [ aeson attoparsec base64-bytestring stripe text time vector network-uri timezone-series ];
     });
   };
 
@@ -248,6 +248,7 @@ in pkgs.stdenv.mkDerivation (rec {
         preConfigure = mkPreConfigure pname ghcPkgName "frontend" buildDepends;
         buildDepends = [ # TODO: Get rid of spurious dependencies
           frontendCommon
+          focus focus-js
 #          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
         ] ++ frontendDepends frontendHaskellPackages;
