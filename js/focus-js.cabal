@@ -35,7 +35,8 @@ library
     these,
     mtl,
     dependent-map,
-    data-default
+    data-default,
+    constraints
 
   exposed-modules:
     Focus.JS.Request,

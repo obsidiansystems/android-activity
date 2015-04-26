@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds #-}
+{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds, PartialTypeSignatures #-}
 
 module Focus.JS.WebSocket where
 
@@ -29,7 +29,7 @@ import Data.Default
 import Data.IORef
 import Control.Lens
 
-import Data.Aeson (encode, decodeStrict', toJSON, parseJSON)
+import Data.Aeson (encode, decodeStrict', toJSON, parseJSON, FromJSON, fromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Parser, parse)
 import Data.Map (Map)
@@ -38,6 +38,7 @@ import Control.Monad.State
 import Control.Applicative
 import Data.Align
 import Data.These
+import Data.Constraint
 
 import Foreign.Ptr
 
@@ -48,7 +49,7 @@ import Foreign.Ptr
 #endif
 
 newtype JSWebSocket = JSWebSocket { unWebSocket :: JSRef JSWebSocket }
-JS(newWebSocket_, "$r = new JSWebSocket($1); $r.binaryType = 'arraybuffer'; $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
+JS(newWebSocket_, "$r = new WebSocket($1); $r.binaryType = 'arraybuffer'; $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
 JS(webSocketSend_, "$1['send']($2)", JSRef JSWebSocket -> JSRef JSByteArray -> IO ()) --TODO: Use (JSRef ArrayBuffer) instead of JSString
 
 data JSByteArray
@@ -121,59 +122,23 @@ webSocket path config = do
 
 makeLensesWith (lensRules & simpleLenses .~ True) ''WebSocketConfig
 
-class Functor' (f :: (k -> *) -> *) where
-  fmap' :: (forall x. a x -> b x) -> f a -> f b
-
-ffor' :: Functor' f => f a -> (forall x. a x -> b x) -> f b
-ffor' x f = fmap' f x
-
-class Foldable' f where
-  foldr' :: (forall x. a x -> b -> b) -> b -> f a -> b
-
-mapM_' :: (Foldable' f, Monad m) => (forall x. a x -> m b) -> f a -> m ()
-mapM_' f = foldr' ((>>) . f) (return ())
-
-forM_' :: (Foldable' f, Monad m) => f a -> (forall x. a x -> m b) -> m ()
-forM_' xs f = mapM_' f xs
-
-toListWith' :: Foldable' f => (forall x. a x -> b) -> f a -> [b]
-toListWith' f t = foldr' ((:) . f) [] t
-
-class (Functor' t, Foldable' t) => Traversable' (t :: (k -> *) -> *) where
-  mapM' :: Monad m => (forall x. a x -> m (b x)) -> t a -> m (t b)
-
-data With' a (f :: k -> *) (x :: k) = With' a (f x)
-
--- | Sequentially number the contents of the Traversable'
-numberAndSize' :: forall t a. Traversable' t => t a -> (t (With' Int a), Int)
-numberAndSize' t = runState (mapM' f t) 1
-  where f :: forall x. a x -> State Int (With' Int a x)
-        f a = do
-          n <- get
-          modify succ
-          return $ With' n a
-
-class ToJSON' f where
-  toJSON' :: f a -> Aeson.Value
-
-class FromJSON' f where
-  parseJSON' :: Aeson.Value -> Parser (f a)
-
-fromJSON' :: FromJSON' f => Aeson.Value -> Aeson.Result (f a)
-fromJSON' = parse parseJSON'
+monoConst :: a -> a -> a
+monoConst a _ = a
 
 apiSocket :: forall t m (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
              ( MonadWidget t m
              , Traversable' f
              , ToJSON' req
-             , FromJSON' rsp
+             , AllArgsHave (ComposeConstraint FromJSON rsp) req
              )
           => String
           -> Event t [f req]
-          -> m (Event t [f rsp])
+          -> m (Event t [f rsp], _)
 apiSocket path batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
-  rec let change = flip push (align batchesWithSerialNumbers $ _webSocket_recv ws) $ \update -> liftM Just $ do
+  rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
+      state <- holdDyn mempty newState
+      let change = flip push (align batchesWithSerialNumbers $ traceEvent "recv" $ _webSocket_recv ws) $ \update -> liftM Just $ do
             oldState <- sample $ current state
             return $ flip runState oldState $ do
               -- If we've received a new batch to send, add it to the pending transactions
@@ -185,20 +150,19 @@ apiSocket path batches = do
                   let Just ((n, m, l), rsp) = decodeStrict' msg
                   Just (requests, sz, responses) <- use $ at (n, m)
                   let responses' = Map.insertWith (error "apiSocket: received a response with the same tags as another pending response") l rsp responses
-                  case Map.size responses `compare` sz of
+                  case Map.size responses' `compare` sz of
                     LT -> do
                       at (n, m) .= Just (requests, sz, responses')
                       return Nothing
                     EQ -> do
                       at (n, m) .= Nothing
-                      return $ Just $ (:[]) $ ffor' requests $ \(With' l' req) ->
+                      return $ Just $ (:[]) $ ffor' requests $ \(With' l' (req :: req x)) ->
                         let Just rspRaw = Map.lookup l' responses'
-                            Aeson.Success rsp = fromJSON' rspRaw
+                            Aeson.Success rsp = case getArgDict req :: Dict (ComposeConstraint FromJSON rsp x) of
+                              Dict -> fromJSON rspRaw
                         in rsp
           result = fmapMaybe fst change
           newState = fmap snd change
-      state <- holdDyn mempty newState
-      let encodeMessages :: (Int, [(Int, (f (With' Int req), Int))]) -> [ByteString]
+          encodeMessages :: (Int, [(Int, (f (With' Int req), Int))]) -> [ByteString]
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
-      ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
-  return result
+  return (result, state)

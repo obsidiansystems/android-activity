@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving #-}
 module Focus.Request where
 
 import Data.Aeson
@@ -11,9 +11,12 @@ import Language.Haskell.TH
 import Control.Monad
 import Control.Applicative
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.ByteString.Base64 as B64
+import Control.Monad.State
+import Data.Constraint
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -154,7 +157,97 @@ conArity c = case c of
   ForallC _ _ c' -> conArity c'
 
 instance ToJSON ByteString where
-    toJSON = toJSON . B64.encode
+    toJSON = toJSON . decodeUtf8 . B64.encode
  
 instance FromJSON ByteString where
-    parseJSON o = either fail return . B64.decode =<< parseJSON o
+    parseJSON o = either fail return . B64.decode . encodeUtf8 =<< parseJSON o
+
+class Functor' (f :: (k -> *) -> *) where
+  fmap' :: (forall x. a x -> b x) -> f a -> f b
+
+ffor' :: Functor' f => f a -> (forall x. a x -> b x) -> f b
+ffor' x f = fmap' f x
+
+class Foldable' f where
+  foldr' :: (forall x. a x -> b -> b) -> b -> f a -> b
+
+mapM_' :: (Foldable' f, Monad m) => (forall x. a x -> m b) -> f a -> m ()
+mapM_' f = foldr' ((>>) . f) (return ())
+
+forM_' :: (Foldable' f, Monad m) => f a -> (forall x. a x -> m b) -> m ()
+forM_' xs f = mapM_' f xs
+
+toListWith' :: Foldable' f => (forall x. a x -> b) -> f a -> [b]
+toListWith' f t = foldr' ((:) . f) [] t
+
+class (Functor' t, Foldable' t) => Traversable' (t :: (k -> *) -> *) where
+  mapM' :: Monad m => (forall x. a x -> m (b x)) -> t a -> m (t b)
+
+data With' a (f :: k -> *) (x :: k) = With' a (f x)
+
+data Some (f :: k -> *) = forall a. Some (f a)
+
+instance Functor' Some where
+  fmap' f (Some x) = Some $ f x
+
+instance Foldable' Some where
+  foldr' f z (Some x) = f x z
+
+instance Traversable' Some where
+  mapM' f (Some x) = liftM Some $ f x
+
+instance ToJSON' f => ToJSON (Some f) where
+  toJSON (Some x) = toJSON' x
+
+instance FromJSON' f => FromJSON (Some f) where
+  parseJSON = parseJSON'
+
+-- | Sequentially number the contents of the Traversable'
+numberAndSize' :: forall t a. Traversable' t => t a -> (t (With' Int a), Int)
+numberAndSize' t = (t', sizePlusOne - 1)
+  where f :: forall x. a x -> State Int (With' Int a x)
+        f a = do
+          n <- get
+          modify succ
+          return $ With' n a
+        (t', sizePlusOne) = runState (mapM' f t) 1
+
+class ToJSON' f where
+  toJSON' :: f a -> Value
+
+class FromJSON' f where
+  parseJSON' :: Value -> Parser (Some f)
+
+fromJSON' :: FromJSON' f => Value -> Result (Some f)
+fromJSON' = parse parseJSON'
+
+makeJson' :: Name -> DecsQ
+makeJson' n = do
+  x <- reify n
+  let cons = case x of
+       (TyConI (DataD _ _ _ cs _)) -> cs
+       (TyConI (NewtypeD _ _ _ c _)) -> [c]
+  let wild = match wildP (normalB [|fail "invalid message"|]) []
+  [d|
+    instance ToJSON' $(conT n) where
+      toJSON' r = $(caseE [|r|] $ map conToJson cons)
+    instance FromJSON' $(conT n) where
+      parseJSON' v = do
+        (tag, v') <- parseJSON v
+        $(caseE [|tag :: String|] $ map (conParseJson (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
+    |]
+
+class AllArgsHave c f where
+  getArgDict :: f x -> Dict (c x)
+
+class c (f x) => ComposeConstraint c f x
+instance c (f x) => ComposeConstraint c f x
+
+data WithClass c a = c a => WithClass a
+
+deriving instance Show (WithClass Show a)
+
+deriving instance Show (Some (WithClass Show))
+
+instance (FromJSON a, c a) => FromJSON (WithClass c a) where
+  parseJSON = liftM WithClass . parseJSON

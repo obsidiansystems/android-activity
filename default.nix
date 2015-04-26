@@ -17,12 +17,12 @@ let
     timezone-olson = overrideCabal super.timezone-olson (drv: {
       jailbreak = true; # To allow time >= 1.5
     });
-    focus = self.mkDerivation ({
+    focus-core = self.mkDerivation ({
       pname = "focus-core";
       license = null;
       version = "0.1";
       src = ./core;
-      buildDepends = with self; [ aeson attoparsec base64-bytestring stripe text time vector network-uri timezone-series ];
+      buildDepends = with self; [ aeson attoparsec base64-bytestring stripe text time vector network-uri timezone-series constraints ];
     });
   };
 
@@ -44,7 +44,7 @@ let
         pname = "focus-js";
         version = "0.1";
         src = ./js;
-        buildDepends = with self; [ focus reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom ];
+        buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom constraints ];
       });
       crypto-numbers = self.mkDerivation ({
         pname = "crypto-numbers";
@@ -128,7 +128,7 @@ let
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = with self; [ groundhog groundhog-th mtl focus lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe smtp-mail ];
+        buildDepends = with self; [ groundhog groundhog-th mtl focus-core lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe smtp-mail ];
       });
       singletons = self.mkDerivation ({
         pname = "singletons";
@@ -191,7 +191,7 @@ let
 #      transformers
 #      timezone-series
 #      timezone-olson
-      focus
+      focus-core
 #      network
 #      network-uri
 #      semigroups
@@ -225,7 +225,7 @@ in pkgs.stdenv.mkDerivation (rec {
       '';
       buildDepends = [ # TODO: Get rid of spurious dependencies
         backendCommon
-        focus-backend
+        focus-core focus-backend
 #        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
       isExecutable = true;
@@ -248,7 +248,7 @@ in pkgs.stdenv.mkDerivation (rec {
         preConfigure = mkPreConfigure pname ghcPkgName "frontend" buildDepends;
         buildDepends = [ # TODO: Get rid of spurious dependencies
           frontendCommon
-          focus focus-js
+          focus-core focus-js
 #          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
         ] ++ frontendDepends frontendHaskellPackages;
