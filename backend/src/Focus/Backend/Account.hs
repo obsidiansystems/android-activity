@@ -39,6 +39,8 @@ mkPersist defaultCodegenConfig [groundhog|
 
 makeDefaultKeyIdSimple ''Account 'AccountIdKey
 
+migrateAccount = migrate (undefined :: Account)
+
 -- Returns whether a new account had to be created
 ensureAccountExists :: (PersistBackend m, MonadSign m, MonadRoute m, MonadEmail m, MonadBrand m) => Id Account -> m Bool
 ensureAccountExists aid = do
