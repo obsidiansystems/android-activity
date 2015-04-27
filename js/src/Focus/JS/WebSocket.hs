@@ -138,7 +138,7 @@ apiSocket path batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
   rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
       state <- holdDyn mempty newState
-      let change = flip push (align batchesWithSerialNumbers $ traceEvent "recv" $ _webSocket_recv ws) $ \update -> liftM Just $ do
+      let change = flip push (align batchesWithSerialNumbers $ _webSocket_recv ws) $ \update -> liftM Just $ do
             oldState <- sample $ current state
             return $ flip runState oldState $ do
               -- If we've received a new batch to send, add it to the pending transactions
