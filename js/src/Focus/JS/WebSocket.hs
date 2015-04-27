@@ -133,7 +133,7 @@ apiSocket :: forall t m (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
              )
           => String
           -> Event t [f req]
-          -> m (Event t [f rsp], _)
+          -> m (Event t (f rsp), _)
 apiSocket path batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
   rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
@@ -156,7 +156,7 @@ apiSocket path batches = do
                       return Nothing
                     EQ -> do
                       at (n, m) .= Nothing
-                      return $ Just $ (:[]) $ ffor' requests $ \(With' l' (req :: req x)) ->
+                      return $ Just $ ffor' requests $ \(With' l' (req :: req x)) ->
                         let Just rspRaw = Map.lookup l' responses'
                             Aeson.Success rsp = case getArgDict req :: Dict (ComposeConstraint FromJSON rsp x) of
                               Dict -> fromJSON rspRaw
