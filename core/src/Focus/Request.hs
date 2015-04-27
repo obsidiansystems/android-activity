@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving #-}
+{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 module Focus.Request where
 
 import Data.Aeson
@@ -17,6 +17,7 @@ import qualified Data.Vector as V
 import qualified Data.ByteString.Base64 as B64
 import Control.Monad.State
 import Data.Constraint
+import Control.Monad.Identity
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -251,3 +252,23 @@ deriving instance Show (Some (WithClass Show))
 
 instance (FromJSON a, c a) => FromJSON (WithClass c a) where
   parseJSON = liftM WithClass . parseJSON
+
+data Of x f = Of (f x)
+
+instance Functor' (Of x) where
+  fmap' f (Of a) = Of $ f a
+
+instance Foldable' (Of x) where
+  foldr' f z (Of a) = f a z
+
+instance Traversable' (Of x) where
+  mapM' f (Of a) = liftM Of $ f a
+
+deriving instance Show (f x) => Show (Of x f)
+
+instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
+  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+    Dict -> Dict
+
+deriving instance FromJSON a => FromJSON (Identity a)
+deriving instance ToJSON a => ToJSON (Identity a)
