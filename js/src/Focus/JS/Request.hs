@@ -86,16 +86,6 @@ getWindowLocationSearch = do
 
 JS(windowClose, "window.close()", IO ())
 
-JS(notificationRequestPermission_, "Notification.requestPermission()", IO ())
-JS(notificationCheckPermission_, "Notification.checkPermission()", IO (JSRef Int))
-JS(newNotification_, "new Notification($1, {body: $2, icon: $3})", JSRef String -> JSRef String -> JSRef String -> IO ())
-newDesktopNotification :: String -> String -> String -> IO ()
-newDesktopNotification title body icon = do
-  t <- toJSRef title
-  b <- toJSRef body
-  i <- toJSRef icon
-  newNotification_ t b i
-
 timeFrom t ct =
   let d = round $ diffUTCTime ct t
   in describe d
