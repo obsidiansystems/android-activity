@@ -29,6 +29,7 @@ library
                , timezone-series
                , transformers
                , vector
+               , constraints
 
   exposed-modules:
       Focus.Account
