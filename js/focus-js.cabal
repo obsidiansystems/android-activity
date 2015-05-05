@@ -18,6 +18,7 @@ library
     focus-core,
     aeson,
     attoparsec,
+    bifunctors,
     template-haskell,
     text,
     vector,
