@@ -36,7 +36,8 @@ library
     mtl,
     dependent-map,
     data-default,
-    constraints
+    constraints,
+    ghcjs-canvas
 
   exposed-modules:
     Focus.JS.Request,
@@ -44,6 +45,7 @@ library
     Focus.JS.WebSocket,
     Focus.JS.GoogleMap
     Focus.JS.DesktopNotification
+    Focus.JS.SmoothieCharts
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

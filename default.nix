@@ -32,6 +32,13 @@ let
     overrides = self: super: sharedOverrides self super // {
       reflex = self.callPackage ./reflex {};
       reflex-dom = self.callPackage ./reflex-dom {};
+      ghcjs-canvas = self.mkDerivation ({
+        pname = "ghcjs-canvas";
+        license = null;
+        src = ./ghcjs-canvas;
+        buildDepends = with self; [ text ghcjs-base base ];
+        version = "0.1.0.0";
+      });
       stripe = self.mkDerivation ({
         pname = "stripe";
         license = null;
@@ -44,7 +51,7 @@ let
         pname = "focus-js";
         version = "0.1";
         src = ./js;
-        buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom constraints ];
+        buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom constraints ghcjs-canvas ];
       });
       crypto-numbers = self.mkDerivation ({
         pname = "crypto-numbers";
