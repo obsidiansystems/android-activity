@@ -30,6 +30,10 @@ library
                , transformers
                , vector
                , constraints
+               , process
+               , directory
+               , temporary
+               , stringsearch
 
   exposed-modules:
       Focus.Account
@@ -40,6 +44,7 @@ library
     , Focus.Schema
     , Focus.Subscription
     , Focus.Time
+    , Focus.DB.Temp
     , Focus.Sign
 
   other-extensions: TemplateHaskell
