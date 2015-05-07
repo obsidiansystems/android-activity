@@ -8,6 +8,7 @@ import Focus.Backend.Schema.TH
 import Focus.Account
 import Focus.Brand
 import Focus.Misc
+import Focus.Sign
 import Focus.Route
 import Focus.Schema
 

@@ -40,6 +40,7 @@ library
     , Focus.Schema
     , Focus.Subscription
     , Focus.Time
+    , Focus.Sign
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

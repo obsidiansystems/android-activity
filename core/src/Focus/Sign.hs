@@ -1,0 +1,21 @@
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, DeriveDataTypeable, DefaultSignatures, FlexibleContexts, StandaloneDeriving, UndecidableInstances #-}
+module Focus.Sign where
+
+import Data.Text
+import Data.Time
+import Data.ByteString (ByteString)
+import Data.Typeable
+import Data.Aeson
+import Control.Monad.Reader
+
+newtype Signed a = Signed { unSigned :: Text } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON)
+
+class Monad m => MonadSign m where
+  sign :: (Typeable a, ToJSON a) => a -> m (Signed a) -- We need the Typeable here because otherwise two Signeds whose contents encode the same way will be interchangeable
+  readSigned :: (Typeable a, FromJSON a) => Signed a -> m (Maybe a)
+
+instance MonadSign m => MonadSign (ReaderT r m) where
+  sign = lift . sign
+  readSigned = lift . readSigned
+
+

@@ -37,7 +37,11 @@ library
     text,
     time,
     websockets,
-    websockets-snap
+    websockets-snap,
+    monad-control,
+    transformers-base,
+    clientsession,
+    transformers
 
   exposed-modules:
       Focus.Backend.Account
@@ -47,6 +51,7 @@ library
     , Focus.Backend.Schema.TH
     , Focus.Backend.Subscription
     , Focus.Backend.TH
+    , Focus.Backend.Sign
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
