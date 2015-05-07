@@ -3,6 +3,7 @@ module Focus.Route where
 
 import Focus.Account
 import Focus.Brand
+import Focus.Sign
 
 import Focus.Request
 import Network.URI

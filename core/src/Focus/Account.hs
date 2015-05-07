@@ -19,12 +19,6 @@ data Account
 instance HasId Account where
   type IdData Account = Text -- Accounts are identified by their email addresses
 
-newtype Signed a = Signed { unSigned :: Text } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON)
-
-class Monad m => MonadSign m where
-  sign :: (Typeable a, ToJSON a) => a -> m (Signed a) -- We need the Typeable here because otherwise two Signeds whose contents encode the same way will be interchangeable
-  readSigned :: (Typeable a, FromJSON a) => Signed a -> m (Maybe a)
-
 newtype PasswordResetToken = PasswordResetToken { unPasswordResetToken :: (Id Account, UTCTime) } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, Typeable)
 
 newtype AuthToken = AuthToken { unAuthToken :: Id Account } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, Typeable)
