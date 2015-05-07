@@ -37,7 +37,6 @@ let
         stringsearch
       ];
     });
-    });
   };
 
   backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc7101 else pkgs.haskell-ng.packages.ghc7101; /* TODO re-add profiling */
