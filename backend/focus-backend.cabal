@@ -41,13 +41,15 @@ library
     monad-control,
     transformers-base,
     clientsession,
-    transformers
+    transformers,
+    semigroups,
+    blaze-html
 
   exposed-modules:
       Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen
-    , Focus.Backend.MonadEmail
+    , Focus.Backend.Email
     , Focus.Backend.Schema.TH
     , Focus.Backend.Subscription
     , Focus.Backend.TH
