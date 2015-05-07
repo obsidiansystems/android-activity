@@ -22,7 +22,21 @@ let
       license = null;
       version = "0.1";
       src = ./core;
-      buildDepends = with self; [ aeson attoparsec base64-bytestring stripe text time vector network-uri timezone-series constraints ];
+      buildDepends = with self; [
+        aeson
+        attoparsec
+        base64-bytestring
+        stripe
+        text
+        time
+        vector
+        network-uri
+        timezone-series
+        constraints
+        temporary
+        stringsearch
+      ];
+    });
     });
   };
 
@@ -153,7 +167,16 @@ let
     };
   };
   backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
-in {name, version, backendDepends ? (p: []), frontendDepends ? (p: []), commonDepends ? (p: [])}:
+in
+{ name
+, version
+, backendDepends ? (p: [])
+, backendTools ? (p: [])
+, frontendDepends ? (p: [])
+, frontendTools ? (p: [])
+, commonDepends ? (p: [])
+, commonTools ? (p: [])
+}:
 let
   # Break recursion
   appName = name;
@@ -204,6 +227,7 @@ let
 #      semigroups
 #      stripe
     ] ++ commonDepends haskellPackages;
+    buildTools = [] ++ commonTools pkgs;
   });
   mkFrontend = haskellPackages:
     with haskellPackages;
@@ -221,6 +245,7 @@ let
 #          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
           http-types # For oauth-netDocuments
         ] ++ frontendDepends haskellPackages;
+        buildTools = [] ++ frontendTools pkgs;
         isExecutable = true;
         passthru = {
           common = frontendCommon;
@@ -256,6 +281,7 @@ in pkgs.stdenv.mkDerivation (rec {
         focus-core focus-backend
 #        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
+      buildTools = [] ++ backendTools pkgs;
       isExecutable = true;
       configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
       passthru = {
