@@ -252,7 +252,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
@@ -265,20 +265,8 @@ let
     src = ../common;
     license = null;
     preConfigure = mkPreConfigure pname null buildDepends;
-    buildDepends = with haskellPackages; [ # TODO: Get rid of spurious dependencies
-#      mtl
-#      text
-#      time
-#      lens
-#      aeson
-#      transformers
-#      timezone-series
-#      timezone-olson
+    buildDepends = with haskellPackages; [
       focus-core
-#      network
-#      network-uri
-#      semigroups
-#      stripe
     ] ++ commonDepends haskellPackages;
     buildTools = [] ++ commonTools pkgs;
   });
@@ -292,11 +280,10 @@ let
         license = null;
         src = ../frontend;
         preConfigure = mkPreConfigure pname "frontend" buildDepends;
-        buildDepends = [ # TODO: Get rid of spurious dependencies
+        buildDepends = [
           frontendCommon
-          focus-core focus-js
-#          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
-          http-types # For oauth-netDocuments
+          focus-core
+          focus-js
         ] ++ frontendDepends haskellPackages;
         buildTools = [] ++ frontendTools pkgs;
         isExecutable = true;
@@ -329,10 +316,9 @@ in pkgs.stdenv.mkDerivation (rec {
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
-      buildDepends = [ # TODO: Get rid of spurious dependencies
+      buildDepends = [
         backendCommon
         focus-core focus-backend
-#        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
       buildTools = [] ++ backendTools pkgs;
       isExecutable = true;
