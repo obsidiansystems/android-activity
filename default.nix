@@ -33,8 +33,6 @@ let
         network-uri
         timezone-series
         constraints
-        temporary
-        stringsearch
       ];
     });
     amazonka = overrideCabal super.amazonka (drv: {
@@ -180,7 +178,31 @@ let
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = with self; [ groundhog groundhog-th mtl focus-core lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe smtp-mail ];
+        buildDepends = with self; [
+          groundhog
+          groundhog-th
+          mtl
+          focus-core
+          lens
+          aeson
+          snap
+          resource-pool
+          text
+          network
+          stm
+          postgresql-simple
+          groundhog-postgresql
+          websockets-snap
+          websockets
+          stripe
+          smtp-mail
+          temporary
+          stringsearch
+          shelly
+        ];
+        pkgconfigDepends = [
+          pkgs.postgresql94
+        ];
       });
       singletons = self.mkDerivation ({
         pname = "singletons";

@@ -43,7 +43,12 @@ library
     clientsession,
     transformers,
     semigroups,
-    blaze-html
+    blaze-html,
+    process,
+    directory,
+    temporary,
+    stringsearch,
+    shelly
 
   exposed-modules:
       Focus.Backend.Account
@@ -54,6 +59,9 @@ library
     , Focus.Backend.Subscription
     , Focus.Backend.TH
     , Focus.Backend.Sign
+    , Focus.Backend.DB.Temp
+    , Focus.Backend.DB.Local
+    , Focus.Backend.DB.Groundhog
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
