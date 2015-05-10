@@ -20,7 +20,7 @@ import Control.Monad
 import qualified Data.Map as Map
 import Data.Map (Map)
 
-storageGet :: MonadWidget t m => Event t String -> m (Event t (Maybe String))
+storageGet :: (MonadWidget t m, ToJSString k, FromJSString v) => Event t k -> m (Event t (Maybe v))
 storageGet k = do
   wv <- askWebView
   performEvent $ fmap (get wv) k
@@ -30,10 +30,10 @@ storageGet k = do
       maybe (return Nothing) (flip getItem k) s
 
 
-storageSet :: MonadWidget t m => Event t (String, String) -> m ()
+storageSet :: (MonadWidget t m, ToJSString k, ToJSString v) => Event t (k, v) -> m ()
 storageSet kv = do
   wv <- askWebView
-  performEvent_ $ fmap (\(k,v) -> set wv k v) kv
+  performEvent_ $ fmap (\(k, v) -> set wv k v) kv
   where
     set wv k v = do
       s <- liftIO $ domWindowGetLocalStorage wv
@@ -42,7 +42,7 @@ storageSet kv = do
            Just s' -> liftIO $ storageSetItem s' (toJSString k) (toJSString v)
 
 
-storageRemove :: MonadWidget t m => Event t String -> m ()
+storageRemove :: (MonadWidget t m, ToJSString k)  => Event t k -> m ()
 storageRemove k = do
   wv <- askWebView
   performEvent_ $ fmap (remove wv) k
@@ -53,7 +53,7 @@ storageRemove k = do
            Nothing -> return ()
            Just s' -> liftIO $ storageRemoveItem s' (toJSString k)
 
-storageGetMany :: MonadWidget t m => Event t [String] -> m (Event t (Map String (Maybe String)))
+storageGetMany :: (MonadWidget t m, ToJSString k, Ord k, FromJSString v) => Event t [k] -> m (Event t (Map k (Maybe v)))
 storageGetMany ks = do
   wv <- askWebView
   performEvent $ fmap (getMany wv) ks
@@ -61,12 +61,12 @@ storageGetMany ks = do
     getMany wv ks = do
       s <- liftIO $ domWindowGetLocalStorage wv
       case s of
-           Nothing -> return $ Map.fromList $ map (\k -> (k,Nothing)) ks
+           Nothing -> return $ Map.fromList $ map (\k -> (k, Nothing)) ks
            Just s' -> liftM Map.fromList $ forM ks $ \k -> do
              i <- getItem s' k
              return (k, i)
 
-storageSetMany :: MonadWidget t m => Event t (Map String String) -> m ()
+storageSetMany :: (MonadWidget t m, ToJSString k, ToJSString v) => Event t (Map k v) -> m ()
 storageSetMany is = do
   wv <- askWebView
   performEvent_ $ fmap (setMany wv) is
@@ -74,10 +74,10 @@ storageSetMany is = do
     setMany wv is = do
       s <- liftIO $ domWindowGetLocalStorage wv
       case s of
-           Just s' -> void $ forM (Map.toList is) $ \(k,i) -> liftIO $ storageSetItem s' (toJSString k) (toJSString i)
+           Just s' -> void $ forM (Map.toList is) $ \(k, i) -> liftIO $ storageSetItem s' (toJSString k) (toJSString i)
            _ -> return ()
 
-storageRemoveMany :: MonadWidget t m => Event t [String] -> m ()
+storageRemoveMany :: (MonadWidget t m, ToJSString k) => Event t [k] -> m ()
 storageRemoveMany ks = do
   wv <- askWebView
   performEvent_ $ ffor ks $ \ks' -> do
