@@ -10,6 +10,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types
+import Data.Aeson.TH
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Default
@@ -34,6 +35,7 @@ import qualified Data.ByteString.Lazy as LBS
 
 newtype SmoothieChart = SmoothieChart { unSmoothieChart :: JSRef SmoothieChart }
 newtype TimeSeries = TimeSeries { unTimeSeries :: JSRef TimeSeries }
+newtype TimeSeriesOptions = TimeSeriesOptions { unTimeSeriesOptions :: JSRef TimeSeriesOptions }
 
 data Interpolation = Bezier
                    | Linear
@@ -45,6 +47,17 @@ instance ToJSON Interpolation where
                   Bezier -> "bezier"
                   Linear -> "linear"
                   Step -> "step"
+
+data SmoothieTimeSeriesConfig
+   = SmoothieTimeSeriesConfig { _smoothieTimeSeriesConfig_lineWidth :: Double
+                              , _smoothieTimeSeriesConfig_strokeStyle :: String
+                              , _smoothieTimeSeriesConfig_fillStyle :: Maybe String
+                              } deriving (Show, Read, Eq, Ord)
+
+instance Default SmoothieTimeSeriesConfig where
+  def = SmoothieTimeSeriesConfig 1 "#ffffff" Nothing
+
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieTimeSeriesConfig_" :: String)) }) ''SmoothieTimeSeriesConfig
 
 data SmoothieChartConfig
    = SmoothieChartConfig { _smoothieChartConfig_maxValueScale :: Double
@@ -165,6 +178,8 @@ JS(smoothieTimeSeriesNew_, "new TimeSeries({resetBounds: false})", IO (JSRef Tim
 JS(smoothieAddTimeSeries_, "$1.addTimeSeries($2, {lineWidth:2,strokeStyle:'#00ff00'})", JSRef SmoothieChart -> JSRef TimeSeries -> IO ())
 JS(smoothieTimeSeriesAppend_, "console.log($3); $1.append($2, $3)", JSRef TimeSeries -> Double -> Double -> IO ())
 JS(smoothieTimestamp_, "new Date().getTime()", IO Double)
+JS(smoothieGetTimeSeriesOptions_, "$1.getTimeSeriesOptions($2)", JSRef SmoothieChart -> JSRef TimeSeries -> IO (JSRef TimeSeriesOptions))
+JS(smoothieSetTimeSeriesOptions_, "$1 = JSON.parse($2)", JSRef TimeSeriesOptions -> JSString -> IO ())
 
 smoothieChartNew :: SmoothieChartConfig -> IO SmoothieChart
 smoothieChartNew cfg = do
@@ -188,8 +203,7 @@ smoothieTimeSeriesAppendWithCurrentTime ts x = do
   t <- smoothieTimestamp_
   smoothieTimeSeriesAppend ts t x
 
-
-smoothieChart :: MonadWidget t m => Map String String -> Double -> [Event t Double] -> SmoothieChartConfig -> m ()
+smoothieChart :: MonadWidget t m => Map String String -> Double -> [Event t Double] -> SmoothieChartConfig -> m ([TimeSeries])
 smoothieChart attrs delay es cfg = do
   (canvas, _) <- elAttr' "canvas" attrs $ return ()
   ets <- liftIO $ do
@@ -201,5 +215,9 @@ smoothieChart attrs delay es cfg = do
     smoothieStreamTo s canvas delay
     return ets
   forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftIO $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
-  return ()
+  return $ map snd ets
 
+smoothieChartChangeTimeSeriesConfig :: SmoothieChart -> TimeSeries -> SmoothieTimeSeriesConfig -> IO ()
+smoothieChartChangeTimeSeriesConfig sc t cfg = do
+  tsc <- smoothieGetTimeSeriesOptions_ (unSmoothieChart sc) (unTimeSeries t)
+  smoothieSetTimeSeriesOptions_ tsc (toJSString $ decodeUtf8 $ LBS.toStrict $ encode cfg)
