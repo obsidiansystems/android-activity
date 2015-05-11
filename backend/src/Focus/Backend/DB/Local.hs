@@ -59,3 +59,11 @@ withLocalPostgres :: FilePath -> (ByteString -> IO a) -> IO a
 withLocalPostgres dbDir a = bracket (startLocalPostgres dbDir) stopLocalPostgres $ \_ -> do
   dbUri <- getLocalPostgresConnectionString dbDir
   a dbUri
+
+psqlLocal :: FilePath -> IO ()
+psqlLocal p = withLocalPostgres p $ \dbUri -> do
+  (_, _, _, psql) <- createProcess $ proc $(staticWhich "psql")
+    [ T.unpack $ decodeUtf8 dbUri
+    ]
+  ExitSuccess <- waitForProcess psql
+  return ()
