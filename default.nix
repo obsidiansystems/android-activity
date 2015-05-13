@@ -237,7 +237,7 @@ let
 
   libraryHeader = ''
     library
-      exposed-modules: $(cd src ; find * -iname '*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
+      exposed-modules: $(cd src ; find * -iname '[A-Z]*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
   '';
   executableHeader = executableName: ''
     executable ${executableName}

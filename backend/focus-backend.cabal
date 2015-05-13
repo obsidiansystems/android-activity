@@ -48,7 +48,8 @@ library
     directory,
     temporary,
     stringsearch,
-    shelly
+    shelly,
+    monad-loops
 
   exposed-modules:
       Focus.Backend.Account

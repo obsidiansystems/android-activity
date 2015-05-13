@@ -13,7 +13,9 @@ import Language.Haskell.TH.Syntax
 import Data.Char
 import Data.Monoid
 import Control.Lens
+import Control.Monad.Loops
 import Data.List
+import Data.Time.Clock
 
 -- | Run Database.Groundhog.TH.mkPersist with Focus-specific defaults
 --
@@ -28,6 +30,8 @@ mkFocusPersist migrationFunctionName = mkPersist $ defaultCodegenConfig
              mkDbFieldName ns typeName conName conPos (dropPrefix ("_" <> (_head %~ toLower) typeName <> "_") fieldName) fieldPos
           , mkExprFieldName = \typeName conName conPos fieldName fieldPos ->
              mkExprFieldName ns typeName conName conPos (dropPrefix "_" fieldName) fieldPos
+          , mkExprSelectorName  = \typeName conName fieldName fieldPos ->
+             mkExprSelectorName ns typeName conName (dropPrefix "_" fieldName) fieldPos
           }
   }
 
@@ -39,3 +43,13 @@ prefilterFieldsNamingStyle f ns = ns
   , mkExprFieldName = \typeName conName conPos fieldName fieldPos ->
       mkExprFieldName ns typeName conName conPos (f fieldName) fieldPos
   }
+
+popAllRows rp = do
+  whileJust rp $ \pvs -> do
+    (x, []) <- fromPersistValues pvs
+    return x
+
+getTransactionTime :: PersistBackend m => m UTCTime
+getTransactionTime = do
+  [t] <- queryRaw False "select current_timestamp at time zone 'UTC'" [] popAllRows
+  return t
