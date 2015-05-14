@@ -266,6 +266,22 @@ instance Traversable' (Of x) where
 
 deriving instance Show (f x) => Show (Of x f)
 
+data Of2 :: (k -> k -> (k -> *) -> *) where
+  Of2a :: f a -> Of2 a b f
+  Of2b :: f b -> Of2 a b f
+
+instance Functor' (Of2 x y) where
+  fmap' f (Of2a a) = Of2a $ f a
+  fmap' f (Of2b b) = Of2b $ f b
+
+instance Foldable' (Of2 x y) where
+  foldr' f z (Of2a a) = f a z
+  foldr' f z (Of2b b) = f b z
+
+instance Traversable' (Of2 x y) where
+  mapM' f (Of2a a) = liftM Of2a $ f a
+  mapM' f (Of2b b) = liftM Of2b $ f b
+
 instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
   getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
     Dict -> Dict
