@@ -7,6 +7,7 @@ module Focus.JS.LocalStorage
        , storageSetMany
        , storageRemoveMany
        , storageRemoveAll
+       , storageRead
        ) where
 
 import GHCJS.DOM.DOMWindow (domWindowGetLocalStorage)
@@ -19,6 +20,7 @@ import GHCJS.Foreign
 import Control.Monad
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Safe
 
 storageGet :: (MonadWidget t m, ToJSString k, FromJSString v) => Event t k -> m (Event t (Maybe v))
 storageGet k = do
@@ -29,6 +31,11 @@ storageGet k = do
       s <- liftIO $ domWindowGetLocalStorage wv
       maybe (return Nothing) (flip getItem k) s
 
+
+storageRead :: (Read a, MonadWidget t m) => Event t String -> m (Event t (Maybe a))
+storageRead k = do
+  r <- storageGet k
+  return $ fmap (join . fmap readMay) r
 
 storageSet :: (MonadWidget t m, ToJSString k, ToJSString v) => Event t (k, v) -> m ()
 storageSet kv = do

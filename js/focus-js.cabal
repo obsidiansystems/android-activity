@@ -38,7 +38,8 @@ library
     dependent-map,
     data-default,
     constraints,
-    ghcjs-canvas
+    ghcjs-canvas,
+    safe
 
   exposed-modules:
     Focus.JS.Request,
