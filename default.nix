@@ -7,6 +7,8 @@ let
     overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
   };
   sharedOverrides = self: super: {
+    reflex = self.callPackage ./reflex {};
+    reflex-dom = self.callPackage ./reflex-dom {};
     heist = overrideCabal super.heist (drv: {
       revision = "2"; # To allow filePath >= 1.4
       editedCabalFile = "0d4x6vsp4mrkbljavcgfvplc4xsmfr6qn4b889j77achj3z4rkkk";
@@ -33,7 +35,13 @@ let
         network-uri
         timezone-series
         constraints
+        dependent-map
+        reflex
       ];
+    });
+    dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
+      version = "0.0.0.3";
+      sha256 = "0if3mr0cmaz3yc0hbn0fpx14kwnjsaj3hd8mw9z4va4qp85wya69";
     });
     amazonka = overrideCabal super.amazonka (drv: {
       version = "0.3.4";
@@ -73,8 +81,6 @@ let
   frontendHaskellPackagesBase = pkgs.haskell-ng.packages.ghcjs;
   extendFrontendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
-      reflex = self.callPackage ./reflex {};
-      reflex-dom = self.callPackage ./reflex-dom {};
       ghcjs-canvas = self.mkDerivation ({
         pname = "ghcjs-canvas";
         license = null;

@@ -30,6 +30,8 @@ library
                , transformers
                , vector
                , constraints
+               , dependent-map
+               , reflex
                , async
 
   exposed-modules:

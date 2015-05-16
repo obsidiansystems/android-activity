@@ -18,6 +18,9 @@ import qualified Data.ByteString.Base64 as B64
 import Control.Monad.State
 import Data.Constraint
 import Control.Monad.Identity
+import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
+import qualified Data.Dependent.Map as DMap
+import Data.Functor.Misc
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -281,6 +284,23 @@ instance Foldable' (Of2 x y) where
 instance Traversable' (Of2 x y) where
   mapM' f (Of2a a) = liftM Of2a $ f a
   mapM' f (Of2b b) = liftM Of2b $ f b
+
+newtype Map' (k :: a -> *) (v :: a -> *) = Map' { unMap' :: DMap (WrapArg v k) }
+
+instance Functor' (Map' k) where
+  fmap' f = Map' . rewrapDMap f . unMap'
+
+instance Foldable' (Map' k) where
+  foldr' f z (Map' dm) = foldr (\(WrapArg _ :=> v) a -> f v a) z $ DMap.toList dm
+
+instance Traversable' (Map' k) where
+  mapM' f (Map' dm) = liftM (Map' . DMap.fromDistinctAscList) $ mapM (\(WrapArg k :=> v) -> f v >>= \v' -> return $ WrapArg k :=> v') $ DMap.toList dm
+
+map'Singleton :: k a -> v a -> Map' k v
+map'Singleton k v = Map' $ DMap.singleton (WrapArg k) v
+
+map'Lookup :: GCompare k => k a -> Map' k v -> Maybe (v a)
+map'Lookup k (Map' dm) = DMap.lookup (WrapArg k) dm
 
 instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
   getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
