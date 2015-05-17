@@ -328,7 +328,7 @@ instance HIsPrefixOf t1 t2 => HIsPrefixOf (h ': t1) (h ': t2) where
 type BlahInternal t f g m a l = EventSelector t (HIndex l) -> m (a, FHList (Event t) l)
 
 data Blah t f g m a
-   = forall (l :: [*]). Blah (BlahInternal t f g m a l)
+   = forall (l :: [*]). IncreaseHIndex l => Blah (BlahInternal t f g m a l)
 
 instance Functor m => Functor (Blah t f g m) where
   fmap f (Blah b) = Blah $ \es -> fmap (first f) $ b es
@@ -340,23 +340,27 @@ expandHIndex _ i = case i of
 
 class IncreaseHIndex l1 where
   increaseHIndex :: Proxy l1 -> HIndex l2 a -> HIndex (HAppendListR l1 l2) a
+  appendIncreaseHIndexInstance :: IncreaseHIndex l2 => Proxy l1 -> Proxy l2 -> Dict (IncreaseHIndex (HAppendListR l1 l2))
 
 instance IncreaseHIndex '[] where
   increaseHIndex _ i = i
+  appendIncreaseHIndexInstance _ _ = Dict
 
 instance IncreaseHIndex t => IncreaseHIndex (h ': t) where
   increaseHIndex _ i = Next $ increaseHIndex (Proxy :: Proxy t) i
+  appendIncreaseHIndexInstance _ l2 = case appendIncreaseHIndexInstance (Proxy :: Proxy t) l2 of
+    Dict -> Dict
 
 instance Applicative m => Applicative (Blah t f g m) where
   pure a = Blah $ \(es :: EventSelector t (HIndex '[])) -> pure (a, FHNil)
-  Blah (f :: BlahInternal t f g m (a -> b) l1) <*> Blah (x :: BlahInternal t f g m a l2) = Blah $ \(es :: EventSelector t (HIndex (HAppendListR l1 l2))) -> 
-    let combine (fResult, fHList) (xResult, xHList) = (fResult xResult, fHList `fhAppend` xHList)
-        es1 :: EventSelector t (HIndex l1)
-        es1 = EventSelector $ \k -> select es $ expandHIndex (Proxy :: Proxy l2) k
-        es2 :: EventSelector t (HIndex l2)
-        es2 = undefined
---        es2 = EventSelector $ \k -> select es $ increaseHIndex (Proxy :: Proxy l1) k
-    in combine <$> f es1 <*> x es2
+  Blah (f :: BlahInternal t f g m (a -> b) l1) <*> Blah (x :: BlahInternal t f g m a l2) = case appendIncreaseHIndexInstance (Proxy :: Proxy l1) (Proxy :: Proxy l2) of
+    Dict -> Blah $ \(es :: EventSelector t (HIndex (HAppendListR l1 l2))) ->
+      let combine (fResult, fHList) (xResult, xHList) = (fResult xResult, fHList `fhAppend` xHList)
+          es1 :: EventSelector t (HIndex l1)
+          es1 = EventSelector $ \k -> select es $ expandHIndex (Proxy :: Proxy l2) k
+          es2 :: EventSelector t (HIndex l2)
+          es2 = EventSelector $ \k -> select es $ increaseHIndex (Proxy :: Proxy l1) k
+      in combine <$> f es1 <*> x es2
 
 sendApi :: Monad m => Event t (f a) -> Blah t f g m (Event t (g a))
 sendApi = undefined
