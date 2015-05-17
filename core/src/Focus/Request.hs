@@ -21,6 +21,7 @@ import Control.Monad.Identity
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import qualified Data.Dependent.Map as DMap
 import Data.Functor.Misc
+import Reflex
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -52,35 +53,29 @@ vectorView v =
   then Just (V.head v, V.tail v)
   else Nothing
 
-data HCons a b = HCons a b
-data HNil = HNil
-
-instance (FromJSON a, FromJSON b) => FromJSON (HCons a b) where
+instance (FromJSON h, FromJSON (HList t)) => FromJSON (HList (h ': t)) where
   parseJSON (Array v) = do
     Just (aVal, v') <- return $ vectorView v
     a <- parseJSON aVal
     b <- parseJSON $ Array v'
     return $ HCons a b
 
-instance FromJSON HNil where
+instance FromJSON (HList '[]) where
   parseJSON (Array v) = do
     Nothing <- return $ vectorView v
     return HNil
 
-class HListToJSON a where
-  hListToJSON :: a -> [Value]
+class HListToJSON l where
+  hListToJSON :: HList l -> [Value]
 
-instance (ToJSON h, HListToJSON t) => HListToJSON (HCons h t) where
+instance (ToJSON h, HListToJSON t) => HListToJSON (h ': t) where
   hListToJSON (HCons h t) = toJSON h : hListToJSON t
 
-instance HListToJSON HNil where
+instance HListToJSON '[] where
   hListToJSON HNil = []
 
-instance HListToJSON (HCons a b) => ToJSON (HCons a b) where
+instance HListToJSON l => ToJSON (HList l) where
   toJSON = Array . V.fromList . hListToJSON
-
-instance ToJSON HNil where
-  toJSON HNil = Array V.empty
 
 makeRequest :: Name -> DecsQ
 makeRequest n = do
