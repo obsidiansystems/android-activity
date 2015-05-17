@@ -33,6 +33,7 @@ library
                , dependent-map
                , reflex
                , async
+               , HList
 
   exposed-modules:
       Focus.Account

@@ -19,6 +19,11 @@ let
     timezone-olson = overrideCabal super.timezone-olson (drv: {
       jailbreak = true; # To allow time >= 1.5
     });
+    HList = overrideCabal super.HList (drv: {
+      version = "0.4.0.0";
+      sha256 = "0f6d97vfxlml4dp6zfk95kk4la8xr5m91hiw4zj98kvwvvhb99mz";
+      buildDepends = drv.buildDepends ++ [self.profunctors];
+    });
     focus-core = self.mkDerivation ({
       pname = "focus-core";
       license = null;
@@ -37,6 +42,7 @@ let
         constraints
         dependent-map
         reflex
+        HList
       ];
     });
     dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
