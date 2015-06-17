@@ -31,6 +31,7 @@ library
                , vector
                , constraints
                , dependent-map
+               , dependent-sum
                , reflex
                , async
                , HList
@@ -46,6 +47,7 @@ library
     , Focus.Time
     , Focus.Sign
     , Focus.Concurrent
+    , Control.Monad.TypedUnique
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
