@@ -138,32 +138,23 @@ apiSocket :: forall t m (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
 apiSocket path batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
   rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
-      state <- holdDyn mempty newState
-      let change = flip push (align batchesWithSerialNumbers $ _webSocket_recv ws) $ \update -> liftM Just $ do
+      state <- foldDyn ($) mempty $ mergeWith (.) [ fmap (\(n, fs) -> foldl (.) id $ map (\(m, (r, sz)) -> Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)) fs) batchesWithSerialNumbers, fmap snd change ]
+      let change = flip push (_webSocket_recv ws) $ \msg -> liftM Just $ do
             oldState <- sample $ current state
-            return $ flip runState oldState $ do
-              -- If we've received a new batch to send, add it to the pending transactions
-              forM_ (update ^? here) $ \(n, fs) -> forM_ fs $ \(m, (r, sz)) -> do
-                modify $ Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)
-              case (update ^? there) of
-                Nothing -> return Nothing
-                Just msg -> do
-                  let Just ((n, m, l), rsp) = decodeStrict' msg
-                  Just (requests, sz, responses) <- use $ at (n, m)
-                  let responses' = Map.insertWith (error "apiSocket: received a response with the same tags as another pending response") l rsp responses
-                  case Map.size responses' `compare` sz of
-                    LT -> do
-                      at (n, m) .= Just (requests, sz, responses')
-                      return Nothing
-                    EQ -> do
-                      at (n, m) .= Nothing
-                      return $ Just $ ffor' requests $ \(With' l' (req :: req x)) ->
-                        let Just rspRaw = Map.lookup l' responses'
-                            Aeson.Success rsp = case getArgDict req :: Dict (ComposeConstraint FromJSON rsp x) of
-                              Dict -> fromJSON rspRaw
-                        in rsp
+            let Just ((n, m, l), rsp) = decodeStrict' msg
+                Just (requests, sz, responses) = Map.lookup (n, m) oldState
+                responses' = Map.insertWith (error "apiSocket: received a response with the same tags as another pending response") l rsp responses
+            case Map.size responses' `compare` sz of
+              LT -> do
+                return (Nothing, at (n, m) .~ Just (requests, sz, responses'))
+              EQ -> do
+                let finishedResponses = Just $ ffor' requests $ \(With' l' (req :: req x)) ->
+                      let Just rspRaw = Map.lookup l' responses'
+                          Aeson.Success rsp = case getArgDict req :: Dict (ComposeConstraint FromJSON rsp x) of
+                            Dict -> fromJSON rspRaw
+                      in rsp
+                return (finishedResponses, at (n, m) .~ Nothing)
           result = fmapMaybe fst change
-          newState = fmap snd change
           encodeMessages :: (Int, [(Int, (f (With' Int req), Int))]) -> [ByteString]
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)
