@@ -49,15 +49,16 @@ import Foreign.Ptr
 #endif
 
 newtype JSWebSocket = JSWebSocket { unWebSocket :: JSRef JSWebSocket }
-JS(newWebSocket_, "$r = new WebSocket($1); $r.binaryType = 'arraybuffer'; $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
-JS(webSocketSend_, "$1['send']($2)", JSRef JSWebSocket -> JSRef JSByteArray -> IO ()) --TODO: Use (JSRef ArrayBuffer) instead of JSString
+JS(newWebSocket_, "$r = new WebSocket($1); $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
+JS(webSocketSend_, "$1['send'](String.fromCharCode.apply(null, $2))", JSRef JSWebSocket -> JSRef JSByteArray -> IO ()) --TODO: Use (JSRef ArrayBuffer) instead of JSString
+
 
 data JSByteArray
 JS(extractByteArray, "new Uint8Array($1_1.buf, $1_2, $2)", Ptr a -> Int -> IO (JSRef JSByteArray))
 
 newWebSocket :: String -> (ByteString -> IO ()) -> IO () -> IO JSWebSocket
 newWebSocket url onMessage onClose = do
-  onMessageFun <- syncCallback1 AlwaysRetain True $ onMessage <=< bufferByteString 0 0
+  onMessageFun <- syncCallback1 AlwaysRetain True $ onMessage <=< return . encodeUtf8 . fromJSString
   rec onCloseFun <- syncCallback AlwaysRetain True $ do
         release onMessageFun
         release onCloseFun
