@@ -31,4 +31,4 @@
 	url = git@github.com:ghcjs/ghcjs-canvas
 [submodule "amazonka"]
 	path = amazonka
-	url = git@github.com:brendanhay/amazonka
+	url = git@github.com:ryantrinkle/amazonka
