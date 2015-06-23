@@ -48,15 +48,17 @@ import Foreign.JavaScript.TH
 #define JS(name, js, type) name :: type ; name = undefined
 #endif
 
-JS(newWebSocket_, "$r = new WebSocket($1); $r.binaryType = 'arraybuffer'; $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
-JS(webSocketSend_, "$1['send']($2)", JSRef JSWebSocket -> JSRef JSByteArray -> IO ()) --TODO: Use (JSRef ArrayBuffer) instead of JSString
+newtype JSWebSocket = JSWebSocket { unWebSocket :: JSRef JSWebSocket }
+JS(newWebSocket_, "$r = new WebSocket($1); $r.onmessage = function(e){ $2(e.data); }; $r.onclose = function(e){ $3(); };", JSString -> JSFun (JSString -> IO ()) -> JSFun (IO ()) -> IO (JSRef JSWebSocket))
+JS(webSocketSend_, "$1['send'](String.fromCharCode.apply(null, $2))", JSRef JSWebSocket -> JSRef JSByteArray -> IO ()) --TODO: Use (JSRef ArrayBuffer) instead of JSString
+
 
 data JSByteArray
 JS(extractByteArray, "new Uint8Array($1_1.buf, $1_2, $2)", Ptr a -> Int -> IO (JSRef JSByteArray))
 
 newWebSocket :: String -> (ByteString -> IO ()) -> IO () -> IO JSWebSocket
 newWebSocket url onMessage onClose = do
-  onMessageFun <- syncCallback1 AlwaysRetain True $ onMessage <=< bufferByteString 0 0
+  onMessageFun <- syncCallback1 AlwaysRetain True $ onMessage <=< return . encodeUtf8 . fromJSString
   rec onCloseFun <- syncCallback AlwaysRetain True $ do
         release onMessageFun
         release onCloseFun
@@ -87,7 +89,7 @@ instance FromJS x (JSWebSocket x) where
 
 importJS Unsafe "(function(that) { var ws = new WebSocket(that[0]); ws['binaryType'] = 'arraybuffer'; ws['onmessage'] = function(e){ that[1](new Uint8Array(e.data)); }; ws['onclose'] = function(e){ that[2](); }; return ws; })(this)" "newWebSocket_" [t| forall x m. MonadJS x m => String -> JSFun x -> JSFun x -> m (JSWebSocket x) |]
 
-importJS Unsafe "this[0]['send'](this[1])" "webSocketSend_" [t| forall x m. MonadJS x m => JSWebSocket x -> JSUint8Array x -> m () |]
+importJS Unsafe "this[0]['send'](String.fromCharCode.apply(null, this[1]))" "webSocketSend_" [t| forall x m. MonadJS x m => JSWebSocket x -> JSUint8Array x -> m () |]
 
 newWebSocket :: (MonadJS x m, MonadFix m) => String -> (ByteString -> m ()) -> m () -> m (JSWebSocket x)
 newWebSocket url onMessage onClose = do
@@ -177,31 +179,24 @@ apiSocket :: ( HasJS x m
           -> m (Event t (f rsp), Dynamic t (Map (Int, Int) (f (With' Int req), Int, Map Int Aeson.Value)))
 apiSocket path batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
-  rec ws <- webSocket path $ def & webSocketConfig_send .~ traceEvent "apiSocket: send" (fmap encodeMessages batchesWithSerialNumbers)
-      state <- holdDyn mempty newState
-      let change = flip push (align batchesWithSerialNumbers $ traceEvent "apiSocket: recv" $ _webSocket_recv ws) $ \update -> liftM Just $ do
+  rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
+      state <- foldDyn ($) mempty $ mergeWith (.) [ fmap (\(n, fs) -> foldl (.) id $ map (\(m, (r, sz)) -> Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)) fs) batchesWithSerialNumbers
+                                                  , fmap snd change
+                                                  ]
+      let change = flip push (_webSocket_recv ws) $ \msg -> liftM Just $ do
             oldState <- sample $ current state
-            return $ flip runState oldState $ do
-              -- If we've received a new batch to send, add it to the pending transactions
-              forM_ (update ^? here) $ \(n, fs) -> forM_ fs $ \(m, (r, sz)) -> do
-                modify $ Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)
-              case (update ^? there) of
-                Nothing -> return Nothing
-                Just msg -> do
-                  let Just ((n, m, l), rsp) = decodeStrict' msg
-                  Just (requests, sz, responses) <- use $ at (n, m)
-                  let responses' = Map.insertWith (error "apiSocket: received a response with the same tags as another pending response") l rsp responses
-                  case Map.size responses' `compare` sz of
-                    LT -> do
-                      at (n, m) .= Just (requests, sz, responses')
-                      return Nothing
-                    EQ -> do
-                      at (n, m) .= Nothing
-                      return $ Just $ ffor' requests $ \(With' l' req) ->
-                        let Just rspRaw = Map.lookup l' responses'
-                            Aeson.Success rsp = fromJSONViaAllArgsHave req rspRaw
-                        in rsp
+            let Just ((n, m, l), rsp) = decodeStrict' msg
+                Just (requests, sz, responses) = Map.lookup (n, m) oldState
+                responses' = Map.insertWith (error "apiSocket: received a response with the same tags as another pending response") l rsp responses
+            case Map.size responses' `compare` sz of
+              LT -> do
+                return (Nothing, at (n, m) .~ Just (requests, sz, responses'))
+              EQ -> do
+                let finishedResponses = Just $ ffor' requests $ \(With' l' (req :: req x)) ->
+                      let Just rspRaw = Map.lookup l' responses'
+                          Aeson.Success rsp = fromJSONViaAllArgsHave req rspRaw
+                      in rsp
+                return (finishedResponses, at (n, m) .~ Nothing)
           result = fmapMaybe fst change
-          newState = fmap snd change
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)

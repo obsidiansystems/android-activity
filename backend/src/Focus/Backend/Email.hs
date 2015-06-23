@@ -11,17 +11,27 @@ import Text.Blaze.Html5 (Html)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Foldable
 import Text.Blaze.Html.Renderer.Text
-import Network.Mail.SMTP (sendMailWithLogin', simpleMail, Address (..))
+import Network.Mail.SMTP (sendMailWithLogin', simpleMail, Address (..), UserName, Password)
 import Control.Monad.IO.Class
 import Control.Monad
 import Control.Monad.Reader
 import Data.Monoid
-import Network.Socket (PortNumber)
+import Network.Socket (PortNumber, HostName)
+import Data.Aeson
+import Data.Word
 
 class Monad m => MonadEmail m where
   sendMail :: Mail -> m ()
 
-type EmailEnv = (String, PortNumber, String, String)
+type EmailEnv = (HostName, PortNumber, UserName, Password)
+
+instance FromJSON PortNumber where
+  parseJSON v = do
+    n :: Word16 <- parseJSON v
+    return $ fromIntegral n
+
+instance ToJSON PortNumber where
+  toJSON n = toJSON (fromIntegral n :: Word16)
 
 newtype EmailT m a = EmailT { unEmailT :: ReaderT EmailEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadRoute, MonadSign, MonadBrand)
 
@@ -36,7 +46,9 @@ instance MonadEmail m => MonadEmail (ReaderT r m) where
 
 runEmailT = runReaderT . unEmailT
 
-sendEmailFrom :: MonadEmail m => Text -> Text -> NonEmpty Address -> Text -> Html -> m ()
-sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Address (Just name) email) (toList recipients) [] [] subject [(htmlPart $ renderHtml body)]
+sendEmailFrom :: MonadEmail m => Text -> Text -> NonEmpty Text -> Text -> Html -> m ()
+sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Address (Just name) email) (map (Address Nothing) $ toList recipients) [] [] subject [(htmlPart $ renderHtml body)]
 
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
+
+
