@@ -7,6 +7,7 @@ import Foreign.JavaScript.TH
 importJS Unsafe "Notification.requestPermission()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
 importJS Unsafe "Notification.permission" "notificationPermission" [t| forall x m. MonadJS x m => m String |]
 importJS Unsafe "new Notification(this[0], {body: this[1], icon: this[2]})" "newDesktopNotification" [t| forall x m. MonadJS x m => String -> String -> String -> m () |]
+importJS Unsafe "window.Notification !== undefined" "notificationSupported" [t| forall x m. MonadJS x m => m Bool |]
 
 desktopNotificationEnabled :: MonadJS x m => m Bool
 desktopNotificationEnabled = do
