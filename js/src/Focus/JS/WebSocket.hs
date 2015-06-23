@@ -13,6 +13,7 @@ import Control.Concurrent
 import Data.Semigroup hiding (option)
 import Data.Dependent.Map (DMap, GCompare (..), GOrdering (..), DSum (..))
 import Data.ByteString (ByteString)
+import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Control.Monad.Ref
@@ -87,15 +88,15 @@ instance ToJS x (JSWebSocket x) where
 instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
-importJS Unsafe "(function(that) { var ws = new WebSocket(that[0]); ws['binaryType'] = 'arraybuffer'; ws['onmessage'] = function(e){ that[1](new Uint8Array(e.data)); }; ws['onclose'] = function(e){ that[2](); }; return ws; })(this)" "newWebSocket_" [t| forall x m. MonadJS x m => String -> JSFun x -> JSFun x -> m (JSWebSocket x) |]
+importJS Unsafe "(function(that) { var ws = new WebSocket(that[0]); ws['binaryType'] = 'arraybuffer'; ws['onmessage'] = function(e){ that[1](e.data); }; ws['onclose'] = function(e){ that[2](); }; return ws; })(this)" "newWebSocket_" [t| forall x m. MonadJS x m => String -> JSFun x -> JSFun x -> m (JSWebSocket x) |]
 
 importJS Unsafe "this[0]['send'](String.fromCharCode.apply(null, this[1]))" "webSocketSend_" [t| forall x m. MonadJS x m => JSWebSocket x -> JSUint8Array x -> m () |]
 
 newWebSocket :: (MonadJS x m, MonadFix m) => String -> (ByteString -> m ()) -> m () -> m (JSWebSocket x)
 newWebSocket url onMessage onClose = do
-  onMessageFun <- mkJSFun $ \[uint8array] -> do
-    bs <- fromJSUint8Array $ JSUint8Array uint8array
-    onMessage bs
+  onMessageFun <- mkJSFun $ \[msg] -> do
+    s <- fromJSString msg
+    onMessage $ encodeUtf8 $ T.pack s
     mkJSUndefined
   rec onCloseFun <- mkJSFun $ \[] -> do
         freeJSFun onMessageFun
