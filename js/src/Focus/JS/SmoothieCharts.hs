@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell, RankNTypes, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts #-}
 module Focus.JS.SmoothieCharts where
 --http://smoothiecharts.org/
 
@@ -19,26 +19,38 @@ import Data.Default
 import Data.Map (Map)
 import Data.Maybe
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import GHCJS.DOM.Types hiding (Event, Text)
-import GHCJS.Foreign
-import GHCJS.Types
-import GHCJS.Marshal
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import Foreign.JavaScript.TH
 
-#ifdef __GHCJS__
-#define JS(name, js, type) foreign import javascript unsafe js name :: type
-#else
-#define JS(name, js, type) name :: type ; name = undefined
-#endif
+newtype SmoothieChart x = SmoothieChart { unSmoothieChart :: JSRef x }
 
+instance ToJS x (SmoothieChart x) where
+  withJS (SmoothieChart r) = ($ r)
 
-newtype SmoothieChart = SmoothieChart { unSmoothieChart :: JSRef SmoothieChart }
-newtype TimeSeries = TimeSeries { unTimeSeries :: JSRef TimeSeries }
-newtype TimeSeriesOptions = TimeSeriesOptions { unTimeSeriesOptions :: JSRef TimeSeriesOptions }
+instance FromJS x (SmoothieChart x) where
+  fromJS = return . SmoothieChart
+
+newtype TimeSeries x = TimeSeries { unTimeSeries :: JSRef x }
+
+instance ToJS x (TimeSeries x) where
+  withJS (TimeSeries r) = ($ r)
+
+instance FromJS x (TimeSeries x) where
+  fromJS = return . TimeSeries
+
+newtype TimeSeriesOptions x = TimeSeriesOptions { unTimeSeriesOptions :: JSRef x }
+
+instance ToJS x (TimeSeriesOptions x) where
+  withJS (TimeSeriesOptions r) = ($ r)
+
+instance FromJS x (TimeSeriesOptions x) where
+  fromJS = return . TimeSeriesOptions
 
 data Interpolation = Bezier
                    | Linear
@@ -143,65 +155,63 @@ liftM concat $ mapM makeLenses
   , ''SmoothieTimeSeriesConfig
   ]
 
-JS(smoothieChartNew_, "new SmoothieChart(JSON.parse($1))", JSString -> IO (JSRef SmoothieChart))
-JS(smoothieStreamTo_, "$1.streamTo($2, $3)", JSRef SmoothieChart -> JSRef Element -> Double -> IO ())
-JS(smoothieTimeSeriesNew_, "new TimeSeries(JSON.parse($1))", JSString -> IO (JSRef TimeSeries))
-JS(smoothieAddTimeSeries_, "$1.addTimeSeries($2, JSON.parse($3))", JSRef SmoothieChart -> JSRef TimeSeries -> JSString -> IO ())
-JS(smoothieTimeSeriesAppend_, "$1.append($2, $3)", JSRef TimeSeries -> Double -> Double -> IO ())
-JS(smoothieTimestamp_, "new Date().getTime()", IO Double)
-JS(smoothieGetTimeSeriesOptions_, "$1.getTimeSeriesOptions($2)", JSRef SmoothieChart -> JSRef TimeSeries -> IO (JSRef TimeSeriesOptions))
-JS(smoothieSetTimeSeriesOptions_, "for (var key in $1) { $1[key] = JSON.parse($2)[key] }", JSRef TimeSeriesOptions -> JSString -> IO ())
+importJS Unsafe "new SmoothieChart(JSON.parse(this[0]))" "smoothieChartNew_" [t| forall x m. MonadJS x m => String -> m (SmoothieChart x) |]
+importJS Unsafe "this[0].streamTo(this[1], this[2])" "smoothieStreamTo_" [t| forall x m. MonadJS x m => SmoothieChart x -> Node -> Double -> m () |]
+importJS Unsafe "new TimeSeries(JSON.parse(this[0]))" "smoothieTimeSeriesNew_" [t| forall x m. MonadJS x m => String -> m (TimeSeries x) |]
+importJS Unsafe "this[0].addTimeSeries(this[1], JSON.parse(this[2]))" "smoothieAddTimeSeries_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> String -> m () |]
+importJS Unsafe "this[0].append(this[1], this[2])" "smoothieTimeSeriesAppend_" [t| forall x m. MonadJS x m => TimeSeries x -> Double -> Double -> m () |]
+importJS Unsafe "new Date().getTime()" "smoothieTimestamp_" [t| forall x m. MonadJS x m => m Double |]
+importJS Unsafe "this[0].getTimeSeriesOptions(this[1])" "smoothieGetTimeSeriesOptions_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> m (TimeSeriesOptions x) |]
+importJS Unsafe "(function(that){for (var key in that[0]) { that[0][key] = JSON.parse(that[1])[key] }})(this)" "smoothieSetTimeSeriesOptions_" [t| forall x m. MonadJS x m => TimeSeriesOptions x -> String -> m () |]
 
-smoothieChartNew :: SmoothieChartConfig -> IO SmoothieChart
-smoothieChartNew cfg = do
-  s <- smoothieChartNew_ $ encodeToJsonJSString cfg
-  return $ SmoothieChart s
+smoothieChartNew :: MonadJS x m => SmoothieChartConfig -> m (SmoothieChart x)
+smoothieChartNew = smoothieChartNew_ . encodeToJsonString
 
-smoothieStreamTo :: SmoothieChart -> El t -> Double -> IO ()
-smoothieStreamTo s e delay = smoothieStreamTo_ (unSmoothieChart s) (unElement $ toElement $ _el_element e) delay
+smoothieStreamTo :: MonadJS x m => (SmoothieChart x) -> El t -> Double -> m ()
+smoothieStreamTo s e delay = smoothieStreamTo_ s (toNode $ _el_element e) delay
 
-smoothieTimeSeriesNew :: SmoothieTimeSeriesConfig -> IO TimeSeries
-smoothieTimeSeriesNew cfg = liftM TimeSeries $ smoothieTimeSeriesNew_ (encodeToJsonJSString cfg)
+smoothieTimeSeriesNew :: MonadJS x m => SmoothieTimeSeriesConfig -> m (TimeSeries x)
+smoothieTimeSeriesNew = smoothieTimeSeriesNew_ . encodeToJsonString
 
-smoothieAddTimeSeries :: SmoothieChart -> TimeSeries -> SmoothieTimeSeriesStyle -> IO ()
-smoothieAddTimeSeries s t style = smoothieAddTimeSeries_ (unSmoothieChart s) (unTimeSeries t) (encodeToJsonJSString style)
+smoothieAddTimeSeries :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
+smoothieAddTimeSeries s t = smoothieAddTimeSeries_ s t . encodeToJsonString
 
-smoothieTimeSeriesAppend :: TimeSeries -> Double -> Double -> IO ()
-smoothieTimeSeriesAppend ts t x = smoothieTimeSeriesAppend_ (unTimeSeries ts) t x
+smoothieTimeSeriesAppend :: MonadJS x m => TimeSeries x -> Double -> Double -> m ()
+smoothieTimeSeriesAppend ts t x = smoothieTimeSeriesAppend_ ts t x
 
-smoothieTimeSeriesAppendWithCurrentTime :: TimeSeries -> Double -> IO ()
+smoothieTimeSeriesAppendWithCurrentTime :: MonadJS x m => TimeSeries x -> Double -> m ()
 smoothieTimeSeriesAppendWithCurrentTime ts x = do
   t <- smoothieTimestamp_
   smoothieTimeSeriesAppend ts t x
 
-smoothieChart :: MonadWidget t m => Map String String -> Double -> [(Event t Double, SmoothieTimeSeriesConfig, SmoothieTimeSeriesStyle)] -> SmoothieChartConfig -> m (SmoothieChart, [TimeSeries])
+smoothieChart :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String String -> Double -> [(Event t Double, SmoothieTimeSeriesConfig, SmoothieTimeSeriesStyle)] -> SmoothieChartConfig -> m (SmoothieChart x, [TimeSeries x])
 smoothieChart attrs delay es cfg = do
   (canvas, _) <- elAttr' "canvas" attrs $ return ()
-  (ets, s) <- liftIO $ do
-    s <- smoothieChartNew cfg
-    ets <- forM es $ \(e, cfg', style) -> do
+  (ets, s) <- do
+    s <- liftJS $ smoothieChartNew cfg
+    ets <- forM es $ \(e, cfg', style) -> liftJS $ do
       ts <- smoothieTimeSeriesNew cfg'
       smoothieAddTimeSeries s ts style
       return (e, ts)
-    smoothieStreamTo s canvas delay
+    liftJS $ smoothieStreamTo s canvas delay
     return (ets, s)
-  forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftIO $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
+  forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftJS $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
   return $ (s, map snd ets)
 
-smoothieChartSetTimeSeriesStyle :: SmoothieChart -> TimeSeries -> SmoothieTimeSeriesStyle -> IO ()
+smoothieChartSetTimeSeriesStyle :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
 smoothieChartSetTimeSeriesStyle sc t cfg = do
-  tsc <- smoothieGetTimeSeriesOptions_ (unSmoothieChart sc) (unTimeSeries t)
-  lw <- toJSRef (_smoothieTimeSeriesStyle_lineWidth cfg)
-  ss <- toJSRef (_smoothieTimeSeriesStyle_strokeStyle cfg)
-  fs <- case _smoothieTimeSeriesStyle_fillStyle cfg of
-             Nothing -> return jsUndefined
-             Just fs' -> toJSRef fs'
-  setProp ("fillStyle" :: String) fs tsc
-  setProp ("strokeStyle" :: String) ss tsc
-  setProp ("lineWidth" :: String) lw tsc
+  tso <- smoothieGetTimeSeriesOptions_ sc t
+  withFS <- case _smoothieTimeSeriesStyle_fillStyle cfg of
+    Nothing -> do
+      u <- mkJSUndefined
+      return ($ u)
+    Just fs' -> return $ withJS fs'
+  withFS $ \fs -> setJSProp "fillStyle" fs $ unTimeSeriesOptions tso
+  withJS (_smoothieTimeSeriesStyle_strokeStyle cfg) $ \ss -> setJSProp "strokeStyle" ss $ unTimeSeriesOptions tso
+  withJS (_smoothieTimeSeriesStyle_lineWidth cfg) $ \lw -> setJSProp "lineWidth" lw $ unTimeSeriesOptions tso
 
-updateTimeSeriesStyle :: MonadWidget t m => SmoothieChart -> TimeSeries -> Event t SmoothieTimeSeriesStyle -> m ()
-updateTimeSeriesStyle sc ts e = performEvent_ $ fmap (liftIO . smoothieChartSetTimeSeriesStyle sc ts) e
+updateTimeSeriesStyle :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => SmoothieChart x -> TimeSeries x -> Event t SmoothieTimeSeriesStyle -> m ()
+updateTimeSeriesStyle sc ts e = performEvent_ $ fmap (liftJS . smoothieChartSetTimeSeriesStyle sc ts) e
 
-encodeToJsonJSString :: ToJSON a => a -> JSString
-encodeToJsonJSString = toJSString . decodeUtf8 . LBS.toStrict . encode
+encodeToJsonString :: ToJSON a => a -> String
+encodeToJsonString = T.unpack . decodeUtf8 . LBS.toStrict . encode

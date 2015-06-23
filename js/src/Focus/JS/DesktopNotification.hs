@@ -1,11 +1,19 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes #-}
 module Focus.JS.DesktopNotification where
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
-import GHCJS.Foreign
-import GHCJS.Types
-import GHCJS.Marshal
+import Foreign.JavaScript.TH
 
+importJS Unsafe "Notification.requestPermission()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
+importJS Unsafe "Notification.permission" "notificationPermission" [t| forall x m. MonadJS x m => m String |]
+importJS Unsafe "new Notification(this[0], {body: this[1], icon: this[2]})" "newDesktopNotification" [t| forall x m. MonadJS x m => String -> String -> String -> m () |]
+
+desktopNotificationEnabled :: MonadJS x m => m Bool
+desktopNotificationEnabled = do
+  p <- notificationPermission
+  return $ p == "granted"
+
+{-
 #ifdef __GHCJS__
 #define JS(name, js, type) foreign import javascript unsafe js name :: type
 #else
@@ -29,10 +37,11 @@ desktopNotificationEnabled = do
   return $ case p of
                 "granted" -> True
                 _ -> False
+-}
 
-enableDesktopNotification :: IO ()
+enableDesktopNotification :: MonadJS x m => m ()
 enableDesktopNotification = do
   on <- desktopNotificationEnabled
   if on then return ()
-        else notificationRequestPermission_
+        else notificationRequestPermission
 

@@ -243,6 +243,14 @@ makeJson' n = do
 class AllArgsHave c f where
   getArgDict :: f x -> Dict (c x)
 
+instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
+  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+    Dict -> Dict
+
+instance (FromJSON l, AllArgsHave FromJSON f) => AllArgsHave (ComposeConstraint FromJSON (Either l)) f where
+  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+    Dict -> Dict
+
 class c (f x) => ComposeConstraint c f x
 instance c (f x) => ComposeConstraint c f x
 
@@ -300,13 +308,6 @@ map'Singleton k v = Map' $ DMap.singleton (WrapArg k) v
 
 map'Lookup :: GCompare k => k a -> Map' k v -> Maybe (v a)
 map'Lookup k (Map' dm) = DMap.lookup (WrapArg k) dm
-
-instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
-  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
-    Dict -> Dict
-
-deriving instance FromJSON a => FromJSON (Identity a)
-deriving instance ToJSON a => ToJSON (Identity a)
 
 fhAppend :: FHList f l1 -> FHList f l2 -> FHList f (HAppendListR l1 l2)
 fhAppend l1 l2 = case l1 of
