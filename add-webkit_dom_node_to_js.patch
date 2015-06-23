@@ -1,0 +1,50 @@
+--- webkitgtk-2.4.6.orig/Source/WebCore/bindings/gobject/WebKitDOMCustom.cpp	2014-09-26 03:40:44.000000000 -0400
++++ webkitgtk-2.4.6/Source/WebCore/bindings/gobject/WebKitDOMCustom.cpp	2015-06-21 19:17:12.934877955 -0400
+@@ -27,6 +27,11 @@
+ #include "WebKitDOMHTMLTextAreaElementPrivate.h"
+ #include "WebKitDOMPrivate.h"
+ #include "gobject/ConvertToUTF8String.h"
++#include "WebKitDOMNodePrivate.h"
++#include "JSCJSValue.h"
++#include "JSNodeCustom.h"
++#include "JSDOMWindowCustom.h"
++#include "APICast.h"
+ 
+ using namespace WebKit;
+ 
+@@ -56,4 +61,16 @@ void webkit_dom_html_media_element_set_c
+ #endif /* ENABLE(VIDEO) */
+ }
+ 
++JSValueRef webkit_dom_node_to_js(JSContextRef ctx, WebKitDOMNode* self)
++{
++    WebCore::JSMainThreadNullState state;
++
++    JSC::ExecState* exec = toJS(ctx);
++    WebCore::Node* coreNode = WebKit::core(self);
+ 
++    WebCore::JSDOMWindow* window = WebCore::asJSDOMWindow(exec->lexicalGlobalObject());
++
++    JSC::JSValue jsNode = toJS(exec, window, coreNode);
++    
++    return toRef(exec, jsNode);
++}
+--- webkitgtk-2.4.6.orig/Source/WebCore/bindings/gobject/WebKitDOMCustom.h	2014-09-26 03:40:44.000000000 -0400
++++ webkitgtk-2.4.6/Source/WebCore/bindings/gobject/WebKitDOMCustom.h	2015-06-21 18:34:40.866119598 -0400
+@@ -22,6 +22,7 @@
+ #include <glib-object.h>
+ #include <glib.h>
+ #include <webkitdom/webkitdomdefines.h>
++#include <JavaScriptCore/JSValueRef.h>
+ 
+ G_BEGIN_DECLS
+ 
+@@ -50,6 +51,8 @@ WEBKIT_API void webkit_dom_html_media_el
+  */
+ WEBKIT_API gboolean webkit_dom_html_input_element_is_edited(WebKitDOMHTMLInputElement* input);
+ 
++WEBKIT_API JSValueRef webkit_dom_node_to_js(JSContextRef ctx, WebKitDOMNode* self);
++
+ G_END_DECLS
+ 
+ #endif
