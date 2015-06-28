@@ -49,7 +49,11 @@ library
     temporary,
     stringsearch,
     shelly,
-    monad-loops
+    monad-loops,
+    unix,
+    filepath,
+    tar,
+    file-embed
 
   exposed-modules:
       Focus.Backend.Account

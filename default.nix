@@ -283,6 +283,8 @@ let
           temporary
           stringsearch
           shelly
+          tar
+          file-embed
         ];
         pkgconfigDepends = [
           pkgs.postgresql94
