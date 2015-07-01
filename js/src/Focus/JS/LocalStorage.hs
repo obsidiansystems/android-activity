@@ -1,13 +1,12 @@
 {-# LANGUAGE GADTs, FlexibleContexts, TemplateHaskell, RankNTypes #-}
 module Focus.JS.LocalStorage
-       ( storageGet
-       , storageSet
-       , storageRemove
+       ( storageGetInitial
+       , storageGetManyInitial
+       , storageGet
        , storageGetMany
+       , storageSet
        , storageSetMany
-       , storageRemoveMany
        , storageRemoveAll
-       , storageRead
        ) where
 
 import Foreign.JavaScript.TH
@@ -16,88 +15,60 @@ import GHCJS.DOM
 import GHCJS.DOM.Document
 import GHCJS.DOM.Storage
 import GHCJS.DOM.Types hiding (Event)
-import Reflex.Dom
+import Reflex.Dom hiding (Value)
 import Control.Monad.IO.Class
 import Control.Monad
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Control.Monad.Identity
 import Safe
 
---TODO: This should really take a Storage as an argument
-importJS Unsafe "localStorage['getItem'](this[1])" "localStorageGetItemMaybe" [t| forall x m. MonadJS x m => String -> m (Maybe String) |]
+--TODO: This should really take a Storage as an argument, but on webkitgtk, this requires converting the Storage object to its JS wrapper
+importJS Unsafe "localStorage['getItem'](this[0])" "localStorageGetItemMaybe" [t| forall x m. MonadJS x m => String -> m (Maybe String) |]
 
-storageGet :: (HasJS x (WidgetHost m), MonadWidget t m) => Event t String -> m (Event t (Maybe String))
-storageGet key = do
-  performEvent $ fmap (liftJS . localStorageGetItemMaybe) key
-
-askDomWindow :: MonadWidget t m => m DOMWindow
+askDomWindow :: (HasWebView m, MonadIO m) => m DOMWindow
 askDomWindow = do
   wv <- askWebView
   Just doc <- liftIO $ webViewGetDomDocument $ unWebViewSingleton wv
   Just window <- liftIO $ documentGetDefaultView doc
   return window
 
---storageRead :: (Read a, MonadWidget t m) => Event t String -> m (Event t (Maybe a))
-storageRead k = do
-  r <- storageGet k
-  return $ fmap (join . fmap readMay) r
-
---storageSet :: (MonadWidget t m, ToJSString k, ToJSString v) => Event t (k, v) -> m ()
-storageSet kv = do
+askLocalStorage :: (HasWebView m, MonadIO m) => m Storage
+askLocalStorage = do
   dw <- askDomWindow
-  performEvent_ $ fmap (\(k, v) -> set dw k v) kv
-  where
-    set dw k v = do
-      s <- liftIO $ domWindowGetLocalStorage dw
-      case s of
-           Nothing -> return ()
-           Just s' -> liftIO $ storageSetItem s' k v
+  Just s <- liftIO $ domWindowGetLocalStorage dw
+  return s
 
---storageRemove :: (MonadWidget t m, ToJSString k)  => Event t k -> m ()
-storageRemove k = do
+type Key = String
+
+type Value = String
+
+storageGetInitial :: (HasWebView m, HasJS x m) => Key -> m (Maybe Value)
+storageGetInitial = liftM runIdentity . storageGetManyInitial . Identity
+
+storageGetManyInitial :: (HasWebView m, HasJS x m, Traversable f) => f Key -> m (f (Maybe Value))
+storageGetManyInitial keys = do
+  liftJS $ forM keys localStorageGetItemMaybe
+
+storageGet :: (MonadWidget t m, HasJS x (WidgetHost m)) => Event t (Key) -> m (Event t (Maybe Value))
+storageGet = liftM (fmap runIdentity) . storageGetMany . fmap Identity
+
+storageGetMany :: (MonadWidget t m, HasJS x (WidgetHost m), Traversable f) => Event t (f Key) -> m (Event t (f (Maybe Value)))
+storageGetMany gets = do
+  performEvent $ ffor gets $ liftJS . mapM localStorageGetItemMaybe
+
+storageSet :: (MonadWidget t m) => Event t (Key, Maybe Value) -> m (Event t ())
+storageSet = liftM (fmap runIdentity) . storageSetMany . fmap Identity
+
+storageSetMany :: (MonadWidget t m, Traversable f) => Event t (f (Key, Maybe Value)) -> m (Event t (f ()))
+storageSetMany sets = do
   dw <- askDomWindow
-  performEvent_ $ fmap (remove dw) k
-  where
-    remove dw k = do
-      s <- liftIO $ domWindowGetLocalStorage dw
-      case s of
-           Nothing -> return ()
-           Just s' -> liftIO $ storageRemoveItem s' k
+  Just s <- liftIO $ domWindowGetLocalStorage dw
+  performEvent $ ffor sets $ mapM $ \(k, mv) -> liftIO $ case mv of
+    Nothing -> storageRemoveItem s k
+    Just v -> storageSetItem s k v
 
---storageGetMany :: (MonadWidget t m, ToJSString k, Ord k, FromJSString v) => Event t [k] -> m (Event t (Map k (Maybe v)))
-storageGetMany ks = do
-  dw <- askDomWindow
-  performEvent $ fmap (getMany dw) ks
-  where
-    getMany dw ks = do
-      s <- liftIO $ domWindowGetLocalStorage dw
-      case s of
-           Nothing -> return $ Map.fromList $ map (\k -> (k, Nothing)) ks
-           Just s' -> liftM Map.fromList $ forM ks $ \k -> do
-             i <- storageGetItem s' k
-             return (k, i)
-
---storageSetMany :: (MonadWidget t m, ToJSString k, ToJSString v) => Event t (Map k v) -> m ()
-storageSetMany is = do
-  dw <- askDomWindow
-  performEvent_ $ fmap (setMany dw) is
-  where
-    setMany dw is = do
-      s <- liftIO $ domWindowGetLocalStorage dw
-      case s of
-           Just s' -> void $ forM (Map.toList is) $ \(k, i) -> liftIO $ storageSetItem s' k i
-           _ -> return ()
-
---storageRemoveMany :: (MonadWidget t m, ToJSString k) => Event t [k] -> m ()
-storageRemoveMany ks = do
-  dw <- askDomWindow
-  performEvent_ $ ffor ks $ \ks' -> do
-    s <- liftIO $ domWindowGetLocalStorage dw
-    case s of
-         Just s' -> void $ forM ks' $ \k -> liftIO $ storageRemoveItem s' k
-         _ -> return ()
-
---storageRemoveAll :: MonadWidget t m => Event t () -> m ()
+storageRemoveAll :: MonadWidget t m => Event t () -> m ()
 storageRemoveAll e = do
   dw <- askDomWindow
   s <- liftIO $ domWindowGetLocalStorage dw
