@@ -168,7 +168,8 @@ fromJSONViaAllArgsHave :: forall rsp req a. AllArgsHave (ComposeConstraint FromJ
 fromJSONViaAllArgsHave req rspRaw = case getArgDict req :: Dict (ComposeConstraint FromJSON rsp a) of
   Dict -> fromJSON rspRaw
 
-apiSocket :: ( HasJS x m
+apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
+             ( HasJS x m
              , HasJS x (WidgetHost m)
              , MonadWidget t m
              , Traversable' f
@@ -193,7 +194,7 @@ apiSocket path batches = do
               LT -> do
                 return (Nothing, at (n, m) .~ Just (requests, sz, responses'))
               EQ -> do
-                let finishedResponses = Just $ ffor' requests $ \(With' l' (req :: req x)) ->
+                let finishedResponses = Just $ ffor' requests $ \(With' l' (req :: req z)) ->
                       let Just rspRaw = Map.lookup l' responses'
                           Aeson.Success rsp = fromJSONViaAllArgsHave req rspRaw
                       in rsp
