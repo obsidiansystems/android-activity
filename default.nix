@@ -370,6 +370,7 @@ let
           frontendCommon
           focus-core
           focus-js
+          ghcjs-dom
         ] ++ frontendDepends haskellPackages;
         buildTools = [] ++ frontendTools pkgs;
         isExecutable = true;
