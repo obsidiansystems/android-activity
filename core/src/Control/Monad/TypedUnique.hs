@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, PolyKinds #-}
 module Control.Monad.TypedUnique ( MonadTypedUnique (..)
                                  ) where
 
@@ -12,7 +12,7 @@ import Unsafe.Coerce
 import System.IO.Unsafe
 
 class (Monad m, GCompare (TypedUnique m)) => MonadTypedUnique m where
-  type TypedUnique m :: * -> *
+  type TypedUnique m :: k -> *
   getTypedUnique :: m (TypedUnique m a)
 
 nextTypedUniqueIO :: IORef Int
