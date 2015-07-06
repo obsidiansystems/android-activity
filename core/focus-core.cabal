@@ -47,6 +47,7 @@ library
     , Focus.Time
     , Focus.Sign
     , Focus.Concurrent
+    , Focus.TH
     , Control.Monad.TypedUnique
 
   other-extensions: TemplateHaskell

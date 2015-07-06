@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 -- | Various functions for making dealing with Groundhog more pleasant
 module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
                                   , module Database.Groundhog
@@ -5,11 +6,13 @@ module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
                                   , module Database.Groundhog.TH
                                   ) where
 
+import Focus.TH
+
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.TH
 import Database.Groundhog.TH.Settings
-import Language.Haskell.TH.Syntax
+import Language.Haskell.TH
 import Data.Char
 import Data.Monoid
 import Control.Lens
@@ -44,6 +47,7 @@ prefilterFieldsNamingStyle f ns = ns
       mkExprFieldName ns typeName conName conPos (f fieldName) fieldPos
   }
 
+popAllRows :: (PersistBackend m, PersistField b) => m (Maybe [PersistValue]) -> m [b]
 popAllRows rp = do
   whileJust rp $ \pvs -> do
     (x, []) <- fromPersistValues pvs
@@ -53,3 +57,17 @@ getTransactionTime :: PersistBackend m => m UTCTime
 getTransactionTime = do
   [t] <- queryRaw False "select current_timestamp at time zone 'UTC'" [] popAllRows
   return t
+
+makePersistFieldNewtype :: Name -> Q [Dec]
+makePersistFieldNewtype t = do
+  TyConI (NewtypeD _ _ _ con _) <- reify t
+  let c = conName con
+  xName <- newName "x"
+  [d| instance PersistField $(conT t) where
+        persistName _ = $(stringE $ nameBase t)
+        toPersistValues $(conP c [varP xName]) = toPersistValues $(varE xName)
+        fromPersistValues pv = do
+          (x, pv') <- fromPersistValues pv
+          return ($(conE c) x, pv')
+        dbType p (~($(conP c [varP xName]))) = dbType p $(varE xName)
+    |]
