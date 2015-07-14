@@ -237,8 +237,8 @@ googleMapsAutocompletePlaceDetails ref f = do
   let ref' = unPlacesAutocompletePredictionReference ref
   googleMapsPlacesServiceGetDetails_ ref' cb
 
-geocodeSearch :: forall t m a. MonadWidget t m => String -> String -> m (Dynamic t (Maybe (String, (Double, Double))))
-geocodeSearch googleLogoPath googleLogoClass  = do
+geocodeSearch :: forall t m a. MonadWidget t m => String -> String -> Maybe (String, (Double, Double)) -> Dynamic t (Map String String) -> m (Dynamic t (Maybe (String, (Double, Double))))
+geocodeSearch googleLogoPath googleLogoClass l0 inputAttrs = do
   --TODO: Rate limiting
   --TODO: Don't display choices inline
   --TODO: Deal with the situation where results are returned in the wrong order
@@ -246,27 +246,30 @@ geocodeSearch googleLogoPath googleLogoClass  = do
         l <- list r searchInputResult
         elAttr "img" (Map.fromList [("src", googleLogoPath), ("class", googleLogoClass)]) $ return () --https://developers.google.com/places/policies#logo_requirements
         return l
-  rec (eInputChanged, eChoice) <- searchInput' Map.empty eResults geoResults
+  rec (eInputChanged, eChoice) <- searchInput' (maybe "" fst l0) inputAttrs eResults geoResults
       eResults :: Event t (Map Integer (String, PlacesAutocompletePredictionReference)) <- liftM (fmap (Map.fromList . zip [(1::Integer)..])) $ performEventAsync $ fmap (\s -> liftIO . googleMapsAutocompletePlace s) $ fmapMaybe id $ fmap (\i -> if i == "" then Nothing else Just i) eInputChanged
       eLocation <- liftM (fmap Just) $ performEventAsync $ fmap (\(address, ref) cb -> liftIO $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
-  holdDyn Nothing $ eLocation
+  holdDyn l0 $ eLocation
 
 searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
 searchInputResult r = el "li" $ do
   (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
   return $ tag (current r) (_el_clicked li)
 
-searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Map k (String, a) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
-searchInput initial results = searchInput' initial results searchInputResultsList
+searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map String String) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
+searchInput attrs results = searchInput' "" attrs results searchInputResultsList
 
-searchInput' :: forall t m a k. (MonadWidget t m, Ord k) => Map k (String, a) -> Event t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Event t (String, a))) -> m (Event t String, Event t (String, a))
-searchInput' initial results listBuilder = do
-  rec input <- textInput $ def { _textInputConfig_setValue = eSetValue } -- & _textInputConfig_attributes .~ constDyn $ Map.fromList [("class", "form-control"), ("placeholder", "Search")]
-      dResults <- holdDyn initial $ leftmost [eClearResults, results]
+searchInput' :: forall t m a k. (MonadWidget t m, Ord k) => String -> Dynamic t (Map String String) -> Event t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Event t (String, a))) -> m (Event t String, Event t (String, a))
+searchInput' l0 attrs results listBuilder = do
+  rec input <- textInput $ def & textInputConfig_setValue .~ eSetValue
+                               & attributes .~ attrs
+                               & textInputConfig_initialValue .~ l0
+      let enter = textInputGetEnter input
+      dResults <- holdDyn mempty $ leftmost [eClearResults, results]
       eMadeChoice <- listBuilder dResults
       let eSetValue = fmap fst eMadeChoice
           eSelectionMade = fmap (const Nothing) eSetValue
-          eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (updated $ _textInput_value input)]
+          eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (updated $ _textInput_value input), fmap Just (tag (current $ value input) enter)]
           eInputEmpty = fmapMaybe id $ fmap (\i -> if i == "" then Just Map.empty else Nothing) eInputChanged
           eClearResults = leftmost [eInputEmpty, fmap (const Map.empty) eMadeChoice]
   return (eInputChanged, eMadeChoice)
