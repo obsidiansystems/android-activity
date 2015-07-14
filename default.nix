@@ -190,7 +190,7 @@ let
       main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
   '';
   #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-  mkPreConfigure = pname: executableName: depends: ''
+  mkPreConfigure = haskellPackages: pname: executableName: depends: ''
     if ! ls | grep ".*\\.cabal$" ; then
       cat >"${pname}.cabal" <<EOF
     name: ${pname}
@@ -198,7 +198,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "binary" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "binary" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else []) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
@@ -210,7 +210,7 @@ let
     version = appVersion;
     src = ../common;
     license = null;
-    preConfigure = mkPreConfigure pname null buildDepends;
+    preConfigure = mkPreConfigure haskellPackages pname null buildDepends;
     buildDepends = with haskellPackages; [ # TODO: Get rid of spurious dependencies
 #      mtl
 #      text
@@ -237,7 +237,7 @@ let
         version = appVersion;
         license = null;
         src = ../frontend;
-        preConfigure = mkPreConfigure pname "frontend" buildDepends;
+        preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
         buildDepends = [ # TODO: Get rid of spurious dependencies
           frontendCommon
           focus-core focus-js
@@ -271,7 +271,7 @@ in pkgs.stdenv.mkDerivation (rec {
       license = null;
       version = appVersion;
       src = ../backend;
-      preConfigure = mkPreConfigure pname "backend" buildDepends;
+      preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
