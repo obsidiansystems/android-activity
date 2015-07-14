@@ -198,7 +198,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "binary" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
