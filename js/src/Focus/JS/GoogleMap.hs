@@ -248,8 +248,11 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
         return l
   rec (eInputChanged, eChoice) <- searchInput' (maybe "" fst l0) (fmap (maybe "" $ fst) setL) inputAttrs eResults geoResults
       eResults :: Event t (Map Integer (String, PlacesAutocompletePredictionReference)) <- liftM (fmap (Map.fromList . zip [(1::Integer)..])) $ performEventAsync $ fmap (\s -> liftIO . googleMapsAutocompletePlace s) $ fmapMaybe id $ fmap (\i -> if i == "" then Nothing else Just i) eInputChanged
-      eLocation <- performEventAsync $ fmap (\(address, ref) cb -> liftIO $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
+      eLocation <- getPlaceDetails eChoice
   holdDyn l0 $ leftmost [fmap Just eLocation, setL]
+
+getPlaceDetails :: MonadWidget t m => Event t (String, PlacesAutocompletePredictionReference) -> m (Event t (String, (Double, Double)))
+getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftIO $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
 
 searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
 searchInputResult r = el "li" $ do
