@@ -80,6 +80,14 @@ let
         license = self.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
+      dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
+        version = "0.0.0.4";
+        src = pkgs.fetchgit {
+          url = git://github.com/ryantrinkle/dependent-sum-template;
+          rev = "abcd0f01a3e264e5bc1f3b00f3d03082f091ec49";
+          sha256 = "16f95348c559394a39848394a9e1aa8318c79bfc62bc6946edad9aabd20a8e2d";
+        };
+      });
     };
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
@@ -135,6 +143,7 @@ let
         homepage = "http://snapframework.com/";
         description = "Top-level package for the Snap Web Framework";
         license = pkgs.stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       });
       stripe = self.mkDerivation ({
         pname = "stripe";
@@ -279,6 +288,7 @@ in pkgs.stdenv.mkDerivation (rec {
       '';
       buildDepends = [ # TODO: Get rid of spurious dependencies
         backendCommon
+        vector-algorithms
         focus-core focus-backend
 #        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
