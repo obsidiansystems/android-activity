@@ -41,17 +41,32 @@ library
     monad-control,
     transformers-base,
     clientsession,
-    transformers
+    transformers,
+    semigroups,
+    blaze-html,
+    process,
+    directory,
+    temporary,
+    stringsearch,
+    shelly,
+    monad-loops,
+    unix,
+    filepath,
+    tar,
+    file-embed
 
   exposed-modules:
       Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen
-    , Focus.Backend.MonadEmail
+    , Focus.Backend.Email
     , Focus.Backend.Schema.TH
     , Focus.Backend.Subscription
     , Focus.Backend.TH
     , Focus.Backend.Sign
+    , Focus.Backend.DB.Temp
+    , Focus.Backend.DB.Local
+    , Focus.Backend.DB.Groundhog
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

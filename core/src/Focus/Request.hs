@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving, DataKinds, TypeOperators, TypeFamilies, AllowAmbiguousTypes #-}
 module Focus.Request where
 
 import Data.Aeson
@@ -18,6 +18,14 @@ import qualified Data.ByteString.Base64 as B64
 import Control.Monad.State
 import Data.Constraint
 import Control.Monad.Identity
+import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
+import qualified Data.Dependent.Map as DMap
+import Data.Functor.Misc
+import Reflex hiding (HList (..))
+import Control.Arrow
+import Data.Type.Equality
+import Data.Proxy
+import Data.HList
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -49,35 +57,29 @@ vectorView v =
   then Just (V.head v, V.tail v)
   else Nothing
 
-data HCons a b = HCons a b
-data HNil = HNil
-
-instance (FromJSON a, FromJSON b) => FromJSON (HCons a b) where
+instance (FromJSON h, FromJSON (HList t)) => FromJSON (HList (h ': t)) where
   parseJSON (Array v) = do
     Just (aVal, v') <- return $ vectorView v
     a <- parseJSON aVal
     b <- parseJSON $ Array v'
     return $ HCons a b
 
-instance FromJSON HNil where
+instance FromJSON (HList '[]) where
   parseJSON (Array v) = do
     Nothing <- return $ vectorView v
     return HNil
 
-class HListToJSON a where
-  hListToJSON :: a -> [Value]
+class HListToJSON l where
+  hListToJSON :: HList l -> [Value]
 
-instance (ToJSON h, HListToJSON t) => HListToJSON (HCons h t) where
+instance (ToJSON h, HListToJSON t) => HListToJSON (h ': t) where
   hListToJSON (HCons h t) = toJSON h : hListToJSON t
 
-instance HListToJSON HNil where
+instance HListToJSON '[] where
   hListToJSON HNil = []
 
-instance HListToJSON (HCons a b) => ToJSON (HCons a b) where
+instance HListToJSON l => ToJSON (HList l) where
   toJSON = Array . V.fromList . hListToJSON
-
-instance ToJSON HNil where
-  toJSON HNil = Array V.empty
 
 makeRequest :: Name -> DecsQ
 makeRequest n = do
@@ -241,6 +243,14 @@ makeJson' n = do
 class AllArgsHave c f where
   getArgDict :: f x -> Dict (c x)
 
+instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
+  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+    Dict -> Dict
+
+instance (FromJSON l, AllArgsHave FromJSON f) => AllArgsHave (ComposeConstraint FromJSON (Either l)) f where
+  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+    Dict -> Dict
+
 class c (f x) => ComposeConstraint c f x
 instance c (f x) => ComposeConstraint c f x
 
@@ -266,9 +276,92 @@ instance Traversable' (Of x) where
 
 deriving instance Show (f x) => Show (Of x f)
 
-instance AllArgsHave FromJSON f => AllArgsHave (ComposeConstraint FromJSON Identity) f where
-  getArgDict (x :: f x) = case getArgDict x :: Dict (FromJSON x) of
+data Of2 :: (k -> k -> (k -> *) -> *) where
+  Of2a :: f a -> Of2 a b f
+  Of2b :: f b -> Of2 a b f
+
+instance Functor' (Of2 x y) where
+  fmap' f (Of2a a) = Of2a $ f a
+  fmap' f (Of2b b) = Of2b $ f b
+
+instance Foldable' (Of2 x y) where
+  foldr' f z (Of2a a) = f a z
+  foldr' f z (Of2b b) = f b z
+
+instance Traversable' (Of2 x y) where
+  mapM' f (Of2a a) = liftM Of2a $ f a
+  mapM' f (Of2b b) = liftM Of2b $ f b
+
+newtype Map' (k :: a -> *) (v :: a -> *) = Map' { unMap' :: DMap (WrapArg v k) }
+
+instance Functor' (Map' k) where
+  fmap' f = Map' . rewrapDMap f . unMap'
+
+instance Foldable' (Map' k) where
+  foldr' f z (Map' dm) = foldr (\(WrapArg _ :=> v) a -> f v a) z $ DMap.toList dm
+
+instance Traversable' (Map' k) where
+  mapM' f (Map' dm) = liftM (Map' . DMap.fromDistinctAscList) $ mapM (\(WrapArg k :=> v) -> f v >>= \v' -> return $ WrapArg k :=> v') $ DMap.toList dm
+
+map'Singleton :: k a -> v a -> Map' k v
+map'Singleton k v = Map' $ DMap.singleton (WrapArg k) v
+
+map'Lookup :: GCompare k => k a -> Map' k v -> Maybe (v a)
+map'Lookup k (Map' dm) = DMap.lookup (WrapArg k) dm
+
+fhAppend :: FHList f l1 -> FHList f l2 -> FHList f (HAppendListR l1 l2)
+fhAppend l1 l2 = case l1 of
+  FHCons h t -> FHCons h $ fhAppend t l2
+  FHNil -> l2
+
+data HIndex :: [k] -> k -> * where
+  Here :: HIndex (h ': t) h
+  Next :: HIndex t x -> HIndex (h ': t) x
+
+class HIsPrefixOf l1 l2 where
+  lengthenHIndex :: HIndex l1 a -> HIndex l2 a
+
+instance HIsPrefixOf t1 t2 => HIsPrefixOf (h ': t1) (h ': t2) where
+  lengthenHIndex i = case i of
+    Here -> Here
+    Next x -> Next $ lengthenHIndex x
+
+type BlahInternal t f g m a l = EventSelector t (HIndex l) -> m (a, FHList (Event t) l)
+
+data Blah t f g m a
+   = forall (l :: [*]). IncreaseHIndex l => Blah (BlahInternal t f g m a l)
+
+instance Functor m => Functor (Blah t f g m) where
+  fmap f (Blah b) = Blah $ \es -> fmap (first f) $ b es
+
+expandHIndex :: forall l1 l2 a. Proxy l2 -> HIndex l1 a -> HIndex (HAppendListR l1 l2) a
+expandHIndex _ i = case i of
+  Here -> Here
+  Next x -> Next $ expandHIndex (Proxy :: Proxy l2) x
+
+class IncreaseHIndex l1 where
+  increaseHIndex :: Proxy l1 -> HIndex l2 a -> HIndex (HAppendListR l1 l2) a
+  appendIncreaseHIndexInstance :: IncreaseHIndex l2 => Proxy l1 -> Proxy l2 -> Dict (IncreaseHIndex (HAppendListR l1 l2))
+
+instance IncreaseHIndex '[] where
+  increaseHIndex _ i = i
+  appendIncreaseHIndexInstance _ _ = Dict
+
+instance IncreaseHIndex t => IncreaseHIndex (h ': t) where
+  increaseHIndex _ i = Next $ increaseHIndex (Proxy :: Proxy t) i
+  appendIncreaseHIndexInstance _ l2 = case appendIncreaseHIndexInstance (Proxy :: Proxy t) l2 of
     Dict -> Dict
 
-deriving instance FromJSON a => FromJSON (Identity a)
-deriving instance ToJSON a => ToJSON (Identity a)
+instance Applicative m => Applicative (Blah t f g m) where
+  pure a = Blah $ \(es :: EventSelector t (HIndex '[])) -> pure (a, FHNil)
+  Blah (f :: BlahInternal t f g m (a -> b) l1) <*> Blah (x :: BlahInternal t f g m a l2) = case appendIncreaseHIndexInstance (Proxy :: Proxy l1) (Proxy :: Proxy l2) of
+    Dict -> Blah $ \(es :: EventSelector t (HIndex (HAppendListR l1 l2))) ->
+      let combine (fResult, fHList) (xResult, xHList) = (fResult xResult, fHList `fhAppend` xHList)
+          es1 :: EventSelector t (HIndex l1)
+          es1 = EventSelector $ \k -> select es $ expandHIndex (Proxy :: Proxy l2) k
+          es2 :: EventSelector t (HIndex l2)
+          es2 = EventSelector $ \k -> select es $ increaseHIndex (Proxy :: Proxy l1) k
+      in combine <$> f es1 <*> x es2
+
+sendApi :: Monad m => Event t (f a) -> Blah t f g m (Event t (g a))
+sendApi = undefined

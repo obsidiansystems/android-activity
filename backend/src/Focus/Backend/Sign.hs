@@ -5,7 +5,7 @@ import Focus.Sign
 import Focus.Brand
 import Focus.Route
 import Focus.Request
-import Focus.Backend.MonadEmail
+import Focus.Backend.Email
 import Focus.Backend.TH
 
 import Control.Monad.Base

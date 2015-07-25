@@ -2,7 +2,7 @@
 module Focus.Backend.Account where
 
 import Focus.Backend.DB
-import Focus.Backend.MonadEmail
+import Focus.Backend.Email
 import Focus.Backend.Schema.TH
 
 import Focus.Account

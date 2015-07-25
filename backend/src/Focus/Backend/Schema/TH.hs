@@ -45,10 +45,6 @@ makeDefaultKeyIdInt64 n k = do
       toIdData _ dk = case $(lamE [conP k [varP pv]] (varE pv)) dk of
         PersistInt64 x -> x
       fromIdData _ = $(conE k) . PersistInt64
-{-
-    instance IdDataIs $(conT n) Int64 => DefaultKeyIsUnique $(conT n) where
-      type DefaultKeyUnique $(conT n) = AutoKey
--}
     |]
 
 makeDefaultKeyIdSimple :: Name -> Name -> Q [Dec]

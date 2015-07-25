@@ -7,9 +7,6 @@ import Control.Monad.Writer hiding (forM, forM_, mapM, mapM_, sequence, (<>), li
 import Control.Applicative
 import GHCJS.DOM.Geolocation
 import GHCJS.DOM.Types hiding (Event)
-import GHCJS.Foreign
-import GHCJS.Types
-import GHCJS.Marshal
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens hiding (coerce)
@@ -24,6 +21,8 @@ import Reflex
 import Reflex.Dom
 
 import Focus.JS.Request
+
+{-
 
 #ifdef __GHCJS__
 #define JS(name, js, type) foreign import javascript unsafe js name :: type
@@ -288,3 +287,4 @@ searchInputResultsList' results builder = do
   resultsList <- elDynAttr "ul" attrs $ builder results
   liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
 
+-}

@@ -1,15 +1,55 @@
 let
   enableProfiling = false;
-  pkgs = import ./nixpkgs { config.allowUnfree = true; };
-  overrideCabal = drv: f: (drv.override (args: args // {
+  pkgs = import ./nixpkgs {
+    config.allowUnfree = true;
+    config.packageOverrides = pkgs: rec {
+      webkitgtk24x = pkgs.stdenv.lib.overrideDerivation pkgs.webkitgtk24x (oldAttrs: {
+        patches = oldAttrs.patches ++ [
+          ./add-webkit_dom_node_to_js.patch
+        ];
+      });
+    };
+  };
+  inherit (pkgs) stdenv;
+  overrideCabal = drv: f: if isNull drv then null else (drv.override (args: args // {
     mkDerivation = drv: args.mkDerivation (drv // f drv);
   })) // {
     overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
   };
   sharedOverrides = self: super: {
+    reflex = self.callPackage ./reflex {};
+    reflex-dom = self.callPackage ./reflex-dom { inherit (pkgs) webkitgtk24x; };
+    aeson = overrideCabal super.aeson (drv: {
+      version = "0.9.0.1";
+      sha256 = "1g7qdq7zpyvqwmh4sfhizqpb51cg24lrcj9vq5msz8k896y7vfcj";
+    });
+    attoparsec = overrideCabal super.attoparsec (drv: {
+      version = "0.13.0.0";
+      sha256 = "12b4xi6nlnhpwz8apn4mk880mkhcv1sfvf4j3z1h5dgkadi2zgbi";
+    });
+    ghcjs = overrideCabal super.ghcjs (drv: {
+      jailbreak = true;
+    });
+    attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
+      version = "0.3.4";
+      sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
+    });
+    websockets = overrideCabal super.websockets (drv: {
+      version = "0.9.5.0";
+      sha256 = "016h213sk3n662ri8ns1sswcnaml61qckprdgxdp0m2a77amivmy";
+    });
     heist = overrideCabal super.heist (drv: {
-      revision = "2"; # To allow filePath >= 1.4
-      editedCabalFile = "0d4x6vsp4mrkbljavcgfvplc4xsmfr6qn4b889j77achj3z4rkkk";
+      jailbreak = true;
+    });
+    snap-core = overrideCabal super.snap-core (drv: {
+      revision = "1";
+      editedCabalFile = "1930x1w1xlyqfpwjhr64z2y12idfaz17jdk9fn699pxvb08djb85";
+    });
+    snap-server = overrideCabal super.snap-server (drv: {
+      version = "0.9.5.1";
+      sha256 = "18ryin6f315picrs2159sn2668266l3xchs7jb8isw0gp52273xg";
+      revision = "1";
+      editedCabalFile = "0p5apya7gd8kbkknpzamvnc902jdlp8kdmwrqzrj6gvxkr9ss2br";
     });
     timezone-series = overrideCabal super.timezone-series (drv: {
       jailbreak = true; # To allow time >= 1.5
@@ -17,6 +57,25 @@ let
     timezone-olson = overrideCabal super.timezone-olson (drv: {
       jailbreak = true; # To allow time >= 1.5
     });
+    "HList" = self.callPackage
+      ({ mkDerivation, base, cmdargs, diffutils, directory, doctest
+       , filepath, ghc-prim, hspec, lens, mtl, process, syb, tagged
+       , template-haskell, profunctors
+       }:
+       mkDerivation {
+         pname = "HList";
+         version = "0.4.0.0";
+         sha256 = "0f6d97vfxlml4dp6zfk95kk4la8xr5m91hiw4zj98kvwvvhb99mz";
+         buildDepends = [ base ghc-prim mtl tagged template-haskell profunctors ];
+         doCheck = false;
+         testDepends = [
+           base cmdargs directory doctest filepath hspec lens mtl process syb
+         ];
+         buildTools = [ diffutils ];
+         jailbreak = true;
+         description = "Heterogeneous lists";
+         license = stdenv.lib.licenses.mit;
+       }) { inherit (pkgs) diffutils;};
     focus-core = self.mkDerivation ({
       pname = "focus-core";
       license = null;
@@ -33,38 +92,94 @@ let
         network-uri
         timezone-series
         constraints
-        temporary
-        stringsearch
+        dependent-map
+        reflex
+        HList
       ];
+    });
+    focus-js = self.mkDerivation ({
+      license = null;
+      pname = "focus-js";
+      version = "0.1";
+      src = ./js;
+      buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints ];
+    });
+    "dependent-sum-template" = self.callPackage
+      ({ mkDerivation, base, dependent-sum, template-haskell, th-extras
+       }:
+       mkDerivation {
+         pname = "dependent-sum-template";
+         version = "0.0.0.3";
+         sha256 = "0if3mr0cmaz3yc0hbn0fpx14kwnjsaj3hd8mw9z4va4qp85wya69";
+         buildDepends = [ base dependent-sum template-haskell th-extras ];
+         homepage = "/dev/null";
+         description = "Template Haskell code to generate instances of classes in dependent-sum package";
+         license = stdenv.lib.licenses.publicDomain;
+         hydraPlatforms = stdenv.lib.platforms.none;
+       }) {};
+    amazonka = overrideCabal super.amazonka (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka;
+    });
+    amazonka-core = overrideCabal super.amazonka-core (drv: {
+      version = "0.3.4";
+      src = ./amazonka/core;
+    });
+    amazonka-ec2 = overrideCabal super.amazonka-ec2 (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-ec2;
+    });
+    amazonka-s3 = overrideCabal super.amazonka-s3 (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-s3;
+    });
+    amazonka-route53 = overrideCabal super.amazonka-route53 (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-route53;
+    });
+    amazonka-cloudwatch = overrideCabal super.amazonka-cloudwatch (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-cloudwatch;
+    });
+    amazonka-iam = overrideCabal super.amazonka-iam (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-iam;
+    });
+    amazonka-sts = overrideCabal super.amazonka-sts (drv: {
+      version = "0.3.4";
+      src = ./amazonka/amazonka-sts;
+    });
+    haddock = overrideCabal super.haddock (drv: {
+      doCheck = false;
+    });
+    lifted-async = overrideCabal super.lifted-async (drv: {
+      version = "0.7.0.1";
+      sha256 = "0skfpgqlxni3bdn7pdg2732xkijmwsz655962wrbmflh987ms8y3";
     });
   };
 
-  backendHaskellPackagesBase = if enableProfiling then pkgs.haskell-ng.packages.ghc7101 else pkgs.haskell-ng.packages.ghc7101; /* TODO re-add profiling */
-  frontendHaskellPackagesBase = pkgs.haskell-ng.packages.ghcjs;
+  backendGhc = pkgs.callPackage ./ghc.nix ({ inherit (pkgs.haskell.packages.ghc784) ghc alex happy; } // pkgs.stdenv.lib.optionalAttrs pkgs.stdenv.isDarwin {
+    libiconv = pkgs.darwin.libiconv;
+  });
+  backendHaskellPackagesBase = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules {
+    ghc = backendGhc;
+    packageSetConfig = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules/configuration-ghc-7.10.x.nix { };
+  };
+  frontendGhcjs = backendHaskellPackages.callPackage ./nixpkgs/pkgs/development/compilers/ghcjs {
+    ghc = backendGhc;
+  };
+  frontendHaskellPackagesBase = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules {
+    ghc = frontendGhcjs;
+    packageSetConfig = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules/configuration-ghcjs.nix { };
+  };
   extendFrontendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
-      reflex = self.callPackage ./reflex {};
-      reflex-dom = self.callPackage ./reflex-dom {};
-      ghcjs-canvas = self.mkDerivation ({
-        pname = "ghcjs-canvas";
-        license = null;
-        src = ./ghcjs-canvas;
-        buildDepends = with self; [ text ghcjs-base base ];
-        version = "0.1.0.0";
-      });
       stripe = self.mkDerivation ({
         pname = "stripe";
         license = null;
         src = ./hs-stripe;
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-base ghcjs-dom reflex-dom ];
         version = "0.8.3";
-      });
-      focus-js = self.mkDerivation ({
-        license = null;
-        pname = "focus-js";
-        version = "0.1";
-        src = ./js;
-        buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-base ghcjs-dom constraints ghcjs-canvas ];
       });
       crypto-numbers = self.mkDerivation ({
         pname = "crypto-numbers";
@@ -124,6 +239,7 @@ let
         license = self.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
+      /*
       snap = self.mkDerivation ({
         pname = "snap";
         version = "0.14.0.2";
@@ -145,6 +261,7 @@ let
         license = pkgs.stdenv.lib.licenses.bsd3;
         jailbreak = true;
       });
+      */
       stripe = self.mkDerivation ({
         pname = "stripe";
         license = null;
@@ -157,7 +274,33 @@ let
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = with self; [ groundhog groundhog-th mtl focus-core lens aeson snap resource-pool text network stm postgresql-simple groundhog-postgresql websockets-snap websockets stripe smtp-mail ];
+        buildDepends = with self; [
+          groundhog
+          groundhog-th
+          mtl
+          focus-core
+          lens
+          aeson
+          snap
+          resource-pool
+          text
+          network
+          stm
+          postgresql-simple
+          groundhog-postgresql
+          websockets-snap
+          websockets
+          stripe
+          smtp-mail
+          temporary
+          stringsearch
+          shelly
+          tar
+          file-embed
+        ];
+        pkgconfigDepends = [
+          pkgs.postgresql94
+        ];
       });
       singletons = self.mkDerivation ({
         pname = "singletons";
@@ -192,14 +335,14 @@ let
 
   libraryHeader = ''
     library
-      exposed-modules: $(cd src ; find * -iname '*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
+      exposed-modules: $(cd src ; find * -iname '[A-Z]*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
   '';
   executableHeader = executableName: ''
     executable ${executableName}
       main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
   '';
   #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-  mkPreConfigure = haskellPackages: pname: executableName: depends: ''
+  mkPreConfigure = pname: executableName: depends: ''
     if ! ls | grep ".*\\.cabal$" ; then
       cat >"${pname}.cabal" <<EOF
     name: ${pname}
@@ -207,7 +350,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "binary" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else []) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
@@ -219,21 +362,9 @@ let
     version = appVersion;
     src = ../common;
     license = null;
-    preConfigure = mkPreConfigure haskellPackages pname null buildDepends;
-    buildDepends = with haskellPackages; [ # TODO: Get rid of spurious dependencies
-#      mtl
-#      text
-#      time
-#      lens
-#      aeson
-#      transformers
-#      timezone-series
-#      timezone-olson
+    preConfigure = mkPreConfigure pname null buildDepends;
+    buildDepends = with haskellPackages; [
       focus-core
-#      network
-#      network-uri
-#      semigroups
-#      stripe
     ] ++ commonDepends haskellPackages;
     buildTools = [] ++ commonTools pkgs;
   });
@@ -246,12 +377,12 @@ let
         version = appVersion;
         license = null;
         src = ../frontend;
-        preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
-        buildDepends = [ # TODO: Get rid of spurious dependencies
+        preConfigure = mkPreConfigure pname "frontend" buildDepends;
+        buildDepends = [
           frontendCommon
-          focus-core focus-js
-#          pkgs.nodejs time mtl text aeson attoparsec split lens vector semigroups derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space haskell-src-exts safe timezone-olson timezone-series these network ghcjs-dom reflex reflex-dom focus focus-js file-embed /* random-fu */ MonadRandom stripe
-          http-types # For oauth-netDocuments
+          focus-core
+          focus-js
+          ghcjs-dom
         ] ++ frontendDepends haskellPackages;
         buildTools = [] ++ frontendTools pkgs;
         isExecutable = true;
@@ -282,15 +413,14 @@ in pkgs.stdenv.mkDerivation (rec {
       license = null;
       version = appVersion;
       src = ../backend;
-      preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
+      preConfigure = mkPreConfigure pname "backend" buildDepends;
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
-      buildDepends = [ # TODO: Get rid of spurious dependencies
+      buildDepends = [
         backendCommon
         vector-algorithms
         focus-core focus-backend
-#        template-haskell focusBackend MonadCatchIO-transformers mtl snap snap-core snap-server snap-loader-static text time lens postgresql-simple resource-pool aeson attoparsec vector tagged derive dependent-sum dependent-map MemoTrie transformers monad-loops vector-space yaml websockets-snap clientsession smtp-mail blaze-html timezone-series timezone-olson file-embed these groundhog groundhog-th groundhog-postgresql focus filepath http-client singletons
       ] ++ backendDepends backendHaskellPackages;
       buildTools = [] ++ backendTools pkgs;
       isExecutable = true;

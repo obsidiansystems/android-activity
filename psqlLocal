@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu
+
+nix-shell -p "((import ./.).backend.haskellPackages.ghcWithPackages (p: with p; [ focus-backend ]))" --command "ghc -e 'Focus.Backend.DB.Local.psqlLocal \"$1\"'"

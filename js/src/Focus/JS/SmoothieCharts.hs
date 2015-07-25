@@ -1,50 +1,78 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell, RankNTypes, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts #-}
 module Focus.JS.SmoothieCharts where
 --http://smoothiecharts.org/
 
 import Reflex
 import Reflex.Dom
+import Focus.JS.Request
 
 import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types
+import Data.Aeson.TH
 import Data.Bifunctor
 import Data.Bitraversable
+import Data.Char
 import Data.Default
 import Data.Map (Map)
 import Data.Maybe
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import GHCJS.DOM.Types hiding (Event, Text)
-import GHCJS.Foreign
-import GHCJS.Types
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import Foreign.JavaScript.TH
 
-#ifdef __GHCJS__
-#define JS(name, js, type) foreign import javascript unsafe js name :: type
-#else
-#define JS(name, js, type) name :: type ; name = undefined
-#endif
+newtype SmoothieChart x = SmoothieChart { unSmoothieChart :: JSRef x }
 
+instance ToJS x (SmoothieChart x) where
+  withJS (SmoothieChart r) = ($ r)
 
-newtype SmoothieChart = SmoothieChart { unSmoothieChart :: JSRef SmoothieChart }
-newtype TimeSeries = TimeSeries { unTimeSeries :: JSRef TimeSeries }
+instance FromJS x (SmoothieChart x) where
+  fromJS = return . SmoothieChart
+
+newtype TimeSeries x = TimeSeries { unTimeSeries :: JSRef x }
+
+instance ToJS x (TimeSeries x) where
+  withJS (TimeSeries r) = ($ r)
+
+instance FromJS x (TimeSeries x) where
+  fromJS = return . TimeSeries
+
+newtype TimeSeriesOptions x = TimeSeriesOptions { unTimeSeriesOptions :: JSRef x }
+
+instance ToJS x (TimeSeriesOptions x) where
+  withJS (TimeSeriesOptions r) = ($ r)
+
+instance FromJS x (TimeSeriesOptions x) where
+  fromJS = return . TimeSeriesOptions
 
 data Interpolation = Bezier
                    | Linear
                    | Step
                    deriving (Show, Read, Eq, Ord)
 
-instance ToJSON Interpolation where
-  toJSON i = case i of
-                  Bezier -> "bezier"
-                  Linear -> "linear"
-                  Step -> "step"
+data SmoothieTimeSeriesStyle
+   = SmoothieTimeSeriesStyle { _smoothieTimeSeriesStyle_lineWidth :: Double
+                             , _smoothieTimeSeriesStyle_strokeStyle :: String
+                             , _smoothieTimeSeriesStyle_fillStyle :: Maybe String
+                             } deriving (Show, Read, Eq, Ord)
+
+data SmoothieTimeSeriesConfig
+   = SmoothieTimeSeriesConfig { _smoothieTimeSeriesConfig_resetBounds :: Bool
+                              , _smoothieTimeSeriesConfig_resetBoundsInterval :: Int
+                              } deriving (Show, Read, Eq, Ord)
+
+instance Default SmoothieTimeSeriesConfig where
+  def = SmoothieTimeSeriesConfig True 3000
+
+instance Default SmoothieTimeSeriesStyle where
+  def = SmoothieTimeSeriesStyle 1 "#ffffff" Nothing
 
 data SmoothieChartConfig
    = SmoothieChartConfig { _smoothieChartConfig_maxValueScale :: Double
@@ -112,94 +140,78 @@ instance Default SmoothieChartLabelConfig where
                                  , _smoothieChartLabelConfig_precision = 2
                                  }
 
-instance ToJSON SmoothieChartLabelConfig where
-  toJSON (SmoothieChartLabelConfig disabled fillStyle fontSize fontFamily precision) =
-    object [ "disabled" .= disabled
-           , "fillStyle" .= fillStyle
-           , "fontSize" .= fontSize
-           , "fontFamily" .= fontFamily
-           , "precision" .= precision
-           ]
-
-instance ToJSON SmoothieChartGridConfig where
-  toJSON (SmoothieChartGridConfig fillStyle lineWidth strokeStyle millisPerLine sharpLines verticalSections borderVisible) =
-    object [ "fillStyle" .= fillStyle
-           , "lineWidth" .= lineWidth
-           , "strokeStyle" .= strokeStyle
-           , "millisPerLine" .= millisPerLine
-           , "sharpLines" .= sharpLines
-           , "verticalSections" .= verticalSections
-           , "borderVisible" .= borderVisible
-           ]
-
-instance ToJSON SmoothieChartConfig where
-  toJSON (SmoothieChartConfig maxValueScale minValueScale millisPerPixel grid labels maxValue minValue enableDpiScaling scaleSmoothing maxDataSetLength interpolation scrollBackwards) =
-    object $ [ "maxValueScale" .= maxValueScale
-             , "minValueScale" .= minValueScale
-             , "millisPerPixel" .= millisPerPixel
-             , "grid" .= grid
-             , "labels" .= labels
-             , "enableDpiScaling" .= enableDpiScaling
-             , "scaleSmoothing" .= scaleSmoothing
-             , "maxDataSetLength" .= maxDataSetLength
-             , "interpolation" .= interpolation
-             , "scrollBackwards" .= scrollBackwards
-             ] ++ optionalFields [ ("maxValue", maxValue)
-                                 , ("minValue", minValue)
-                                 ]
-
-optionalFields :: (ToJSON a) => [(Text, Maybe a)] -> [Pair]
-optionalFields fs =
-  let fs' = catMaybes $ map (bisequence . first Just) fs
-  in map (uncurry (.=)) fs'
+deriveJSON (defaultOptions { constructorTagModifier = map toLower }) ''Interpolation
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieTimeSeriesConfig_" :: String)), omitNothingFields = True }) ''SmoothieTimeSeriesConfig
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieChartGridConfig_" :: String)), omitNothingFields = True }) ''SmoothieChartGridConfig
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieChartLabelConfig_" :: String)), omitNothingFields = True }) ''SmoothieChartLabelConfig
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieTimeSeriesStyle_" :: String)), omitNothingFields = True }) ''SmoothieTimeSeriesStyle
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length ("_smoothieChartConfig_" :: String)), omitNothingFields = True }) ''SmoothieChartConfig
 
 liftM concat $ mapM makeLenses
   [ ''SmoothieChartConfig
   , ''SmoothieChartLabelConfig
   , ''SmoothieChartGridConfig
+  , ''SmoothieTimeSeriesStyle
+  , ''SmoothieTimeSeriesConfig
   ]
 
-JS(smoothieChartNew_, "new SmoothieChart(JSON.parse($1))", JSString -> IO (JSRef SmoothieChart))
-JS(smoothieStreamTo_, "$1.streamTo($2, $3)", JSRef SmoothieChart -> JSRef Element -> Double -> IO ())
-JS(smoothieTimeSeriesNew_, "new TimeSeries({resetBounds: false})", IO (JSRef TimeSeries))
-JS(smoothieAddTimeSeries_, "$1.addTimeSeries($2, {lineWidth:2,strokeStyle:'#00ff00'})", JSRef SmoothieChart -> JSRef TimeSeries -> IO ())
-JS(smoothieTimeSeriesAppend_, "console.log($3); $1.append($2, $3)", JSRef TimeSeries -> Double -> Double -> IO ())
-JS(smoothieTimestamp_, "new Date().getTime()", IO Double)
+importJS Unsafe "new SmoothieChart(JSON.parse(this[0]))" "smoothieChartNew_" [t| forall x m. MonadJS x m => String -> m (SmoothieChart x) |]
+importJS Unsafe "this[0].streamTo(this[1], this[2])" "smoothieStreamTo_" [t| forall x m. MonadJS x m => SmoothieChart x -> Node -> Double -> m () |]
+importJS Unsafe "new TimeSeries(JSON.parse(this[0]))" "smoothieTimeSeriesNew_" [t| forall x m. MonadJS x m => String -> m (TimeSeries x) |]
+importJS Unsafe "this[0].addTimeSeries(this[1], JSON.parse(this[2]))" "smoothieAddTimeSeries_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> String -> m () |]
+importJS Unsafe "this[0].append(this[1], this[2])" "smoothieTimeSeriesAppend_" [t| forall x m. MonadJS x m => TimeSeries x -> Double -> Double -> m () |]
+importJS Unsafe "new Date().getTime()" "smoothieTimestamp_" [t| forall x m. MonadJS x m => m Double |]
+importJS Unsafe "this[0].getTimeSeriesOptions(this[1])" "smoothieGetTimeSeriesOptions_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> m (TimeSeriesOptions x) |]
+importJS Unsafe "(function(that){for (var key in that[0]) { that[0][key] = JSON.parse(that[1])[key] }})(this)" "smoothieSetTimeSeriesOptions_" [t| forall x m. MonadJS x m => TimeSeriesOptions x -> String -> m () |]
 
-smoothieChartNew :: SmoothieChartConfig -> IO SmoothieChart
-smoothieChartNew cfg = do
-  s <- smoothieChartNew_ $ toJSString $ decodeUtf8 $ LBS.toStrict $ encode cfg
-  return $ SmoothieChart s
+smoothieChartNew :: MonadJS x m => SmoothieChartConfig -> m (SmoothieChart x)
+smoothieChartNew = smoothieChartNew_ . encodeToJsonString
 
-smoothieStreamTo :: SmoothieChart -> El t -> Double -> IO ()
-smoothieStreamTo s e delay = smoothieStreamTo_ (unSmoothieChart s) (unElement $ toElement $ _el_element e) delay
+smoothieStreamTo :: MonadJS x m => (SmoothieChart x) -> El t -> Double -> m ()
+smoothieStreamTo s e delay = smoothieStreamTo_ s (toNode $ _el_element e) delay
 
-smoothieTimeSeriesNew :: IO TimeSeries
-smoothieTimeSeriesNew = liftM TimeSeries smoothieTimeSeriesNew_
+smoothieTimeSeriesNew :: MonadJS x m => SmoothieTimeSeriesConfig -> m (TimeSeries x)
+smoothieTimeSeriesNew = smoothieTimeSeriesNew_ . encodeToJsonString
 
-smoothieAddTimeSeries :: SmoothieChart -> TimeSeries -> IO ()
-smoothieAddTimeSeries s t = smoothieAddTimeSeries_ (unSmoothieChart s) (unTimeSeries t)
+smoothieAddTimeSeries :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
+smoothieAddTimeSeries s t = smoothieAddTimeSeries_ s t . encodeToJsonString
 
-smoothieTimeSeriesAppend :: TimeSeries -> Double -> Double -> IO ()
-smoothieTimeSeriesAppend ts t x = smoothieTimeSeriesAppend_ (unTimeSeries ts) t x
+smoothieTimeSeriesAppend :: MonadJS x m => TimeSeries x -> Double -> Double -> m ()
+smoothieTimeSeriesAppend ts t x = smoothieTimeSeriesAppend_ ts t x
 
-smoothieTimeSeriesAppendWithCurrentTime :: TimeSeries -> Double -> IO ()
+smoothieTimeSeriesAppendWithCurrentTime :: MonadJS x m => TimeSeries x -> Double -> m ()
 smoothieTimeSeriesAppendWithCurrentTime ts x = do
   t <- smoothieTimestamp_
   smoothieTimeSeriesAppend ts t x
 
-
-smoothieChart :: MonadWidget t m => Map String String -> Double -> [Event t Double] -> SmoothieChartConfig -> m ()
+smoothieChart :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String String -> Double -> [(Event t Double, SmoothieTimeSeriesConfig, SmoothieTimeSeriesStyle)] -> SmoothieChartConfig -> m (SmoothieChart x, [TimeSeries x])
 smoothieChart attrs delay es cfg = do
   (canvas, _) <- elAttr' "canvas" attrs $ return ()
-  ets <- liftIO $ do
-    s <- smoothieChartNew cfg
-    ets <- forM es $ \e -> do
-      ts <- smoothieTimeSeriesNew
-      smoothieAddTimeSeries s ts
+  (ets, s) <- do
+    s <- liftJS $ smoothieChartNew cfg
+    ets <- forM es $ \(e, cfg', style) -> liftJS $ do
+      ts <- smoothieTimeSeriesNew cfg'
+      smoothieAddTimeSeries s ts style
       return (e, ts)
-    smoothieStreamTo s canvas delay
-    return ets
-  forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftIO $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
-  return ()
+    liftJS $ smoothieStreamTo s canvas delay
+    return (ets, s)
+  forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftJS $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
+  return $ (s, map snd ets)
 
+smoothieChartSetTimeSeriesStyle :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
+smoothieChartSetTimeSeriesStyle sc t cfg = do
+  tso <- smoothieGetTimeSeriesOptions_ sc t
+  withFS <- case _smoothieTimeSeriesStyle_fillStyle cfg of
+    Nothing -> do
+      u <- mkJSUndefined
+      return ($ u)
+    Just fs' -> return $ withJS fs'
+  withFS $ \fs -> setJSProp "fillStyle" fs $ unTimeSeriesOptions tso
+  withJS (_smoothieTimeSeriesStyle_strokeStyle cfg) $ \ss -> setJSProp "strokeStyle" ss $ unTimeSeriesOptions tso
+  withJS (_smoothieTimeSeriesStyle_lineWidth cfg) $ \lw -> setJSProp "lineWidth" lw $ unTimeSeriesOptions tso
+
+updateTimeSeriesStyle :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => SmoothieChart x -> TimeSeries x -> Event t SmoothieTimeSeriesStyle -> m ()
+updateTimeSeriesStyle sc ts e = performEvent_ $ fmap (liftJS . smoothieChartSetTimeSeriesStyle sc ts) e
+
+encodeToJsonString :: ToJSON a => a -> String
+encodeToJsonString = T.unpack . decodeUtf8 . LBS.toStrict . encode
