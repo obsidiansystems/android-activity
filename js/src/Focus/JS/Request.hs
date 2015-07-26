@@ -38,6 +38,8 @@ import Focus.Request
 import Control.Monad.IO.Class
 import Control.Monad.Fix
 
+importJS Unsafe "console['log'](this[0])" "consoleLog" [t| forall x m. MonadJS x m => JSRef x -> m () |]
+
 validJSRef :: MonadJS x m => JSRef x -> m (Maybe (JSRef x))
 validJSRef r = do
   u <- isJSUndefined r
@@ -67,28 +69,27 @@ instance ToJS x (RawXHR x) where
 instance FromJS x (RawXHR x) where
   fromJS = return . RawXHR
 
-importJS Unsafe "new RawXHR()" "newXhr" [t| forall x m. MonadJS x m => m (RawXHR x) |]
+importJS Unsafe "new XMLHttpRequest()" "newXhr" [t| forall x m. MonadJS x m => m (RawXHR x) |]
 importJS Unsafe "this[0]['open'](this[1], this[2], this[3])" "xhrOpen" [t| forall x m. MonadJS x m => RawXHR x -> String -> String -> Bool -> m () |]
 importJS Unsafe "this[0]['send']()" "xhrSend" [t| forall x m. MonadJS x m => RawXHR x -> m () |]
 importJS Unsafe "this[0]['send'](this[1])" "xhrSendWithData" [t| forall x m. MonadJS x m => RawXHR x -> String -> m () |]
---importJS Unsafe "this[0]['onreadystatechange'] = this[1]" "xhrSetOnReadyStateChange" [t| forall x m. MonadJS x m => RawXHR x -> JSFun x -> m () |] --JSRef RawXHR -> JSFun (IO ()) -> IO ())
 importJS Unsafe "this[0]['readyState']" "xhrGetReadyState" [t| forall x m. MonadJS x m => RawXHR x -> m Int |]
 importJS Unsafe "this[0]['responseText']" "xhrGetResponseText" [t| forall x m. MonadJS x m => RawXHR x -> m String |]
 importJS Unsafe "this[0]['response']" "xhrGetResponse" [t| forall x m. MonadJS x m => RawXHR x -> m (JSRef x) |]
---importJS Unsafe "this[0]['responseType'] = this[1]" "xhrSetResponseType" [t| forall x m. MonadJS x m => RawXHR x -> String -> m () |]
 
 xhrSetOnReadyStateChange :: MonadJS x m => RawXHR x -> JSFun x -> m ()
-xhrSetOnReadyStateChange xhr f = withJS xhr $ \x -> withJS f $ \f' -> setJSProp "onreadystatechange" x f'
+xhrSetOnReadyStateChange xhr f = withJS xhr $ \x -> withJS f $ \f' -> setJSProp "onreadystatechange" f' x
 
 xhrSetResponseType :: MonadJS x m => RawXHR x -> String -> m ()
-xhrSetResponseType xhr rt = withJS xhr $ \x -> withJSString rt $ \s -> setJSProp "responseType" x s
+xhrSetResponseType xhr rt = withJS xhr $ \x -> withJSString rt $ \s -> setJSProp "responseType" s x
+
 
 mkRequestGeneric :: (MonadJS x m, MonadIO m, MonadFix m) => Maybe String -> (RawXHR x -> m r) -> String -> (RawXHR x -> m ()) -> String -> (r -> IO a) -> m (RawXHR x)
 mkRequestGeneric responseType convertResponse method send url cb = do
   xhr <- newXhr
   xhrOpen xhr method url True
   maybe (return ()) (xhrSetResponseType xhr) responseType
-  rec callback <- mkJSFun $ \[] -> do
+  rec callback <- mkJSFun $ \_ -> do
         readyState <- xhrGetReadyState xhr
         if readyState == 4
            then do
@@ -102,7 +103,7 @@ mkRequestGeneric responseType convertResponse method send url cb = do
   return xhr
 
 mkBinaryRequest :: (MonadFix m, MonadJS x m, MonadIO m) => String -> (RawXHR x -> m ()) -> String -> (ByteString -> IO a) -> m (RawXHR x)
-mkBinaryRequest = mkRequestGeneric (Just "arraybuffer") (\x -> fromJSUint8Array =<< fromJS =<< (xhrGetResponse x))
+mkBinaryRequest = mkRequestGeneric (Just "arraybuffer") $ fromJSUint8Array <=< fromJS <=< xhrGetResponse
 
 mkBinaryGet :: (MonadFix m, MonadJS x m, MonadIO m) => String -> (ByteString -> IO a) -> m (RawXHR x)
 mkBinaryGet = mkBinaryRequest "GET" xhrSend

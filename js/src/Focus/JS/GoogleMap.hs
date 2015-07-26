@@ -195,7 +195,7 @@ importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "goo
 
 googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> ((Double, Double)-> IO ()) -> m ()
 googleMapsAutocompletePlaceDetails ref cb = do
-  rec jsCb <- mkJSFun $ \[result] -> do
+  rec jsCb <- mkJSFun $ \(result:_) -> do
                 n <- isJSNull result
                 case n of
                      True -> mkJSUndefined
@@ -210,7 +210,7 @@ googleMapsAutocompletePlaceDetails ref cb = do
  
 googleMapsAutocompletePlace :: (MonadJS x m, MonadFix m, MonadIO m) => String -> ([(String, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
 googleMapsAutocompletePlace s cb =  do
-  rec jsCb <- mkJSFun $ \[result] -> do
+  rec jsCb <- mkJSFun $ \(result:_) -> do
         a <- fromJSArray result
         a' <- forM a $ \p -> do
                 desc <- fromJSString =<< getJSProp "description" p
