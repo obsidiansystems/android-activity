@@ -139,9 +139,10 @@ webSocket path config = do
   (eRecv, eRecvTriggerRef) <- newEventWithTriggerRef
   currentSocketRef <- liftIO $ newIORef Nothing
   --TODO: Disconnect if value no longer needed
-  let onMessage m = liftIO $ do
-        maybe (return ()) (\t -> postGui $ runWithActions [t :=> m]) =<< readRef eRecvTriggerRef
-      start :: JSM m ()
+  let onMessage m = liftIO $ postGui $ do
+        mt <- readRef eRecvTriggerRef
+        forM_ mt $ \t -> runWithActions [t :=> m]
+      start :: JSM (WidgetHost m) ()
       start = do
         ws <- newWebSocket (wsProtocol <> "//" <> wsHost <> path) onMessage $ do
           void $ forkJS $ do --TODO: Is the fork necessary, or do event handlers run in their own threads automatically?
@@ -150,7 +151,7 @@ webSocket path config = do
             start
         liftIO $ writeIORef currentSocketRef $ Just ws
         return ()
-  liftJS start
+  schedulePostBuild $ liftJS start
   performEvent_ $ ffor (_webSocketConfig_send config) $ \payloads -> forM_ payloads $ \payload -> do
     mws <- liftIO $ readIORef currentSocketRef
     case mws of
