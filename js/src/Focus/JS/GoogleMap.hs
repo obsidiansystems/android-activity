@@ -31,7 +31,7 @@ instance ToJS x (GeolocationPosition x) where
 instance FromJS x (GeolocationPosition x) where
   fromJS = return . GeolocationPosition
 
-importJS Unsafe "avigator['geolocation']['getCurrentPosition'](this[0])" "getGeolocationCurrentPosition_" [t| forall x m. MonadJS x m => JSFun x -> m () |] 
+importJS Unsafe "navigator['geolocation']['getCurrentPosition'](this[0])" "getGeolocationCurrentPosition_" [t| forall x m. MonadJS x m => JSFun x -> m () |] 
 
 getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadIO m) => (GeolocationPosition x -> IO ()) -> m ()
 getGeolocationCurrentPosition cb = do
