@@ -16,6 +16,7 @@ import Data.Traversable
 import Data.These
 import Data.Align
 import Data.Typeable
+import Data.Default
 
 import Reflex
 import Reflex.Dom
@@ -31,7 +32,98 @@ instance ToJS x (GeolocationPosition x) where
 instance FromJS x (GeolocationPosition x) where
   fromJS = return . GeolocationPosition
 
+data MapMarkerInfo
+  = MapMarkerInfo { _mapMarkerInfo_coord :: (Double, Double)
+                  , _mapMarkerInfo_title :: String
+                  , _mapMarkerInfo_icon :: String
+                  , _mapMarkerInfo_zIndex :: Double
+                  }
+    deriving (Typeable, Show, Read, Eq, Ord)
+
+newtype GoogleMap x = GoogleMap { unGoogleMap :: JSRef x }
+
+instance ToJS x (GoogleMap x) where
+  withJS (GoogleMap x) = ($ x)
+
+instance FromJS x (GoogleMap x) where
+  fromJS = return . GoogleMap
+
+newtype GoogleMapMarker x = GoogleMapMarker { unGoogleMapMarker :: JSRef x }
+
+instance ToJS x (GoogleMapMarker x) where
+  withJS (GoogleMapMarker x) = ($ x)
+
+instance FromJS x (GoogleMapMarker x) where
+  fromJS = return . GoogleMapMarker
+
+newtype PlacesAutocompletePredictionReference x = PlacesAutocompletePredictionReference { unPlacesAutocompletePredictionReference :: JSRef x }
+
+instance ToJS x (PlacesAutocompletePredictionReference x) where
+  withJS (PlacesAutocompletePredictionReference x) = ($ x)
+
+instance FromJS x (PlacesAutocompletePredictionReference x) where
+  fromJS = return . PlacesAutocompletePredictionReference
+
+newtype PlaceDetails x = PlaceDetails { unPlaceDetails :: JSRef x }
+
+instance ToJS x (PlaceDetails x) where
+  withJS (PlaceDetails x) = ($ x)
+
+instance FromJS x (PlaceDetails x) where
+  fromJS = return . PlaceDetails
+
+newtype PlacesAutocompleteService x = PlacesAutocompleteService { unPlacesAutocompleteService :: JSRef x }
+
+instance ToJS x (PlacesAutocompleteService x) where
+  withJS (PlacesAutocompleteService x) = ($ x)
+
+instance FromJS x (PlacesAutocompleteService x) where
+  fromJS = return . PlacesAutocompleteService
+
+newtype PlacesAutocompletePrediction x = PlacesAutocompletePrediction { unPlacesAutocompletePrediction :: JSRef x }
+
+instance ToJS x (PlacesAutocompletePrediction x) where
+  withJS (PlacesAutocompletePrediction x) = ($ x)
+
+instance FromJS x (PlacesAutocompletePrediction x) where
+  fromJS = return . PlacesAutocompletePrediction
+
 importJS Unsafe "navigator['geolocation']['getCurrentPosition'](this[0])" "getGeolocationCurrentPosition_" [t| forall x m. MonadJS x m => JSFun x -> m () |] 
+importJS Unsafe "new google['maps']['Map'](this[0], {center: new google['maps']['LatLng'](this[1], this[2]), zoom: this[3], mapTypeId: google['maps']['MapTypeId']['ROADMAP']})" "newGoogleMap" [t| forall x m. MonadJS x m => Node -> Double -> Double -> Double -> m (GoogleMap x) |]
+
+importJS Unsafe "google['maps']['event']['trigger'](this[0], 'resize')" "googleMapTriggerResize" [t| forall x m. MonadJS x m => GoogleMap x -> m () |]
+
+importJS Unsafe "this[0]['fitBounds'](new google['maps']['LatLngBounds'](new google['maps']['LatLng'](this[1], this[2]), new google['maps']['LatLng'](this[3], this[4])))" "googleMapFitToBounds_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> Double -> Double -> m() |]
+
+importJS Unsafe "this[0]['setCenter'](new google['maps']['LatLng'](this[1], this[2]))" "googleMapSetCenter" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> m () |]
+
+importJS Unsafe "this[0]['setZoom'](this[1])" "googleMapSetZoom" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> m () |]
+
+importJS Unsafe "new google['maps']['Marker']({position: new google['maps']['LatLng'](this[1], this[2]), map: this[0], title: this[3], icon: this[4], zIndex: this[5]})" "googleMapAddMarker_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> String -> String -> Double -> m (GoogleMapMarker x) |]
+
+googleMapAddMarker g c = googleMapAddMarker_ g (fst c) (snd c)
+
+importJS Unsafe "this[0]['setZIndex'](this[1])" "googleMapMarkerSetZIndex" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> m () |]
+
+importJS Unsafe "this[0]['setTitle'](this[1])" "googleMapMarkerSetTitle" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
+
+importJS Unsafe "this[0]['setIcon'](this[1])" "googleMapMarkerSetIcon" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
+
+importJS Unsafe "this[0]['setPosition'](new google['maps']['LatLng'](this[1], this[2]))" "googleMapMarkerSetCoord_" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> Double -> m () |]
+
+googleMapMarkerSetCoord g c = googleMapMarkerSetCoord_ g (fst c) (snd c)
+
+importJS Unsafe "this[0]['setMap'](null)" "googleMapMarkerRemove" [t| forall x m. MonadJS x m => GoogleMapMarker x -> m () |]
+
+importJS Unsafe "new google['maps']['places']['PlacesService'](document.createElement('div'))['getDetails']({placeId: this[0]},  this[1])" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef String -> IO ()) -> m () |]
+
+importJS Unsafe "this[0]['lat']()" "placeDetailsLat_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
+importJS Unsafe "this[0]['lng']()" "placeDetailsLng_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
+
+importJS Unsafe "new google['maps']['places']['AutocompleteService'](null, {})" "googleMapsPlacesAutocompleteService_" [t| forall x m. MonadJS x m => m (PlacesAutocompleteService x) |]
+
+importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> String -> JSFun x -> m () |]
+-- (JSArray PlacesAutocompletePrediction -> JSRef String -> IO ()) -> IO ())
 
 getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadIO m) => (GeolocationPosition x -> IO ()) -> m ()
 getGeolocationCurrentPosition cb = do
@@ -50,53 +142,47 @@ geolocationPositionGetCoord pos = do
     long <- fromJSNumber =<< getJSProp "longitude" coords
     return (lat, long)
 
-data MapMarkerInfo
-  = MapMarkerInfo { _mapMarkerInfo_coord :: (Double, Double)
-                  , _mapMarkerInfo_title :: String
-                  , _mapMarkerInfo_icon :: String
-                  , _mapMarkerInfo_zIndex :: Double
+googleMapFitToCoords :: (MonadJS x m) => GoogleMap x -> [(Double, Double)] -> m ()
+googleMapFitToCoords m coords = case coordsToBounds coords of
+  Nothing -> return ()
+  Just ((minLat, minLng), (maxLat, maxLng)) -> googleMapFitToBounds_ m minLat minLng maxLat maxLng
+
+coordsToBounds :: [(Double, Double)] -> Maybe ((Double, Double), (Double, Double))
+coordsToBounds coords = case nonEmpty coords of
+  Nothing -> Nothing
+  Just l -> let (Min minLat, Min minLng, Max maxLat, Max maxLng) = sconcat $ fmap (\(lat', lng') -> (Min lat', Min lng', Max lat', Max lng')) l
+            in Just $ ((minLat, minLng), (maxLat, maxLng))
+
+
+data WebMapConfig t
+   = WebMapConfig { _webMapConfig_initialCenter :: (Double, Double)
+                  , _webMapConfig_initialZoom :: Double
+                  , _webMapConfig_attributes :: Dynamic t (Map String String)
+                  , _webMapConfig_triggerResize :: Event t ()
+                  , _webMapConfig_fitToCoords :: Event t [(Double, Double)]
+                  , _webMapConfig_setCenter :: Event t (Double, Double)
+                  , _webMapConfig_setZoom :: Event t Double
                   }
-    deriving (Typeable, Show, Read, Eq, Ord)
 
-newtype GoogleMap x = GoogleMap { unGoogleMap :: JSRef x }
+instance Reflex t => Default (WebMapConfig t) where
+  def = WebMapConfig { _webMapConfig_initialCenter = (0, 0)
+                     , _webMapConfig_initialZoom = 1
+                     , _webMapConfig_attributes = constDyn mempty
+                     , _webMapConfig_triggerResize = never
+                     , _webMapConfig_fitToCoords = never
+                     , _webMapConfig_setCenter = never
+                     , _webMapConfig_setZoom = never
+                     }
 
-instance ToJS x (GoogleMap x) where
-  withJS (GoogleMap x) = ($ x)
+data WebMap t x
+   = WebMap { _webMap_object :: GoogleMap x
+            , _webMap_element :: El t
+            }
 
-instance FromJS x (GoogleMap x) where
-  fromJS = return . GoogleMap
-
-importJS Unsafe "new google['maps']['Map'](this[0], {center: new google['maps']['LatLng'](43.7, -79.4), zoom: 12, mapTypeId: google['maps']['MapTypeId']['ROADMAP']})" "newGoogleMap" [t| forall x m. MonadJS x m => Node -> m (GoogleMap x) |]
-importJS Unsafe "google['maps']['event']['trigger'](this[0], 'resize')" "googleMapTriggerResize" [t| forall x m. MonadJS x m => GoogleMap x -> m () |]
-
-newtype GoogleMapMarker x = GoogleMapMarker { unGoogleMapMarker :: JSRef x }
-
-instance ToJS x (GoogleMapMarker x) where
-  withJS (GoogleMapMarker x) = ($ x)
-
-instance FromJS x (GoogleMapMarker x) where
-  fromJS = return . GoogleMapMarker
-
-importJS Unsafe "new google['maps']['Marker']({position: new google['maps']['LatLng'](this[1], this[2]), map: this[0], title: this[3], icon: this[4], zIndex: this[5]})" "googleMapAddMarker_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> String -> String -> Double -> m (GoogleMapMarker x) |]
-
-googleMapAddMarker g c = googleMapAddMarker_ g (fst c) (snd c)
-
-importJS Unsafe "this[0]['setZIndex'](this[1])" "googleMapMarkerSetZIndex" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> m () |]
-
-importJS Unsafe "this[0]['setTitle'](this[1])" "googleMapMarkerSetTitle" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
-
-importJS Unsafe "this[0]['setIcon'](this[1])" "googleMapMarkerSetIcon" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
-
-importJS Unsafe "this[0]['setPosition'](new google['maps']['LatLng'](this[1], this[2]))" "googleMapMarkerSetCoord_" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> Double -> m () |]
-
-googleMapMarkerSetCoord g c = googleMapMarkerSetCoord_ g (fst c) (snd c)
-
-importJS Unsafe "this[0]['setMap'](null)" "googleMapMarkerRemove" [t| forall x m. MonadJS x m => GoogleMapMarker x -> m () |]
-
-googleMap :: forall t m a k x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, Ord k, Show k) => Dynamic t (Map k MapMarkerInfo) -> m ()
-googleMap dTargetMarkers = do
-  (e,_) :: (El t, ()) <- elAttr' "div" ("style" =: "height:713px") $ return ()
-  m <- liftJS $ newGoogleMap $ toNode $ _el_element e
+googleMap :: forall t m a k x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, Ord k, Show k) => Dynamic t (Map k MapMarkerInfo) -> WebMapConfig t -> m (WebMap t x)
+googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoords center zoom) = do
+  (e,_) :: (El t, ()) <- elDynAttr' "div" attrs $ return ()
+  m <- liftJS $ newGoogleMap (toNode $ _el_element e) lat0 lng0 zoom0
   _ <- liftJS $ googleMapTriggerResize m
   let dMyGoogleMap = constDyn $ Just m
   let updateMarkers :: Maybe (GoogleMap x, (Map k MapMarkerInfo, Map k (GoogleMapMarker x))) -> WidgetHost m (Map k (GoogleMapMarker x), Any)
@@ -115,7 +201,11 @@ googleMap dTargetMarkers = do
           lift $ liftJS $ googleMapMarkerRemove c
           return Nothing
   rec dCurrentMarkers <- holdDyn Map.empty . (fmapMaybe (\(x, Any b) -> if b then Just x else Nothing)) =<< performEvent . (fmap updateMarkers) . updated =<< combineDyn (\gm x -> fmap (flip (,) x) gm) dMyGoogleMap =<< combineDyn (,) dTargetMarkers dCurrentMarkers
-  return ()
+  performEvent_ $ fmap (liftJS . googleMapFitToCoords m) fitToCoords
+  performEvent_ $ fmap (liftJS . uncurry (googleMapSetCenter m)) center
+  performEvent_ $ fmap (liftJS . googleMapSetZoom m) zoom
+  performEvent_ $ fmap (\_ -> liftJS $ googleMapTriggerResize m) resize
+  return $ WebMap m e
 
 searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
 searchInputResult r = el "li" $ do
@@ -151,47 +241,6 @@ searchInputResultsList' results builder = do
   resultsList <- elDynAttr "ul" attrs $ builder results
   liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
 
-newtype PlacesAutocompletePredictionReference x = PlacesAutocompletePredictionReference { unPlacesAutocompletePredictionReference :: JSRef x }
-
-instance ToJS x (PlacesAutocompletePredictionReference x) where
-  withJS (PlacesAutocompletePredictionReference x) = ($ x)
-
-instance FromJS x (PlacesAutocompletePredictionReference x) where
-  fromJS = return . PlacesAutocompletePredictionReference
-
-newtype PlaceDetails x = PlaceDetails { unPlaceDetails :: JSRef x }
-
-instance ToJS x (PlaceDetails x) where
-  withJS (PlaceDetails x) = ($ x)
-
-instance FromJS x (PlaceDetails x) where
-  fromJS = return . PlaceDetails
-
-importJS Unsafe "new google['maps']['places']['PlacesService'](document.createElement('div'))['getDetails']({placeId: this[0]},  this[1])" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef String -> IO ()) -> m () |]
-
-importJS Unsafe "this[0]['lat']()" "placeDetailsLat_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
-importJS Unsafe "this[0]['lng']()" "placeDetailsLng_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
-
-newtype PlacesAutocompleteService x = PlacesAutocompleteService { unPlacesAutocompleteService :: JSRef x }
-
-instance ToJS x (PlacesAutocompleteService x) where
-  withJS (PlacesAutocompleteService x) = ($ x)
-
-instance FromJS x (PlacesAutocompleteService x) where
-  fromJS = return . PlacesAutocompleteService
-
-importJS Unsafe "new google['maps']['places']['AutocompleteService'](null, {})" "googleMapsPlacesAutocompleteService_" [t| forall x m. MonadJS x m => m (PlacesAutocompleteService x) |]
-
-newtype PlacesAutocompletePrediction x = PlacesAutocompletePrediction { unPlacesAutocompletePrediction :: JSRef x }
-
-instance ToJS x (PlacesAutocompletePrediction x) where
-  withJS (PlacesAutocompletePrediction x) = ($ x)
-
-instance FromJS x (PlacesAutocompletePrediction x) where
-  fromJS = return . PlacesAutocompletePrediction
-
-importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> String -> JSFun x -> m () |]
--- (JSArray PlacesAutocompletePrediction -> JSRef String -> IO ()) -> IO ())
 
 googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> ((Double, Double)-> IO ()) -> m ()
 googleMapsAutocompletePlaceDetails ref cb = do
@@ -244,24 +293,6 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 -- googleMapGetCenter m = do
 --   c <- googleMapGetCenter_ (unGoogleMap m)
 --   return $ GoogleMapLatLng c
--- JS(googleMapSetCenter_, "$1.setCenter($2)", JSRef GoogleMap -> JSRef GoogleMapLatLng -> IO ())
--- googleMapSetCenter :: GoogleMap -> GoogleMapLatLng -> IO ()
--- googleMapSetCenter m c = do
---   googleMapSetCenter_ (unGoogleMap m) (unGoogleMapLatLng c)
---   return ()
--- 
--- JS(googleMapFitToBounds_, "$1.fitBounds(new google.maps.LatLngBounds(new google.maps.LatLng($2, $3), new google.maps.LatLng($4, $5)))", JSRef GoogleMap -> JSRef Double -> JSRef Double -> JSRef Double -> JSRef Double -> IO ())
--- googleMapFitToCoords :: GoogleMap -> [(Double, Double)] -> IO ()
--- googleMapFitToCoords m coords = case nonEmpty coords of
---   Nothing -> return ()
---   Just l ->
---     let (Min minLat, Min minLng, Max maxLat, Max maxLng) = sconcat $ fmap (\(lat', lng') -> (Min lat', Min lng', Max lat', Max lng')) l
---     in do
---       minLatRef <- toJSRef minLat
---       minLngRef <- toJSRef minLng
---       maxLatRef <- toJSRef maxLat
---       maxLngRef <- toJSRef maxLng
---       googleMapFitToBounds_ (unGoogleMap m) minLatRef minLngRef maxLatRef maxLngRef
 -- 
 -- newtype GoogleMapPolyline = GoogleMapPolyline { unGoogleMapPolyline :: JSRef GoogleMapPolyline }
 -- JS(googleMapPolyline_, "new google.maps.Polyline({path: [new google.maps.LatLng($2, $3), new google.maps.LatLng($4, $5)], strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.6, scale: 4 }, offset: '0', repeat: '20px'}], map: $1})", JSRef GoogleMap -> JSRef Double -> JSRef Double -> JSRef Double -> JSRef Double -> IO (JSRef GoogleMapPolyline))
