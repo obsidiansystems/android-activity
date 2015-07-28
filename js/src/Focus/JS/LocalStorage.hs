@@ -1,13 +1,5 @@
 {-# LANGUAGE GADTs, FlexibleContexts, TemplateHaskell, RankNTypes #-}
-module Focus.JS.LocalStorage
-       ( storageGetInitial
-       , storageGetManyInitial
-       , storageGet
-       , storageGetMany
-       , storageSet
-       , storageSetMany
-       , storageRemoveAll
-       ) where
+module Focus.JS.LocalStorage where
 
 import Foreign.JavaScript.TH
 import GHCJS.DOM.DOMWindow (domWindowGetLocalStorage)
@@ -18,10 +10,7 @@ import GHCJS.DOM.Types hiding (Event)
 import Reflex.Dom hiding (Value)
 import Control.Monad.IO.Class
 import Control.Monad
-import qualified Data.Map as Map
-import Data.Map (Map)
 import Control.Monad.Identity
-import Safe
 
 --TODO: This should really take a Storage as an argument, but on webkitgtk, this requires converting the Storage object to its JS wrapper
 importJS Unsafe "localStorage['getItem'](this[0])" "localStorageGetItemMaybe" [t| forall x m. MonadJS x m => String -> m (Maybe String) |]

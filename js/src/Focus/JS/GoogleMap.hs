@@ -4,13 +4,11 @@ module Focus.JS.GoogleMap where
 import Control.Monad.IO.Class
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.Writer hiding (forM, forM_, mapM, mapM_, sequence, (<>), listen)
-import Control.Applicative
-import GHCJS.DOM.Geolocation
 import GHCJS.DOM.Types hiding (Event)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Lens hiding (coerce)
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Control.Lens hiding (coerce, zoom)
+import Data.List.NonEmpty (nonEmpty)
 import Data.Semigroup hiding (option)
 import Data.Traversable
 import Data.These
@@ -21,7 +19,6 @@ import Data.Default
 import Reflex
 import Reflex.Dom
 
-import Focus.JS.Request
 import Foreign.JavaScript.TH
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
@@ -101,6 +98,7 @@ importJS Unsafe "this[0]['setZoom'](this[1])" "googleMapSetZoom" [t| forall x m.
 
 importJS Unsafe "new google['maps']['Marker']({position: new google['maps']['LatLng'](this[1], this[2]), map: this[0], title: this[3], icon: this[4], zIndex: this[5]})" "googleMapAddMarker_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> String -> String -> Double -> m (GoogleMapMarker x) |]
 
+googleMapAddMarker :: MonadJS x m => GoogleMap x -> (Double, Double) -> String -> String -> Double -> m (GoogleMapMarker x)
 googleMapAddMarker g c = googleMapAddMarker_ g (fst c) (snd c)
 
 importJS Unsafe "this[0]['setZIndex'](this[1])" "googleMapMarkerSetZIndex" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> m () |]
@@ -111,6 +109,7 @@ importJS Unsafe "this[0]['setIcon'](this[1])" "googleMapMarkerSetIcon" [t| foral
 
 importJS Unsafe "this[0]['setPosition'](new google['maps']['LatLng'](this[1], this[2]))" "googleMapMarkerSetCoord_" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> Double -> m () |]
 
+googleMapMarkerSetCoord :: MonadJS x m => GoogleMapMarker x -> (Double, Double) -> m ()
 googleMapMarkerSetCoord g c = googleMapMarkerSetCoord_ g (fst c) (snd c)
 
 importJS Unsafe "this[0]['setMap'](null)" "googleMapMarkerRemove" [t| forall x m. MonadJS x m => GoogleMapMarker x -> m () |]
@@ -179,14 +178,14 @@ data WebMap t x
             , _webMap_element :: El t
             }
 
-googleMap :: forall t m a k x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, Ord k, Show k) => Dynamic t (Map k MapMarkerInfo) -> WebMapConfig t -> m (WebMap t x)
+googleMap :: forall t m k x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, Ord k, Show k) => Dynamic t (Map k MapMarkerInfo) -> WebMapConfig t -> m (WebMap t x)
 googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoords center zoom) = do
   (e,_) :: (El t, ()) <- elDynAttr' "div" attrs $ return ()
   m <- liftJS $ newGoogleMap (toNode $ _el_element e) lat0 lng0 zoom0
   _ <- liftJS $ googleMapTriggerResize m
   let dMyGoogleMap = constDyn $ Just m
   let updateMarkers :: Maybe (GoogleMap x, (Map k MapMarkerInfo, Map k (GoogleMapMarker x))) -> WidgetHost m (Map k (GoogleMapMarker x), Any)
-      updateMarkers = maybe (return (Map.empty, mempty)) $ \(gm, (target, current)) -> runWriterT $ liftM (Map.mapMaybe id) $ iforM (align target current) $ \k tc -> case tc of
+      updateMarkers = maybe (return (Map.empty, mempty)) $ \(gm, (target, present)) -> runWriterT $ liftM (Map.mapMaybe id) $ iforM (align target present) $ \_ tc -> case tc of
         This t -> do
           tell $ Any True
           liftM Just $ lift $ liftJS $ googleMapAddMarker gm (_mapMarkerInfo_coord t) (_mapMarkerInfo_title t) (_mapMarkerInfo_icon t) (_mapMarkerInfo_zIndex t)
@@ -210,7 +209,7 @@ googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoor
 searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
 searchInputResult r = el "li" $ do
   (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
-  return $ tag (current r) (_el_clicked li)
+  return $ tag (current r) (domEvent Click li)
 
 searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map String String) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
 searchInput attrs results = searchInput' "" never attrs results searchInputResultsList
@@ -271,7 +270,7 @@ googleMapsAutocompletePlace s cb =  do
   g <- googleMapsPlacesAutocompleteService_
   googleMapsPlacesGetPlacePredictions_ g s jsCb
 
-geocodeSearch :: forall t m a x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> String -> Maybe (String, (Double, Double)) -> Event t (Maybe (String, (Double, Double))) -> Dynamic t (Map String String) -> m (Dynamic t (Maybe (String, (Double, Double))))
+geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> String -> Maybe (String, (Double, Double)) -> Event t (Maybe (String, (Double, Double))) -> Dynamic t (Map String String) -> m (Dynamic t (Maybe (String, (Double, Double))))
 geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
   --TODO: Rate limiting
   --TODO: Deal with the situation where results are returned in the wrong order

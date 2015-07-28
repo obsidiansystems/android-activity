@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell, RankNTypes #-}
 module Focus.JS.DesktopNotification where
 
-import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Foreign.JavaScript.TH
 
 importJS Unsafe "Notification.requestPermission()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]

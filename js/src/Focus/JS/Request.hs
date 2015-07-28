@@ -1,39 +1,16 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, GADTs, ScopedTypeVariables, FunctionalDependencies, RecursiveDo, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving, EmptyDataDecls, NoMonomorphismRestriction, TemplateHaskell, PolyKinds, TypeOperators, DeriveFunctor, LambdaCase, CPP, ForeignFunctionInterface, JavaScriptFFI, DeriveDataTypeable, ConstraintKinds #-}
 module Focus.JS.Request where
 
-import GHCJS.DOM
-import GHCJS.DOM.DOMWindow
-import GHCJS.DOM.Types hiding (Event, XMLHttpRequest)
-import GHCJS.DOM.Document
-import GHCJS.DOM.Node
-import GHCJS.DOM.NamedNodeMap
-import GHCJS.DOM.Element
-import GHCJS.DOM.HTMLDocument
-import GHCJS.DOM.HTMLElement
-import GHCJS.DOM.HTMLInputElement
-import GHCJS.DOM.HTMLSelectElement
-import GHCJS.DOM.HTMLOptionElement
-import GHCJS.DOM.MouseEvent
-import GHCJS.DOM.UIEvent
-import GHCJS.DOM.NodeList
-import GHCJS.DOM.Event hiding (Event)
-import GHCJS.DOM.EventM (event, Signal (..), preventDefault)
-import qualified GHCJS.DOM.EventM as GHCJS
-import GHCJS.DOM.EventTargetClosures
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Monoid
 import Data.Time.Clock
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Data.String
 import Data.Aeson
 import Control.Concurrent.MVar
 import Control.Monad
 import Foreign.JavaScript.TH
-import Foreign.ForeignPtr
 import Focus.Request
 import Control.Monad.IO.Class
 import Control.Monad.Fix
@@ -46,6 +23,7 @@ validJSRef r = do
   n <- isJSNull r
   return $ if u || n then Nothing else Just r
 
+timeFrom :: UTCTime -> UTCTime -> String
 timeFrom t ct =
   let d = round $ diffUTCTime ct t
   in describe d
@@ -94,7 +72,7 @@ mkRequestGeneric responseType convertResponse method send url cb = do
         if readyState == 4
            then do
              r <- convertResponse xhr
-             liftIO $ cb r
+             _ <- liftIO $ cb r
              freeJSFun callback
              mkJSUndefined
            else mkJSUndefined

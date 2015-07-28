@@ -4,7 +4,6 @@ import Prelude hiding (foldl1)
 
 import Control.Monad.Fix
 import Data.List.NonEmpty (nonEmpty)
-import Data.Semigroup
 import Data.Foldable
 import Reflex
 import Data.Maybe

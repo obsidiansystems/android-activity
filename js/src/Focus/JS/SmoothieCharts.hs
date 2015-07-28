@@ -4,27 +4,18 @@ module Focus.JS.SmoothieCharts where
 
 import Reflex
 import Reflex.Dom
-import Focus.JS.Request
 
 import Control.Lens hiding ((.=))
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.TH
-import Data.Bifunctor
-import Data.Bitraversable
 import Data.Char
 import Data.Default
 import Data.Map (Map)
-import Data.Maybe
-import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Data.Time.Clock
-import Data.Time.Clock.POSIX
 import GHCJS.DOM.Types hiding (Event, Text)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Foreign.JavaScript.TH
 
@@ -168,7 +159,7 @@ smoothieChartNew :: MonadJS x m => SmoothieChartConfig -> m (SmoothieChart x)
 smoothieChartNew = smoothieChartNew_ . encodeToJsonString
 
 smoothieStreamTo :: MonadJS x m => (SmoothieChart x) -> El t -> Double -> m ()
-smoothieStreamTo s e delay = smoothieStreamTo_ s (toNode $ _el_element e) delay
+smoothieStreamTo s e lag = smoothieStreamTo_ s (toNode $ _el_element e) lag
 
 smoothieTimeSeriesNew :: MonadJS x m => SmoothieTimeSeriesConfig -> m (TimeSeries x)
 smoothieTimeSeriesNew = smoothieTimeSeriesNew_ . encodeToJsonString
@@ -185,7 +176,7 @@ smoothieTimeSeriesAppendWithCurrentTime ts x = do
   smoothieTimeSeriesAppend ts t x
 
 smoothieChart :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String String -> Double -> [(Event t Double, SmoothieTimeSeriesConfig, SmoothieTimeSeriesStyle)] -> SmoothieChartConfig -> m (SmoothieChart x, [TimeSeries x])
-smoothieChart attrs delay es cfg = do
+smoothieChart attrs lag es cfg = do
   (canvas, _) <- elAttr' "canvas" attrs $ return ()
   (ets, s) <- do
     s <- liftJS $ smoothieChartNew cfg
@@ -193,9 +184,9 @@ smoothieChart attrs delay es cfg = do
       ts <- smoothieTimeSeriesNew cfg'
       smoothieAddTimeSeries s ts style
       return (e, ts)
-    liftJS $ smoothieStreamTo s canvas delay
+    liftJS $ smoothieStreamTo s canvas lag
     return (ets, s)
-  forM ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftJS $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
+  forM_ ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftJS $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
   return $ (s, map snd ets)
 
 smoothieChartSetTimeSeriesStyle :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
