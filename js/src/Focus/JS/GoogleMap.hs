@@ -126,7 +126,7 @@ importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "goo
 
 getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadIO m) => (GeolocationPosition x -> IO ()) -> m ()
 getGeolocationCurrentPosition cb = do
-  rec f <- mkJSFun $ \[success, _, _] -> do
+  rec f <- mkJSFun $ \(success:_) -> do
              s <- fromJS success
              liftIO $ cb s
              freeJSFun f
@@ -151,7 +151,6 @@ coordsToBounds coords = case nonEmpty coords of
   Nothing -> Nothing
   Just l -> let (Min minLat, Min minLng, Max maxLat, Max maxLng) = sconcat $ fmap (\(lat', lng') -> (Min lat', Min lng', Max lat', Max lng')) l
             in Just $ ((minLat, minLng), (maxLat, maxLng))
-
 
 data WebMapConfig t
    = WebMapConfig { _webMapConfig_initialCenter :: (Double, Double)
