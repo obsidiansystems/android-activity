@@ -27,6 +27,9 @@ let
       version = "0.13.0.0";
       sha256 = "12b4xi6nlnhpwz8apn4mk880mkhcv1sfvf4j3z1h5dgkadi2zgbi";
     });
+    ghcjs = overrideCabal super.ghcjs (drv: {
+      jailbreak = true;
+    });
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -192,6 +195,14 @@ let
         license = self.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
+      dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
+        version = "0.0.0.4";
+        src = pkgs.fetchgit {
+          url = git://github.com/ryantrinkle/dependent-sum-template;
+          rev = "abcd0f01a3e264e5bc1f3b00f3d03082f091ec49";
+          sha256 = "16f95348c559394a39848394a9e1aa8318c79bfc62bc6946edad9aabd20a8e2d";
+        };
+      });
     };
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
@@ -248,6 +259,7 @@ let
         homepage = "http://snapframework.com/";
         description = "Top-level package for the Snap Web Framework";
         license = pkgs.stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       });
       */
       stripe = self.mkDerivation ({
@@ -285,6 +297,7 @@ let
           shelly
           tar
           file-embed
+          binary
         ];
         pkgconfigDepends = [
           pkgs.postgresql94
@@ -330,7 +343,7 @@ let
       main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
   '';
   #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-  mkPreConfigure = pname: executableName: depends: ''
+  mkPreConfigure = haskellPackages: pname: executableName: depends: ''
     if ! ls | grep ".*\\.cabal$" ; then
       cat >"${pname}.cabal" <<EOF
     name: ${pname}
@@ -338,7 +351,7 @@ let
     cabal-version: >= 1.2
     ${if executableName != null then executableHeader executableName else libraryHeader}
       hs-source-dirs: src
-      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" ] ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+      build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else []) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
     EOF
@@ -350,7 +363,7 @@ let
     version = appVersion;
     src = ../common;
     license = null;
-    preConfigure = mkPreConfigure pname null buildDepends;
+    preConfigure = mkPreConfigure haskellPackages pname null buildDepends;
     buildDepends = with haskellPackages; [
       focus-core
     ] ++ commonDepends haskellPackages;
@@ -365,7 +378,7 @@ let
         version = appVersion;
         license = null;
         src = ../frontend;
-        preConfigure = mkPreConfigure pname "frontend" buildDepends;
+        preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
         buildDepends = [
           frontendCommon
           focus-core
@@ -382,11 +395,13 @@ let
 in pkgs.stdenv.mkDerivation (rec {
   name = "${appName}-${appVersion}";
   static = ../static;
+  marketing = ../marketing;
   builder = builtins.toFile "builder.sh" ''
     source $stdenv/setup
 
     mkdir -p $out
     cp -r $static $out/static
+    cp -r $marketing $out/marketing
     ln -s $backend/bin/backend $out
     ln -st $out $frontend/bin/*
   '';
@@ -399,12 +414,13 @@ in pkgs.stdenv.mkDerivation (rec {
       license = null;
       version = appVersion;
       src = ../backend;
-      preConfigure = mkPreConfigure pname "backend" buildDepends;
+      preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
       preBuild = ''
         ln -sf ${pkgs.tzdata}/share/zoneinfo .
       '';
       buildDepends = [
         backendCommon
+        vector-algorithms
         focus-core focus-backend
       ] ++ backendDepends backendHaskellPackages;
       buildTools = [] ++ backendTools pkgs;

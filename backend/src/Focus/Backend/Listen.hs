@@ -75,7 +75,7 @@ handleListen listeners l runGroundhog = ifTop $ do
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     senderThread <- forkIO $ do
-      let send = sendBinaryData conn . encode
+      let send = sendTextData conn . encode
       send startingValues
       forever $ do
         change <- atomically $ readTChan changes
