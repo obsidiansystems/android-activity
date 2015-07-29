@@ -38,6 +38,10 @@ let
       version = "0.9.5.0";
       sha256 = "016h213sk3n662ri8ns1sswcnaml61qckprdgxdp0m2a77amivmy";
     });
+    websockets-snap = overrideCabal super.websockets-snap (drv: {
+      version = "0.9.2.0";
+      sha256 = "03szycdvygw1zkv2s090wn2jii9sqbplgbycmpm5mfm3r0jhbhxp";
+    });
     heist = overrideCabal super.heist (drv: {
       jailbreak = true;
     });
