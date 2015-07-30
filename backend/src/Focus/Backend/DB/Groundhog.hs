@@ -20,6 +20,8 @@ import Control.Monad.Loops
 import Data.List
 import Data.Time.Clock
 
+import Debug.Trace
+
 -- | Run Database.Groundhog.TH.mkPersist with Focus-specific defaults
 --
 -- Record field names are expected to look like _dataTypeName_fieldName
@@ -50,7 +52,10 @@ prefilterFieldsNamingStyle f ns = ns
 popAllRows :: (PersistBackend m, PersistField b) => m (Maybe [PersistValue]) -> m [b]
 popAllRows rp = do
   whileJust rp $ \pvs -> do
-    (x, []) <- fromPersistValues pvs
+    (x, remainder) <- fromPersistValues pvs
+    case remainder of
+      [] -> return ()
+      _ -> trace ("popAllRows: fromPersistValues left " <> show remainder <> " remaining out of " <> show pvs) $ return ()
     return x
 
 getTransactionTime :: PersistBackend m => m UTCTime

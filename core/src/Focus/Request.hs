@@ -31,7 +31,7 @@ data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
 
 class Request r where
-    requestToJSON :: r a -> Value
+    requestToJSON :: (ToJSON a, FromJSON a) => r a -> Value
     requestParseJSON :: Value -> Parser (SomeRequest r)
 
 instance Request r => FromJSON (SomeRequest r) where
