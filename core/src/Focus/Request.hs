@@ -28,6 +28,7 @@ import Data.Proxy
 import Data.HList
 import Data.List (isPrefixOf)
 import Data.Monoid
+import Network.URI
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -378,3 +379,6 @@ instance Applicative m => Applicative (Blah t f g m) where
 
 sendApi :: Monad m => Event t (f a) -> Blah t f g m (Event t (g a))
 sendApi = undefined
+
+encodeURIComponent :: String -> String
+encodeURIComponent = escapeURIString (`elem` ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_.!~*'()")
