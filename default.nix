@@ -108,19 +108,14 @@ let
       src = ./js;
       buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints ];
     });
-    "dependent-sum-template" = self.callPackage
-      ({ mkDerivation, base, dependent-sum, template-haskell, th-extras
-       }:
-       mkDerivation {
-         pname = "dependent-sum-template";
-         version = "0.0.0.3";
-         sha256 = "0if3mr0cmaz3yc0hbn0fpx14kwnjsaj3hd8mw9z4va4qp85wya69";
-         buildDepends = [ base dependent-sum template-haskell th-extras ];
-         homepage = "/dev/null";
-         description = "Template Haskell code to generate instances of classes in dependent-sum package";
-         license = stdenv.lib.licenses.publicDomain;
-         hydraPlatforms = stdenv.lib.platforms.none;
-       }) {};
+    dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
+      version = "0.0.0.4";
+      src = pkgs.fetchgit {
+        url = git://github.com/ryantrinkle/dependent-sum-template;
+        rev = "abcd0f01a3e264e5bc1f3b00f3d03082f091ec49";
+        sha256 = "16f95348c559394a39848394a9e1aa8318c79bfc62bc6946edad9aabd20a8e2d";
+      };
+    });
     amazonka = overrideCabal super.amazonka (drv: {
       version = "0.3.4";
       src = ./amazonka/amazonka;
