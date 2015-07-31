@@ -38,6 +38,10 @@ let
       version = "0.9.5.0";
       sha256 = "016h213sk3n662ri8ns1sswcnaml61qckprdgxdp0m2a77amivmy";
     });
+    websockets-snap = overrideCabal super.websockets-snap (drv: {
+      version = "0.9.2.0";
+      sha256 = "03szycdvygw1zkv2s090wn2jii9sqbplgbycmpm5mfm3r0jhbhxp";
+    });
     heist = overrideCabal super.heist (drv: {
       jailbreak = true;
     });
@@ -353,7 +357,7 @@ let
       hs-source-dirs: src
       build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else []) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
       other-extensions: TemplateHaskell
-      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
+      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded -with-rtsopts=-N10
     EOF
     fi
   '';
