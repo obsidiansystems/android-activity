@@ -26,6 +26,8 @@ import Control.Arrow
 import Data.Type.Equality
 import Data.Proxy
 import Data.HList
+import Data.List (isPrefixOf)
+import Data.Monoid
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -84,36 +86,42 @@ instance HListToJSON l => ToJSON (HList l) where
 makeRequest :: Name -> DecsQ
 makeRequest n = do
   x <- reify n
-  let cons = case x of
+  let base = nameBase n
+      toBeStripped = base <> "_"
+      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
+      cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(conT n) where
-      requestToJSON r = $(caseE [|r|] $ map conToJson cons)
+      requestToJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
       requestParseJSON v = do
         (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
+        $(caseE [|tag :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
 makeJson :: Name -> DecsQ
 makeJson n = do
   x <- reify n
-  let cons = case x of
+  let base = nameBase n
+      toBeStripped = base <> "_"
+      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
+      cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON $(conT n) where
-      toJSON r = $(caseE [|r|] $ map conToJson cons)
+      toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
     instance FromJSON $(conT n) where
       parseJSON v = do
         (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson id [|v'|]) cons ++ [wild])
+        $(caseE [|tag :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
     |]
 
-conParseJson :: (ExpQ -> ExpQ) -> ExpQ -> Con -> MatchQ
-conParseJson wrapBody e c = do
+conParseJson :: (String -> String) -> (ExpQ -> ExpQ) -> ExpQ -> Con -> MatchQ
+conParseJson modifyName wrapBody e c = do
   let name = conName c
   varNames <- replicateM (conArity c) $ newName "f"
   let fields = map varE varNames
@@ -123,16 +131,18 @@ conParseJson wrapBody e c = do
         InfixC t1 _ t2 -> [t1, t2]
         ForallC _ _ c'' -> f c''
   let ts = f c
+
   let tuple = foldr (\a b -> conP 'HCons [varP a, b]) (conP 'HNil []) varNames
       body = doE [ bindS tuple [|parseJSON $e|]
                  , noBindS [|return $(appsE (conE name : fields))|]
                  ]
-  match (litP (StringL (nameBase name))) (normalB (wrapBody body)) []
+  match (litP (StringL (modifyName $ nameBase name))) (normalB (wrapBody body)) []
 
-conToJson :: Con -> MatchQ
-conToJson c = do
+conToJson :: (String -> String) -> Con -> MatchQ
+conToJson modifyName c = do
   let name = conName c
       base = nameBase name
+      tag = modifyName base
   varNames <- replicateM (conArity c) $ newName "f"
   let fields = map varE varNames
       f c' = case c' of
@@ -142,7 +152,7 @@ conToJson c = do
         ForallC _ _ c'' -> f c''
   let ts = f c
   let tuple = foldr (\a b -> appsE [conE 'HCons, varE a, b]) (conE 'HNil) varNames
-      body = [|toJSON (base :: String, toJSON $tuple)|]
+      body = [|toJSON (tag :: String, toJSON $tuple)|]
   match (conP name $ map varP varNames) (normalB body) []
 
 conName :: Con -> Name
@@ -230,14 +240,17 @@ makeJson' n = do
   let cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
+      base = nameBase n
+      toBeStripped = base <> "_"
+      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON' $(conT n) where
-      toJSON' r = $(caseE [|r|] $ map conToJson cons)
+      toJSON' r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
     instance FromJSON' $(conT n) where
       parseJSON' v = do
         (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
+        $(caseE [|tag :: String|] $ map (conParseJson modifyConName (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
 class AllArgsHave c f where
