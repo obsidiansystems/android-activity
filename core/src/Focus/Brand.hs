@@ -12,6 +12,9 @@ data Brand
   = Brand { _brand_productName :: Text
           }
 
+instance Show Brand where
+  show = T.unpack . _brand_productName
+
 class Monad m => MonadBrand m where
   getBrand :: m Brand
 
