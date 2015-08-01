@@ -397,7 +397,7 @@ in pkgs.stdenv.mkDerivation (rec {
   marketing = ../marketing;
   # Give the minification step its own derivation so that backend rebuilds don't redo the minification
   frontend = pkgs.stdenv.mkDerivation (rec {
-    name = "${appName}-${appName}-frontend";
+    name = "${appName}-frontend-minified";
     unminified = mkFrontend frontendHaskellPackages;
     builder = builtins.toFile "builder.sh" ''
       source "$stdenv/setup"
