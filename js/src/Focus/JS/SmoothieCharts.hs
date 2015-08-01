@@ -146,14 +146,14 @@ liftM concat $ mapM makeLenses
   , ''SmoothieTimeSeriesConfig
   ]
 
-importJS Unsafe "new SmoothieChart(JSON.parse(this[0]))" "smoothieChartNew_" [t| forall x m. MonadJS x m => String -> m (SmoothieChart x) |]
-importJS Unsafe "this[0].streamTo(this[1], this[2])" "smoothieStreamTo_" [t| forall x m. MonadJS x m => SmoothieChart x -> Node -> Double -> m () |]
-importJS Unsafe "new TimeSeries(JSON.parse(this[0]))" "smoothieTimeSeriesNew_" [t| forall x m. MonadJS x m => String -> m (TimeSeries x) |]
-importJS Unsafe "this[0].addTimeSeries(this[1], JSON.parse(this[2]))" "smoothieAddTimeSeries_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> String -> m () |]
-importJS Unsafe "this[0].append(this[1], this[2])" "smoothieTimeSeriesAppend_" [t| forall x m. MonadJS x m => TimeSeries x -> Double -> Double -> m () |]
-importJS Unsafe "new Date().getTime()" "smoothieTimestamp_" [t| forall x m. MonadJS x m => m Double |]
-importJS Unsafe "this[0].getTimeSeriesOptions(this[1])" "smoothieGetTimeSeriesOptions_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> m (TimeSeriesOptions x) |]
-importJS Unsafe "(function(that){for (var key in that[0]) { that[0][key] = JSON.parse(that[1])[key] }})(this)" "smoothieSetTimeSeriesOptions_" [t| forall x m. MonadJS x m => TimeSeriesOptions x -> String -> m () |]
+importJS Unsafe "new SmoothieChart(JSON['parse'](this[0]))" "smoothieChartNew_" [t| forall x m. MonadJS x m => String -> m (SmoothieChart x) |]
+importJS Unsafe "this[0]['streamTo'](this[1], this[2])" "smoothieStreamTo_" [t| forall x m. MonadJS x m => SmoothieChart x -> Node -> Double -> m () |]
+importJS Unsafe "new TimeSeries(JSON['parse'](this[0]))" "smoothieTimeSeriesNew_" [t| forall x m. MonadJS x m => String -> m (TimeSeries x) |]
+importJS Unsafe "this[0]['addTimeSeries'](this[1], JSON['parse'](this[2]))" "smoothieAddTimeSeries_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> String -> m () |]
+importJS Unsafe "this[0]['append'](this[1], this[2])" "smoothieTimeSeriesAppend_" [t| forall x m. MonadJS x m => TimeSeries x -> Double -> Double -> m () |]
+importJS Unsafe "new Date()['getTime']()" "smoothieTimestamp_" [t| forall x m. MonadJS x m => m Double |]
+importJS Unsafe "this[0]['getTimeSeriesOptions'](this[1])" "smoothieGetTimeSeriesOptions_" [t| forall x m. MonadJS x m => SmoothieChart x -> TimeSeries x -> m (TimeSeriesOptions x) |]
+importJS Unsafe "(function(that){for (var key in that[0]) { that[0][key] = JSON['parse'](that[1])[key] }})(this)" "smoothieSetTimeSeriesOptions_" [t| forall x m. MonadJS x m => TimeSeriesOptions x -> String -> m () |]
 
 smoothieChartNew :: MonadJS x m => SmoothieChartConfig -> m (SmoothieChart x)
 smoothieChartNew = smoothieChartNew_ . encodeToJsonString
