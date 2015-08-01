@@ -395,14 +395,31 @@ in pkgs.stdenv.mkDerivation (rec {
   name = "${appName}-${appVersion}";
   static = ../static;
   marketing = ../marketing;
-  builder = builtins.toFile "builder.sh" ''
-    source $stdenv/setup
+  # Give the minification step its own derivation so that backend rebuilds don't redo the minification
+  frontend = pkgs.stdenv.mkDerivation (rec {
+    name = "${appName}-${appName}-frontend";
+    unminified = mkFrontend frontendHaskellPackages;
+    builder = builtins.toFile "builder.sh" ''
+      source "$stdenv/setup"
 
-    mkdir -p $out
-    cp -r $static $out/static
-    cp -r $marketing $out/marketing
-    ln -s $backend/bin/backend $out
-    ln -st $out $frontend/bin/*
+      mkdir -p "$out/frontend.jsexe"
+      closure-compiler -O ADVANCED --js_output_file="$out/frontend.jsexe/all.js" "$unminified/bin/frontend.jsexe/all.js"
+    '';
+    buildInputs = with pkgs; [
+      closurecompiler
+    ];
+    passthru = {
+      inherit frontend;
+    };
+  });
+  builder = builtins.toFile "builder.sh" ''
+    source "$stdenv/setup"
+
+    mkdir -p "$out"
+    cp -r "$static" "$out/static"
+    cp -r "$marketing" "$out/marketing"
+    ln -s "$backend/bin/backend" "$out"
+    ln -s "$frontend/frontend.jsexe" "$out"
   '';
   backend =
     with backendHaskellPackages;
@@ -430,8 +447,8 @@ in pkgs.stdenv.mkDerivation (rec {
         haskellPackages = backendHaskellPackages;
       };
     });
-  frontend = mkFrontend frontendHaskellPackages;
   passthru = {
+    frontend = frontend.unminified;
     frontendGhc = mkFrontend backendHaskellPackages;
   };
 })
