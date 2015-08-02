@@ -22,6 +22,8 @@ ensureSecure port h = do
 
 serveApp :: MonadSnap m => String -> m ()
 serveApp app = do
+  modifyResponse $ setHeader "Cache-Control" "no-cache, no-store, must-revalidate" 
+  modifyResponse $ setHeader "Expires" "0"
   route [ ("", serveDirectory $ app </> "static")
         , ("", serveDirectory $ app </> "frontend.jsexe")
         , ("", error404)
