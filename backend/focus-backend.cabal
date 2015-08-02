@@ -31,6 +31,7 @@ library
     pwstore-fast,
     smtp-mail,
     snap,
+    snap-core,
     stm,
     stripe,
     template-haskell,
@@ -67,6 +68,7 @@ library
     , Focus.Backend.DB.Temp
     , Focus.Backend.DB.Local
     , Focus.Backend.DB.Groundhog
+    , Focus.Backend.Snap
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

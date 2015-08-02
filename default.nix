@@ -369,7 +369,7 @@ let
     ] ++ commonDepends haskellPackages;
     buildTools = [] ++ commonTools pkgs;
   });
-  mkFrontend = haskellPackages:
+  mkFrontend = src: haskellPackages:
     with haskellPackages;
     let
       frontendCommon = common haskellPackages;
@@ -377,7 +377,7 @@ let
         pname = "${appName}-frontend";
         version = appVersion;
         license = null;
-        src = ../frontend;
+        inherit src;
         preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
         buildDepends = [
           frontendCommon
@@ -392,14 +392,9 @@ let
           inherit haskellPackages;
         };
     });
-in pkgs.stdenv.mkDerivation (rec {
-  name = "${appName}-${appVersion}";
-  static = ../static;
-  marketing = ../marketing;
-  # Give the minification step its own derivation so that backend rebuilds don't redo the minification
-  frontend = pkgs.stdenv.mkDerivation (rec {
-    name = "${appName}-frontend-minified";
-    unminified = mkFrontend frontendHaskellPackages;
+  mkGhcjsApp = src: pkgs.stdenv.mkDerivation (rec {
+    name = "ghcjs-app";
+    unminified = mkFrontend src frontendHaskellPackages;
     builder = builtins.toFile "builder.sh" ''
       source "$stdenv/setup"
 
@@ -410,9 +405,34 @@ in pkgs.stdenv.mkDerivation (rec {
       closurecompiler
     ];
     passthru = {
-      inherit frontend;
+      frontend = unminified;
     };
   });
+  # Takes an asset, compresses it for various
+  compress = file: pkgs.stdenv.mkDerivation {
+    input = file;
+    builder = builtins.toFile "builder.sh" ''
+      source "$stdenv/setup"
+
+      mkdir -p "$out"
+
+      cp "$input" "$out/identity" & #TODO: Test this
+      zopfli -c --i5 --gzip "$input" >"$out/gzip" & #TODO: Test this
+      zopfli -c --i5 --zlib "$input" >"$out/compress" & #TODO: Test this
+      zopfli -c --i5 --deflate "$input" >"$out/deflate" & #TODO: Test this
+
+      wait
+    '';
+    buildInputs = with pkgs; [
+      zopfli
+    ];
+  };
+in pkgs.stdenv.mkDerivation (rec {
+  name = "${appName}-${appVersion}";
+  static = ../static;
+  marketing = ../marketing;
+  # Give the minification step its own derivation so that backend rebuilds don't redo the minification
+  frontend = mkGhcjsApp ../frontend;
   builder = builtins.toFile "builder.sh" ''
     source "$stdenv/setup"
 
@@ -450,6 +470,6 @@ in pkgs.stdenv.mkDerivation (rec {
     });
   passthru = {
     frontend = frontend.unminified;
-    frontendGhc = mkFrontend backendHaskellPackages;
+    frontendGhc = mkFrontend ../frontend backendHaskellPackages;
   };
 })

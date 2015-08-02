@@ -66,7 +66,7 @@ tableListenerWithAutoKey n = TableListener
           Just x -> return [n (xid, x)]
       }
 
-handleListen :: (PersistBackend m, ToJSON n) => Listeners n -> TChan n -> (forall x. m x -> Handler b a x) -> Handler b a ()
+handleListen :: (MonadSnap m, PersistBackend m', ToJSON n) => Listeners n -> TChan n -> (forall x. m' x -> m x) -> m ()
 handleListen listeners l runGroundhog = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan l
   startingValues <- runGroundhog $ do
