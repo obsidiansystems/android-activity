@@ -54,10 +54,12 @@ library
     unix,
     filepath,
     tar,
-    file-embed
+    file-embed,
+    monad-logger
 
   exposed-modules:
-      Focus.Backend.Account
+      Focus.Backend
+    , Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen
     , Focus.Backend.Email

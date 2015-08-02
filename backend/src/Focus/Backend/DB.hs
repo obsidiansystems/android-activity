@@ -18,6 +18,16 @@ import Control.Monad
 import Data.Time
 import Control.Arrow
 
+import Data.Pool
+import Database.PostgreSQL.Simple
+import Database.Groundhog.Postgresql
+import Database.Groundhog.Core
+import Control.Monad
+import Control.Monad.Trans.Control
+import Control.Monad.Logger
+import Control.Monad.IO.Class
+import Data.ByteString (ByteString)
+
 -- | Will return all matching instances of the given constructor
 selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
              (ProjectionDb t (PhantomDb m),
@@ -42,3 +52,18 @@ getTime :: PersistBackend m => m UTCTime
 getTime = do
   Just [PersistUTCTime t] <- queryRaw False "select current_timestamp(3) at time zone 'utc'" [] id
   return t
+
+openDb :: ByteString -> IO (Pool Postgresql)
+openDb dbUri = do
+  let openPostgresql = liftM Postgresql $ connectPostgreSQL dbUri
+      closePostgresql (Postgresql p) = close p
+  createPool openPostgresql closePostgresql 1 5 20
+
+runDb :: ( MonadIO m
+         , MonadBaseControl IO m
+         , ConnectionManager cm conn
+         )
+      => DbPersist conn (NoLoggingT m) b
+      -> Pool cm
+      -> m b
+runDb a dbConns = withResource dbConns $ runDbConn a

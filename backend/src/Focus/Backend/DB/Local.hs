@@ -133,11 +133,6 @@ serveLocalPostgres dbDir = do
 
 -- | Connect to a local postgres database instance; if it is not yet running, start it, then connect
 withLocalPostgres :: FilePath -> (ByteString -> IO a) -> IO a
-{-
-withLocalPostgres dbDir a = bracket (startLocalPostgres dbDir) shutdownPostgresSmart $ \_ -> do
-  dbUri <- getLocalPostgresConnectionString dbDir
-  a dbUri
--}
 withLocalPostgres dbDir a = do
   s <- socket AF_UNIX Stream defaultProtocol
   let acquire = do
