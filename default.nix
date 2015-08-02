@@ -211,7 +211,8 @@ let
       groundhog = self.mkDerivation ({
         pname = "groundhog";
         version = "0.7.0.3";
-        sha256 = "0n5c501wfyqcl1iy4017yyxp95kz7mb4lgc0mjjk9si36ixkww9r";
+        src = ./groundhog/groundhog;
+#        sha256 = "0n5c501wfyqcl1iy4017yyxp95kz7mb4lgc0mjjk9si36ixkww9r";
         buildDepends = with self; [
           aeson attoparsec base64-bytestring blaze-builder monad-control
           monad-logger mtl scientific text time transformers transformers-base

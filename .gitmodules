@@ -25,7 +25,7 @@
 	url = git@github.com:ryantrinkle/reflex.git
 [submodule "groundhog"]
 	path = groundhog
-	url = git@github.com:lykahb/groundhog.git
+	url = git@github.com:ryantrinkle/groundhog.git
 [submodule "ghcjs-canvas"]
 	path = ghcjs-canvas
 	url = git@github.com:ghcjs/ghcjs-canvas
