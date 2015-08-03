@@ -155,6 +155,18 @@ let
       version = "0.7.0.1";
       sha256 = "0skfpgqlxni3bdn7pdg2732xkijmwsz655962wrbmflh987ms8y3";
     });
+    diagrams-svg = overrideCabal super.diagrams-svg (drv: {
+      version = "1.3.1.4";
+      src = pkgs.fetchgit {
+        url = git://github.com/ryantrinkle/diagrams-svg;
+        rev = "1abe6f74e9111b1c7efffed7fa693feacc7b6029";
+        sha256 = "f02fddb399989fe35ad495602f615b7c412eea5b6a7e3cf4baeb16d2a5f548ef";
+      };
+    });
+    lucid-svg = overrideCabal super.lucid-svg (drv: {
+      version = "0.5.0.0";
+      sha256 = "1p7ipdy0nmqfg1b038a1b5nd3xh2779d2gnw4h683mm5jcbf0mvj";
+    });
   };
 
   backendGhc = pkgs.callPackage ./ghc.nix ({ inherit (pkgs.haskell.packages.ghc784) ghc alex happy; } // pkgs.stdenv.lib.optionalAttrs pkgs.stdenv.isDarwin {
@@ -298,6 +310,10 @@ let
           tar
           file-embed
           binary
+          lucid
+          diagrams
+          diagrams-svg
+          raw-strings-qq
         ];
         pkgconfigDepends = [
           pkgs.postgresql94

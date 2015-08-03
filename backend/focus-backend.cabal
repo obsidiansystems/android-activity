@@ -55,7 +55,12 @@ library
     filepath,
     tar,
     file-embed,
-    monad-logger
+    monad-logger,
+    lucid,
+    diagrams-lib,
+    diagrams-svg,
+    data-default,
+    raw-strings-qq
 
   exposed-modules:
       Focus.Backend
