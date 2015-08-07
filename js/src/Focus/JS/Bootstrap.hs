@@ -180,13 +180,16 @@ alphaSortSelector = do
         attrsD <- forDyn order $ \x -> if x == Descending then active else inactive
     return order
 
-searchBox :: MonadWidget t m => String -> m (Dynamic t (Maybe String))
-searchBox i = do
+searchBox' :: MonadWidget t m => String -> String -> m (Dynamic t (Maybe String))
+searchBox' i p = do
   divClass "input-group" $ do
     elClass "span" "input-group-addon" $ icon i
-    q <- liftM value (textInputWithPlaceholder "Search...")
+    q <- liftM value (textInputWithPlaceholder p)
     forDyn q $ \v -> let x = T.unpack $ T.strip $ T.pack v
                      in if x == "" then Nothing else Just x
+
+searchBox :: MonadWidget t m => String -> m (Dynamic t (Maybe String))
+searchBox i = searchBox' i "Search..."
 
 inputWithPlaceholder' :: forall t m. MonadWidget t m => String -> String -> String -> Event t String -> m (TextInput t)
 inputWithPlaceholder' inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
