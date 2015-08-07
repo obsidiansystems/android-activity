@@ -37,7 +37,8 @@ library
     dependent-map,
     data-default,
     constraints,
-    safe
+    safe,
+    timezone-series
 
   exposed-modules:
     Focus.JS.Request,
@@ -48,6 +49,8 @@ library
     Focus.JS.SmoothieCharts
     Focus.JS.LocalStorage
     Focus.JS.FontAwesome
+    Focus.JS.Bootstrap
+    Focus.JS.Widget
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

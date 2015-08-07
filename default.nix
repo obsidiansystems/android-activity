@@ -106,7 +106,7 @@ let
       pname = "focus-js";
       version = "0.1";
       src = ./js;
-      buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints ];
+      buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series ];
     });
     dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
       version = "0.0.0.4";
