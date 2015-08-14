@@ -1,7 +1,6 @@
 let
   enableProfiling = false;
-  pkgs = import ./nixpkgs {
-    config.allowUnfree = true;
+  tryReflex = import ./try-reflex {
     config.packageOverrides = pkgs: rec {
       webkitgtk24x = pkgs.stdenv.lib.overrideDerivation pkgs.webkitgtk24x (oldAttrs: {
         patches = oldAttrs.patches ++ [
@@ -10,6 +9,7 @@ let
       });
     };
   };
+  pkgs = tryReflex.nixpkgs;
   inherit (pkgs) stdenv;
   overrideCabal = drv: f: if isNull drv then null else (drv.override (args: args // {
     mkDerivation = drv: args.mkDerivation (drv // f drv);
@@ -17,19 +17,7 @@ let
     overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
   };
   sharedOverrides = self: super: {
-    reflex = self.callPackage ./reflex {};
-    reflex-dom = self.callPackage ./reflex-dom { inherit (pkgs) webkitgtk24x; };
-    aeson = overrideCabal super.aeson (drv: {
-      version = "0.9.0.1";
-      sha256 = "1g7qdq7zpyvqwmh4sfhizqpb51cg24lrcj9vq5msz8k896y7vfcj";
-    });
-    attoparsec = overrideCabal super.attoparsec (drv: {
-      version = "0.13.0.0";
-      sha256 = "12b4xi6nlnhpwz8apn4mk880mkhcv1sfvf4j3z1h5dgkadi2zgbi";
-    });
-    ghcjs = overrideCabal super.ghcjs (drv: {
-      jailbreak = true;
-    });
+    reflex-dom = self.callPackage ./reflex-dom {};
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -48,6 +36,7 @@ let
     snap-core = overrideCabal super.snap-core (drv: {
       revision = "1";
       editedCabalFile = "1930x1w1xlyqfpwjhr64z2y12idfaz17jdk9fn699pxvb08djb85";
+      jailbreak = true;
     });
     snap-server = overrideCabal super.snap-server (drv: {
       version = "0.9.5.1";
@@ -148,12 +137,12 @@ let
       version = "0.3.4";
       src = ./amazonka/amazonka-sts;
     });
-    haddock = overrideCabal super.haddock (drv: {
-      doCheck = false;
-    });
     lifted-async = overrideCabal super.lifted-async (drv: {
       version = "0.7.0.1";
       sha256 = "0skfpgqlxni3bdn7pdg2732xkijmwsz655962wrbmflh987ms8y3";
+    });
+    JuicyPixels = overrideCabal super.JuicyPixels (drv: {
+      jailbreak = true;
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
       version = "1.3.1.4";
@@ -169,20 +158,8 @@ let
     });
   };
 
-  backendGhc = pkgs.callPackage ./ghc.nix ({ inherit (pkgs.haskell.packages.ghc784) ghc alex happy; } // pkgs.stdenv.lib.optionalAttrs pkgs.stdenv.isDarwin {
-    libiconv = pkgs.darwin.libiconv;
-  });
-  backendHaskellPackagesBase = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules {
-    ghc = backendGhc;
-    packageSetConfig = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules/configuration-ghc-7.10.x.nix { };
-  };
-  frontendGhcjs = backendHaskellPackages.callPackage ./nixpkgs/pkgs/development/compilers/ghcjs {
-    ghc = backendGhc;
-  };
-  frontendHaskellPackagesBase = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules {
-    ghc = frontendGhcjs;
-    packageSetConfig = pkgs.callPackage ./nixpkgs/pkgs/development/haskell-modules/configuration-ghcjs.nix { };
-  };
+  backendHaskellPackagesBase = tryReflex.ghc;
+  frontendHaskellPackagesBase = tryReflex.ghcjs;
   extendFrontendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
       stripe = self.mkDerivation ({
@@ -203,16 +180,8 @@ let
         ];
         homepage = "http://github.com/vincenthz/hs-crypto-numbers";
         description = "Cryptographic numbers: functions and algorithms";
-        license = self.stdenv.lib.licenses.bsd3;
+        license = pkgs.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
-      });
-      dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
-        version = "0.0.0.4";
-        src = pkgs.fetchgit {
-          url = git://github.com/ryantrinkle/dependent-sum-template;
-          rev = "abcd0f01a3e264e5bc1f3b00f3d03082f091ec49";
-          sha256 = "16f95348c559394a39848394a9e1aa8318c79bfc62bc6946edad9aabd20a8e2d";
-        };
       });
     };
   };
@@ -231,7 +200,7 @@ let
         ];
         homepage = "http://github.com/lykahb/groundhog";
         description = "Type-safe datatype-database mapping library";
-        license = self.stdenv.lib.licenses.bsd3;
+        license = pkgs.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
       groundhog-th = overrideCabal super.groundhog-th (drv: {
@@ -248,7 +217,7 @@ let
         testDepends = with self; [ hspec HUnit mtl syb th-lift ];
         homepage = "http://www.cis.upenn.edu/~eir/packages/th-desugar";
         description = "Functions to desugar Template Haskell";
-        license = self.stdenv.lib.licenses.bsd3;
+        license = pkgs.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
       /*
@@ -326,7 +295,7 @@ let
         buildDepends = with self; [ mtl th-desugar ];
         homepage = "http://www.cis.upenn.edu/~eir/packages/singletons";
         description = "A framework for generating singleton types";
-        license = self.stdenv.lib.licenses.bsd3;
+        license = pkgs.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
         jailbreak = true;
         doCheck = false;

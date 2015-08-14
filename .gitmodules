@@ -17,9 +17,6 @@
 [submodule "hs-stripe"]
 	path = hs-stripe
 	url = ministryofdevelopment.dyndns.org:/srv/git/hs-stripe.git
-[submodule "reflex-dom"]
-	path = reflex-dom
-	url = git@github.com:ryantrinkle/reflex-dom.git
 [submodule "reflex"]
 	path = reflex
 	url = git@github.com:ryantrinkle/reflex.git
@@ -32,3 +29,7 @@
 [submodule "amazonka"]
 	path = amazonka
 	url = git@github.com:ryantrinkle/amazonka
+[submodule "try-reflex"]
+	path = try-reflex
+	url = git@github.com:ryantrinkle/try-reflex
+	branch = ghcjs-improved-base
