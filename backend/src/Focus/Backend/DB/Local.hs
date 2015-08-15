@@ -39,7 +39,7 @@ import Debug.Trace
 initLocalPostgres :: FilePath -> IO ()
 initLocalPostgres dbDir = do
   (_, _, _, initdb) <- runInteractiveProcess $(staticWhich "initdb")
-    [ "-D", dbDir
+    [ "-D", dbDir </> "db"
     , "-U", "postgres"
     , "--no-locale"
     , "-E", "UTF8"
