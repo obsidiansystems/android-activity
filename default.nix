@@ -210,6 +210,12 @@ let
       snap-loader-static = overrideCabal super.snap-loader-static (drv: {
         jailbreak = true;
       });
+      blaze-html = overrideCabal super.blaze-html (drv: {
+        jailbreak = true;
+      });
+      blaze-markup = overrideCabal super.blaze-markup (drv: {
+        jailbreak = true;
+      });
       th-desugar = self.mkDerivation ({
         pname = "th-desugar";
         version = "1.5";
