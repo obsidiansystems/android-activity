@@ -35,6 +35,8 @@ library
                , reflex
                , async
                , HList
+               , file-embed
+               , filepath
 
   exposed-modules:
       Focus.Account

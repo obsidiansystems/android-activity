@@ -88,6 +88,7 @@ let
         dependent-map
         reflex
         HList
+        file-embed
       ];
     });
     focus-js = self.mkDerivation ({
@@ -438,7 +439,7 @@ in pkgs.stdenv.mkDerivation (rec {
       src = ../backend;
       preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
       preBuild = ''
-        ln -sf ${pkgs.tzdata}/share/zoneinfo .
+        ln -sfT ${static} static
       '';
       buildDepends = [
         backendCommon
