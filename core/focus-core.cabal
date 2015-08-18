@@ -40,6 +40,7 @@ library
 
   exposed-modules:
       Focus.Account
+    , Focus.Api
     , Focus.Brand
     , Focus.Misc
     , Focus.Request
