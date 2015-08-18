@@ -251,3 +251,7 @@ checkboxWithLabelAttrs l attrs = elAttr "label" attrs $ do
   text $ " " <> l
   return c
 
+progressBar :: MonadWidget t m => String -> Dynamic t Double -> m ()
+progressBar k w = divClass "progress" $ do
+  attrs <- forDyn w (\w' -> "class" =: ("progress-bar progress-bar-" <> k) <> "style" =: ("width: " <> show w' <> "%"))
+  elDynAttr "div" attrs $ return ()

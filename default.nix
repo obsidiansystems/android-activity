@@ -88,6 +88,7 @@ let
         dependent-map
         reflex
         HList
+        file-embed
       ];
     });
     focus-js = self.mkDerivation ({
@@ -207,6 +208,12 @@ let
         src = ./groundhog/groundhog-th;
       });
       snap-loader-static = overrideCabal super.snap-loader-static (drv: {
+        jailbreak = true;
+      });
+      blaze-html = overrideCabal super.blaze-html (drv: {
+        jailbreak = true;
+      });
+      blaze-markup = overrideCabal super.blaze-markup (drv: {
         jailbreak = true;
       });
       th-desugar = self.mkDerivation ({
@@ -438,7 +445,7 @@ in pkgs.stdenv.mkDerivation (rec {
       src = ../backend;
       preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
       preBuild = ''
-        ln -sf ${pkgs.tzdata}/share/zoneinfo .
+        ln -sfT ${static} static
       '';
       buildDepends = [
         backendCommon
