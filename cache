@@ -11,6 +11,6 @@ if ! type -P nix-shell >/dev/null ; then
   fi
 fi
 
-ROOTS=$(nix-build -I "$DIR" -j 8 --no-out-link -E "import ./.")
+ROOTS=$(nix-build -j 8 --no-out-link -E "import ./.")
 
 nix-copy-closure --gzip --to "$1" $ROOTS

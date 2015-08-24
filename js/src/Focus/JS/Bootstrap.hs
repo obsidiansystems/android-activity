@@ -222,7 +222,12 @@ buttonWithIcon i s btnClass = button' btnClass $ do
   text $ " " <> s
 
 stamp :: MonadWidget t m => String -> String -> m ()
-stamp k v = elAttr "span" ("class" =: ("stamp " <> k) <> "style" =: "color: white; text-transform: uppercase; font-weight: bold; padding-left: 0.25em; padding-right: 0.25em; font-size: small; border-radius: 0.25em; box-shadow: 1px 1px 1px black; text-shadow: 1px 1px 1px black;") $ text v
+stamp k v = elAttr "span" ("class" =: ("stamp " <> k) <> stampDefaultStyle) $ text v
+
+stamp' :: MonadWidget t m => String -> String -> m ()
+stamp' k v = elAttr "span" ("class" =: ("stamp " <> k)) $ text v
+
+stampDefaultStyle = "style" =: "color: white; text-transform: uppercase; font-weight: bold; padding-left: 0.25em; padding-right: 0.25em; font-size: small; border-radius: 0.25em; box-shadow: 1px 1px 1px black; text-shadow: 1px 1px 1px black;"
 
 tristateButton :: MonadWidget t m => String -> String -> Dynamic t (Maybe Bool) -> m (Event t ())
 tristateButton k l b = do

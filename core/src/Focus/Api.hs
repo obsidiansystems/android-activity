@@ -24,5 +24,6 @@ instance (Request private, Request public) => Request (ApiRequest public private
       ("Private"::String) -> do
         token `HCons` SomeRequest p `HCons` HNil <- parseJSON body
         return $ SomeRequest $ ApiRequest_Private token p
+      e -> error $ "Could not parse tag: " ++ e
 
 
