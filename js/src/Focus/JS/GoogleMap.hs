@@ -114,7 +114,7 @@ googleMapMarkerSetCoord g c = googleMapMarkerSetCoord_ g (fst c) (snd c)
 
 importJS Unsafe "this[0]['setMap'](null)" "googleMapMarkerRemove" [t| forall x m. MonadJS x m => GoogleMapMarker x -> m () |]
 
-importJS Unsafe "new google['maps']['places']['PlacesService'](document.createElement('div'))['getDetails']({placeId: this[0]},  this[1])" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef String -> IO ()) -> m () |]
+importJS Unsafe "(function(that) { var pid = {}; pid['placeId'] = that[0]; new google['maps']['places']['PlacesService'](document['createElement']('div'))['getDetails'](pid, that[1]) })(this)" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef String -> IO ()) -> m () |]
 
 importJS Unsafe "this[0]['lat']()" "placeDetailsLat_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
 importJS Unsafe "this[0]['lng']()" "placeDetailsLng_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]

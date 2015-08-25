@@ -225,7 +225,10 @@ stamp :: MonadWidget t m => String -> String -> m ()
 stamp k v = elAttr "span" ("class" =: ("stamp " <> k) <> stampDefaultStyle) $ text v
 
 stamp' :: MonadWidget t m => String -> String -> m ()
-stamp' k v = elAttr "span" ("class" =: ("stamp " <> k)) $ text v
+stamp' k v = stampWidget k $ text v
+
+stampWidget :: MonadWidget t m => String -> m a -> m a
+stampWidget k w = elAttr "span" ("class" =: ("stamp " <> k)) w
 
 stampDefaultStyle = "style" =: "color: white; text-transform: uppercase; font-weight: bold; padding-left: 0.25em; padding-right: 0.25em; font-size: small; border-radius: 0.25em; box-shadow: 1px 1px 1px black; text-shadow: 1px 1px 1px black;"
 
