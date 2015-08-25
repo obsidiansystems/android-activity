@@ -30,15 +30,16 @@ timeFrom t ct =
   where
     describeAbs :: Integer -> String
     describeAbs n
-      | n >= 86400 = let days = n `Prelude.div` 86400 in show days <> " days "
-      | n >= 3600 = let hrs = n `Prelude.div` 3600 in show hrs <> " hours "
-      | n >= 60 = let mins = n `Prelude.div` 60 in show mins <> " minutes "
-      | n > 0 = show n <> " seconds "
+      | n >= 86400 = let days = n `Prelude.div` 86400 in show days <> if days == 1 then " day " else " days "
+      | n >= 3600 = let hrs = n `Prelude.div` 3600 in show hrs <> if hrs == 1 then " hour " else " hours "
+      | n >= 60 = let mins = n `Prelude.div` 60 in show mins <> if mins == 1 then " minute " else " minutes "
+      | n > 0 = show n <> if n == 1 then " second " else " seconds "
       | otherwise = ""
     describe :: Integer -> String
-    describe n = if n > 0
-                    then describeAbs n <> "ago"
-                    else describeAbs (abs n) <> "from now"
+    describe n = case n `compare` 0 of
+      GT -> describeAbs n <> "ago"
+      EQ -> "now"
+      LT -> describeAbs (abs n) <> "from now"
 
 newtype RawXHR x = RawXHR {unRawXHR :: JSRef x}
 instance ToJS x (RawXHR x) where
