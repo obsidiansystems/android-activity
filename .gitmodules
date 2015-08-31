@@ -16,7 +16,7 @@
 	url = git@github.com:ryantrinkle/clay
 [submodule "hs-stripe"]
 	path = hs-stripe
-	url = ministryofdevelopment.dyndns.org:/srv/git/hs-stripe.git
+	url = git@gitlab.com:obsidian.systems/hs-stripe.git
 [submodule "reflex"]
 	path = reflex
 	url = git@github.com:ryantrinkle/reflex.git
