@@ -15,12 +15,13 @@ import Data.Time.LocalTime.TimeZone.Olson
 import Data.Time.LocalTime.TimeZone.Series
 import qualified Data.ByteString.Lazy as LBS
 
-getTimeZoneSeries :: (Monad m, MonadIO m, HasJS x m, HasJS x (WidgetHost m)) => String -> m (Maybe TimeZoneSeries)
+-- TODO: This just dies if the request fails, rather than resulting in Nothing.
+getTimeZoneSeries :: (MonadIO m, HasJS x m, HasJS x (WidgetHost m)) => String -> m (Maybe TimeZoneSeries)
 getTimeZoneSeries path = do
   dVar <- liftIO newEmptyMVar
-  liftJS $ mkBinaryGet path $ putMVar dVar
+  liftJS . mkBinaryGet ("zoneinfo/" ++ path) $ putMVar dVar
   d <- liftIO $ takeMVar dVar
-  liftIO $ return $ olsonToTimeZoneSeries $ runGet (getOlson noLimits) $ LBS.fromStrict d
+  liftIO . return . olsonToTimeZoneSeries . runGet (getOlson noLimits) $ LBS.fromStrict d
 
 createDynamicTime :: MonadWidget t m => m (Dynamic t UTCTime)
 createDynamicTime = do

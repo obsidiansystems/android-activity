@@ -1,13 +1,18 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts #-}
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
 
 import Focus.JS.FontAwesome
+import Focus.JS.Request
+import Focus.JS.Time
 import Focus.JS.Widget
 import Focus.Schema
 import Focus.Time
 
+import Foreign.JavaScript.TH
+
+import Safe
 import Control.Monad
 import Data.List
 import Data.Map (Map)
@@ -48,6 +53,21 @@ panelFooter = divClass "panel-footer"
 
 dl :: forall t m a. MonadWidget t m => m a -> m a
 dl = elAttr "dl" (Map.singleton "class" "dl-horizontal")
+
+data NumberInput t a = NumberInput { _numberInput_value :: Dynamic t (Maybe a)
+                                   , _numberInput_textInput :: TextInput t }
+
+instance HasValue (NumberInput t a) where
+  type Value (NumberInput t a) = Dynamic t (Maybe a)
+  value = _numberInput_value
+
+numberInput :: (Num a, MonadWidget t m) => String -> m (NumberInput t a)
+numberInput initial =
+  do ti <- textInput $ def & textInputConfig_inputType .~ "number"
+                           & textInputConfig_initialValue .~ initial
+                           & attributes .~ constDyn (Map.fromList [("class", "form-control")])
+     v <- mapDyn (fmap fromInteger . readMay) (value ti)
+     return (NumberInput v ti)
 
 dayInput :: MonadWidget t m => Day -> m (Dynamic t Day)
 dayInput d0 = do
@@ -105,6 +125,14 @@ timeInput t0 = do
                                       PM -> if h == 12 then 12 else h + 12) hour meridian
   tod <- liftM (fmapMaybe id . updated) $ combineDyn (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
+
+mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
+mainlandUSTimeZone cfg = do
+  let xMap = Map.fromList [(x,x) | x <- ["Eastern", "Central", "Mountain", "Pacific"]]
+  selection <- fmap value $ dropdown "Eastern" (constDyn xMap) cfg
+  Just est <- getTimeZoneSeries "US/Eastern"
+  tzE <- dyn =<< mapDyn (getTimeZoneSeries . ("US/" ++)) selection
+  holdDyn est (fmapMaybe id tzE)
 
 utcTimeInputMini :: forall t m. MonadWidget t m => TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
 utcTimeInputMini tz t = do

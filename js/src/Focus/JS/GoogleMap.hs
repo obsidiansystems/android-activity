@@ -1,25 +1,29 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances #-}
 module Focus.JS.GoogleMap where
 
+import Control.Lens hiding (coerce, zoom)
 import Control.Monad.IO.Class
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.Writer hiding (forM, forM_, mapM, mapM_, sequence, (<>), listen)
-import GHCJS.DOM.Types hiding (Event)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Lens hiding (coerce, zoom)
+import Data.Align
+import Data.Bifunctor
+import Data.Default
+import Data.Either
 import Data.List.NonEmpty (nonEmpty)
 import Data.Semigroup hiding (option)
 import Data.Traversable
 import Data.These
-import Data.Align
 import Data.Typeable
-import Data.Default
 
+import Focus.JS.FontAwesome (icon)
+import Focus.Schema (ShowPretty)
 import Reflex
 import Reflex.Dom
 
 import Foreign.JavaScript.TH
+import GHCJS.DOM.Types hiding (Event)
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
 
@@ -239,6 +243,49 @@ searchInputResultsList' results builder = do
   resultsList <- elDynAttr "ul" attrs $ builder results
   liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
 
+twoSourceSearch
+    :: forall t x m a b. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, ShowPretty a, ShowPretty b)
+    => String
+    -> String
+    -> String
+    -> (Event t (Int, String) -> Event t (Int, [(String, a)]))
+    -> (Event t (Int, String) -> Event t (Int, [(String, b)]))
+    -> m (Dynamic t (Maybe (Either a b)))
+twoSourceSearch placeholder al bl searchAs searchBs = do
+  rec (queryChange, selection) <- divClass "input-group" $ do
+        elClass "span" "input-group-addon" $ icon "globe"
+        searchInput' "" never (constDyn $ "class" =: "form-control" <> "placeholder" =: placeholder) results (resultsList al bl)
+      counter :: Dynamic t Int <- foldDyn (+) 0 $ fmap (const 1) queryChange
+      let taggedQuery = attachWith (,) (current counter) queryChange
+      let aResults' :: Event t (Int, [(String, a)]) = searchAs taggedQuery
+          bResults' :: Event t (Int, [(String, b)]) = searchBs taggedQuery
+      as <- holdDyn (0, []) aResults'
+      bs <- holdDyn (0, []) bResults'
+      resultsReady <- combineDyn (\(t1, a) (t2, b) -> if t1 == t2 then Just (alignResults (These a b)) else Nothing) as bs
+      let results = fmapMaybe id $ updated resultsReady
+  holdDyn Nothing $ fmap (Just . snd) selection
+  where
+    alignResults :: These [(String, a)] [(String, b)] -> (Map Int (String, Either a b))
+    alignResults results' =
+      let toMap c xs = Map.fromList $ map (\(k, (s, v)) -> (k, (s, c v))) $ zip [1::Int ..] xs
+      in case results' of
+           This as -> toMap Left as
+           That bs -> toMap Right bs
+           These as bs -> Map.fromList $ zip [1::Int ..] (map (second Left) as ++ map (second Right) bs)
+    resultsList aLabel bLabel results = do
+      let open = "class" =: "dropdown-menu" <> "style" =: "display: block;"
+          closed = "class" =: "dropdown-menu" <> "style" =: "display: none;"
+      attrs <- forDyn results $ \r -> if Map.null r then closed else open
+      (as, bs) <- splitDyn =<< forDyn results (\rs -> Map.partition (isLeft . snd) rs)
+      elDynAttr "ul" attrs $ do
+        elClass "li" "dropdown-header" $ text aLabel
+        dyn =<< mapDyn (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) as
+        as' <- list as searchInputResult
+        elClass "li" "dropdown-header" $ text bLabel
+        dyn =<< mapDyn (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) bs
+        bs' <- list bs searchInputResult
+        results' <- combineDyn Map.union as' bs'
+        liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated results')
 
 googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> ((Double, Double)-> IO ()) -> m ()
 googleMapsAutocompletePlaceDetails ref cb = do
