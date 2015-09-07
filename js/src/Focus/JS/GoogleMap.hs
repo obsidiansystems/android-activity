@@ -214,6 +214,7 @@ searchInputResult r = el "li" $ do
   (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
   return $ tag (current r) (domEvent Click li)
 
+-- TODO: A lot of this stuff seems like it belongs either in Focus.JS.Bootstrap or Focus.JS.Widget as it has little to do with Google Maps
 searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map String String) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
 searchInput attrs results = searchInput' "" never attrs results searchInputResultsList
 

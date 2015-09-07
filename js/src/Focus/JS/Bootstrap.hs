@@ -75,7 +75,7 @@ dayInput d0 = do
       navigate <- do
         (prevButton, nextButton) <- divClass "text-center" $ do
           p <- linkClass "<<" "btn btn-sm pull-left"
-          dynText =<< mapDyn (\d -> show (dayToMonth d) <> " " <> show (dayToYear d)) day
+          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText =<< mapDyn (\d -> show (dayToMonth d) <> " " <> show (dayToYear d)) day
           n <- linkClass ">>" "btn btn-sm pull-right"
           return (p, n)
         mc :: Event t (Event t Int) <- dyn =<< mapDyn monthCal day
@@ -126,6 +126,10 @@ timeInput t0 = do
   tod <- liftM (fmapMaybe id . updated) $ combineDyn (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
 
+mainlandUSTimeInput :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => UTCTime -> m (Dynamic t UTCTime)
+mainlandUSTimeInput t0 = 
+  utcTimeInputMini (mainlandUSTimeZone def) t0
+
 mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
 mainlandUSTimeZone cfg = do
   let xMap = Map.fromList [(x,x) | x <- ["Eastern", "Central", "Mountain", "Pacific"]]
@@ -134,26 +138,31 @@ mainlandUSTimeZone cfg = do
   tzE <- dyn =<< mapDyn (getTimeZoneSeries . ("US/" ++)) selection
   holdDyn est (fmapMaybe id tzE)
 
-utcTimeInputMini :: forall t m. MonadWidget t m => TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
-utcTimeInputMini tz t = do
-  rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
+-- TODO: The fact that the popup calendar doesn't cancel when you click elsewhere on the page kind of feels bad, but I have no idea how to approach fixing that. 
+utcTimeInputMini :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
+utcTimeInputMini tzWidget t = do
+  Just tz0 <- getTimeZoneSeries "US/Eastern" -- it sucks to have to do this, but if I try to sample the current value of tzD during widget construction, it causes a hang.
+  rec let timeShown = traceEvent "timeShown" $ attachWith (\tz -> showDateTime' tz) (current tzD) time
+      (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
-                        & textInputConfig_setValue .~ fmap (showDateTime' tz) time
-                        & textInputConfig_initialValue .~ (showDateTime' tz) t
+                        & textInputConfig_setValue .~ timeShown
+                        & textInputConfig_initialValue .~ (showDateTime' tz0) t
         isOpen <- holdDyn False $ leftmost [fmap (const False) time, fmap (const True) (domEvent Click e'), fmap (const False) close]
         attrs' :: Dynamic t (Map String String) <- mapDyn (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
         return attrs'
-      (time, close) <- elDynAttr "div" attrs $ do
-        d <- dayInput (localDay $ utcToLocalTime' tz t)
+      (time, close, tzD) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") -- this helps the popup appear in the correct location, 
+                          . elDynAttr "div" attrs $ do                                              -- while not affecting the layout of the page when invisible
+        d <- dayInput (localDay $ utcToLocalTime' tz0 t)
         lt <- divClass "form-inline text-center" $ do
-          t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz t)
+          t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
           lt <- combineDyn (\day t'' -> LocalTime day t'') d t'
           return lt
-        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 90%; left: 5%;") $ do
+        tzD <- elAttr "div" ("style" =: "padding-top: 5px; width: 50%; float: right") $ tzWidget
+        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 50%; left: 5%; float: left") $ do
           (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
           (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
-          return $ (fmap (localTimeToUTC' tz) $ tag (current lt) $ domEvent Click a, domEvent Click x)
+          return (attachWith (\tz -> localTimeToUTC' tz) (current tzD) . tag (current lt) $ domEvent Click a, domEvent Click x, tzD)
   holdDyn t time
 
 --TODO better way to sort lists

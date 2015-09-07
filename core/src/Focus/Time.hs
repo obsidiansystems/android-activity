@@ -11,9 +11,9 @@ import Data.Time.LocalTime.TimeZone.Series
 
 formatTime' s tz t = formatTime defaultTimeLocale s $ ZoneSeriesTime t tz
 
-showTime' = formatTime' "%l:%M%p"
+showTime' = formatTime' "%l:%M%p %Z"
 
-showDateTime' = formatTime' "%D %l:%M%p"
+showDateTime' = formatTime' "%D %l:%M%p %Z"
 
 maybeShowTime' tz s = maybe s (\t -> showTime' tz t)
 
