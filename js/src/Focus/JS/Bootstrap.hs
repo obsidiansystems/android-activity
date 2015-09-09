@@ -34,7 +34,7 @@ buttonClass :: MonadWidget t m => String -> String -> m (Event t ())
 buttonClass k s = button' k $ text s
 
 button' :: MonadWidget t m => String -> m a -> m (Event t ())
-button' k w = buttonDynAttr (constDyn $ "class" =: k) w
+button' k w = buttonDynAttr (constDyn $ "class" =: k <> "type" =: "button") w
 
 buttonDynAttr :: MonadWidget t m => Dynamic t (Map String String) -> m a -> m (Event t ())
 buttonDynAttr attrs w = liftM (domEvent Click . fst) $ elDynAttr' "button" attrs w

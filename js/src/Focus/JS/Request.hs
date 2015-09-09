@@ -8,12 +8,15 @@ import Data.Text.Encoding
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Aeson
+import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Monad
 import Foreign.JavaScript.TH
 import Focus.Request
 import Control.Monad.IO.Class
 import Control.Monad.Fix
+import Reflex
+import Reflex.Dom.Class
 
 importJS Unsafe "console['log'](this[0])" "consoleLog" [t| forall x m. MonadJS x m => JSRef x -> m () |]
 
@@ -108,6 +111,18 @@ asyncApi r f = do
   _ <- mkPost "/api" (T.unpack $ decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
     Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 $ T.pack rspJson
     liftIO $ f rsp
+  return ()
+
+requesting :: (Request r, ToJSON a, FromJSON a, MonadWidget t m) => Event t (r a) -> m (Event t a)
+requesting requestE = performEventAsync $ fmap (\r yield -> liftIO $ asyncApi r yield) requestE
+
+requestingMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, Traversable f) => Event t (f (r a)) -> m (Event t (f a))
+requestingMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
+  resps <- forM rs $ \r -> do
+    resp <- liftIO newEmptyMVar
+    _ <- liftIO (asyncApi r $ liftIO . putMVar resp)
+    return resp
+  _ <- liftIO . forkIO $ cb =<< forM resps takeMVar
   return ()
 
 importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m String |]

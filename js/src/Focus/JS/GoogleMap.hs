@@ -367,7 +367,7 @@ googleMapsAutocompletePlace' s cb =  do
   googleMapsPlacesGetPlacePredictions_ g s jsCb
 
 googleMapsAutocompletePlace :: forall x m t. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
-                            => Event t (Int, String)                           -- ^ Queries tagged with index number
+                            => Event t (Int, String)                                                  -- ^ Queries tagged with index number
                             -> m (Event t (Int, [(String, PlacesAutocompletePredictionReference x)])) -- ^ Responses tagged with matching index number
 googleMapsAutocompletePlace queryE = performEventAsync . fmap (\(n,s) -> performer n s) . ffilter (\(n,s) -> dropWhile isSpace s /= "") $ queryE
     where performer n s yield = liftJS . googleMapsAutocompletePlace' s $ \results -> yield (n, results)

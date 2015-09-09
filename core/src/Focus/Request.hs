@@ -102,6 +102,11 @@ makeRequest n = do
         $(caseE [|tag :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
+-- | Extracts the name from a type variable binder.
+tvbName :: TyVarBndr -> Name
+tvbName (PlainTV  name  ) = name
+tvbName (KindedTV name _) = name
+
 makeJson :: Name -> DecsQ
 makeJson n = do
   x <- reify n
@@ -111,11 +116,14 @@ makeJson n = do
       cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
+      typeNames = map tvbName $ case x of
+       (TyConI (DataD _ _ tvbs _ _)) -> tvbs
+       (TyConI (NewtypeD _ _ tvbs _ _)) -> tvbs
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
-    instance ToJSON $(conT n) where
+    instance ToJSON $(foldl appT (conT n) $ map varT typeNames)   where
       toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
-    instance FromJSON $(conT n) where
+    instance FromJSON $(foldl appT (conT n) $ map varT typeNames) where
       parseJSON v = do
         (tag, v') <- parseJSON v
         $(caseE [|tag :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
