@@ -17,6 +17,7 @@ import Data.Semigroup hiding (option)
 import Data.Traversable
 import Data.These
 import Data.Typeable
+import Data.Maybe
 
 import Focus.JS.FontAwesome (icon)
 import Focus.Schema (ShowPretty)
@@ -90,7 +91,7 @@ instance ToJS x (PlacesAutocompletePrediction x) where
 instance FromJS x (PlacesAutocompletePrediction x) where
   fromJS = return . PlacesAutocompletePrediction
 
-importJS Unsafe "navigator['geolocation']['getCurrentPosition'](this[0])" "getGeolocationCurrentPosition_" [t| forall x m. MonadJS x m => JSFun x -> m () |] 
+importJS Unsafe "navigator['geolocation']['getCurrentPosition'](this[0])" "getGeolocationCurrentPosition_" [t| forall x m. MonadJS x m => JSFun x -> m () |]
 importJS Unsafe "new google['maps']['Map'](this[0], {center: new google['maps']['LatLng'](this[1], this[2]), zoom: this[3], mapTypeId: google['maps']['MapTypeId']['ROADMAP']})" "newGoogleMap" [t| forall x m. MonadJS x m => Node -> Double -> Double -> Double -> m (GoogleMap x) |]
 
 importJS Unsafe "google['maps']['event']['trigger'](this[0], 'resize')" "googleMapTriggerResize" [t| forall x m. MonadJS x m => GoogleMap x -> m () |]
@@ -289,7 +290,7 @@ twoSourceSearch placeholder al bl searchAs searchBs = do
         results' <- combineDyn Map.union as' bs'
         liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated results')
 
-googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> ((Double, Double)-> IO ()) -> m ()
+googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> (((Double, Double), Map AddressComponent AddressComponentValue) -> IO ()) -> m ()
 googleMapsAutocompletePlaceDetails ref cb = do
   rec jsCb <- mkJSFun $ \(result:_) -> do
                 n <- isJSNull result
@@ -297,13 +298,60 @@ googleMapsAutocompletePlaceDetails ref cb = do
                      True -> mkJSUndefined
                      False -> do
                        locationRef <- fromJS =<< getJSProp "location" =<< getJSProp "geometry" result
+                       acRef <- fromJSArray =<< getJSProp "address_components" result
+                       addressComponents <- liftM toAddressComponents $ forM acRef $ \ac -> do
+                         longName <- fromJSString =<< getJSProp "long_name" ac
+                         shortName <- fromJSString =<< getJSProp "short_name" ac
+                         typesRef <- fromJSArray =<< getJSProp "types" ac
+                         types <- forM typesRef fromJSString
+                         return (longName, shortName, types)
+                       liftIO $ print addressComponents
                        lat <- placeDetailsLat_ locationRef
                        lng <- placeDetailsLng_ locationRef
-                       liftIO $ cb (lat, lng)
+                       liftIO $ cb ((lat, lng), addressComponents)
                        freeJSFun jsCb
                        mkJSUndefined
   googleMapsPlacesServiceGetDetails_ ref jsCb
- 
+
+data AddressComponentValue
+   = AddressComponentValue { _addressComponentValue_longName :: String
+                           , _addressComponentValue_shortName :: String
+                           }
+                           deriving (Show, Read, Eq, Ord)
+
+-- See https://developers.google.com/maps/documentation/geocoding/intro#Types
+data AddressComponent = AddressComponent_StreetNumber
+                      | AddressComponent_Route
+                      | AddressComponent_Neighborhood
+                      | AddressComponent_AdministrativeAreaLevel1 -- administrative_area_level_1 indicates a first-order civil entity
+                                                                  -- below the country level. Within the United States,
+                                                                  -- these administrative levels are states.
+                      | AddressComponent_AdministrativeAreaLevel2 -- administrative_area_level_2 indicates a second-order civil entity
+                                                                  -- below the country level. Within the United States, these administrative
+                                                                  -- levels are counties
+                      | AddressComponent_Locality -- locality indicates an incorporated city or town political entity.
+                      | AddressComponent_Sublocality
+                      | AddressComponent_PostalCode
+                      | AddressComponent_Country
+                      deriving (Show, Read, Eq, Ord, Enum, Bounded)
+
+toAddressComponents :: [(String, String, [String])] -> Map AddressComponent AddressComponentValue
+toAddressComponents acs = Map.fromList $ catMaybes $ concatMap (\(long, short, ts) -> map (f long short) ts) acs
+  where
+    toAc t = case t of
+                  "street_number" -> Just AddressComponent_StreetNumber
+                  "route" -> Just AddressComponent_Route
+                  "neighborhood" -> Just AddressComponent_Neighborhood
+                  "administrative_area_level_1" -> Just AddressComponent_AdministrativeAreaLevel1
+                  "administrative_area_level_2" -> Just AddressComponent_AdministrativeAreaLevel2
+                  "locality" -> Just AddressComponent_Locality
+                  "sublocality" -> Just AddressComponent_Sublocality
+                  "postal_code" -> Just AddressComponent_PostalCode
+                  "country" -> Just AddressComponent_Country
+                  _ -> Nothing
+    f l s t = fmap (\ac' -> (ac', AddressComponentValue l s)) $ toAc t
+
+
 googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadIO m) => String -> ([(String, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
 googleMapsAutocompletePlace' s cb =  do
   rec jsCb <- mkJSFun $ \(result:_) -> do
@@ -324,7 +372,7 @@ googleMapsAutocompletePlace :: forall x m t. (HasJS x m, HasJS x (WidgetHost m),
 googleMapsAutocompletePlace queryE = performEventAsync . fmap (\(n,s) -> performer n s) . ffilter (\(n,s) -> dropWhile isSpace s /= "") $ queryE
     where performer n s yield = liftJS . googleMapsAutocompletePlace' s $ \results -> yield (n, results)
 
-geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) 
+geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
               => String                                           -- ^ Path to Google logo
               -> String                                           -- ^ CSS class of Google logo
               -> Maybe (String, (Double, Double))                 -- ^ Initial resulting location
@@ -349,7 +397,10 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
   holdDyn l0 $ leftmost [fmap Just eLocation, setL]
 
 getPlaceDetails :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, (Double, Double)))
-getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
+getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, fst result)) eChoice
+
+getPlaceDetails' :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
+getPlaceDetails' eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
 
 -- newtype GoogleMapLatLng = GoogleMapLatLng { unGoogleMapLatLng :: JSRef GoogleMapLatLng }
 -- JS(googleMapGetCenter_, "$1.getCenter()", JSRef GoogleMap -> IO (JSRef GoogleMapLatLng))
