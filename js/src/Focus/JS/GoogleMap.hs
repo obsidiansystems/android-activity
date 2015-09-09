@@ -9,6 +9,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Align
 import Data.Bifunctor
+import Data.Char (isSpace)
 import Data.Default
 import Data.Either
 import Data.List.NonEmpty (nonEmpty)
@@ -245,12 +246,12 @@ searchInputResultsList' results builder = do
   liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
 
 twoSourceSearch
-    :: forall t x m a b. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m, ShowPretty a, ShowPretty b)
+    :: forall t x m a b. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
     => String
     -> String
     -> String
-    -> (Event t (Int, String) -> Event t (Int, [(String, a)]))
-    -> (Event t (Int, String) -> Event t (Int, [(String, b)]))
+    -> (Event t (Int, String) -> m (Event t (Int, [(String, a)])))
+    -> (Event t (Int, String) -> m (Event t (Int, [(String, b)])))
     -> m (Dynamic t (Maybe (Either a b)))
 twoSourceSearch placeholder al bl searchAs searchBs = do
   rec (queryChange, selection) <- divClass "input-group" $ do
@@ -258,8 +259,8 @@ twoSourceSearch placeholder al bl searchAs searchBs = do
         searchInput' "" never (constDyn $ "class" =: "form-control" <> "placeholder" =: placeholder) results (resultsList al bl)
       counter :: Dynamic t Int <- foldDyn (+) 0 $ fmap (const 1) queryChange
       let taggedQuery = attachWith (,) (current counter) queryChange
-      let aResults' :: Event t (Int, [(String, a)]) = searchAs taggedQuery
-          bResults' :: Event t (Int, [(String, b)]) = searchBs taggedQuery
+      aResults' :: Event t (Int, [(String, a)]) <- searchAs taggedQuery
+      bResults' :: Event t (Int, [(String, b)]) <- searchBs taggedQuery
       as <- holdDyn (0, []) aResults'
       bs <- holdDyn (0, []) bResults'
       resultsReady <- combineDyn (\(t1, a) (t2, b) -> if t1 == t2 then Just (alignResults (These a b)) else Nothing) as bs
@@ -303,8 +304,8 @@ googleMapsAutocompletePlaceDetails ref cb = do
                        mkJSUndefined
   googleMapsPlacesServiceGetDetails_ ref jsCb
  
-googleMapsAutocompletePlace :: (MonadJS x m, MonadFix m, MonadIO m) => String -> ([(String, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
-googleMapsAutocompletePlace s cb =  do
+googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadIO m) => String -> ([(String, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
+googleMapsAutocompletePlace' s cb =  do
   rec jsCb <- mkJSFun $ \(result:_) -> do
         a <- fromJSArray result
         a' <- forM a $ \p -> do
@@ -317,7 +318,19 @@ googleMapsAutocompletePlace s cb =  do
   g <- googleMapsPlacesAutocompleteService_
   googleMapsPlacesGetPlacePredictions_ g s jsCb
 
-geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> String -> Maybe (String, (Double, Double)) -> Event t (Maybe (String, (Double, Double))) -> Dynamic t (Map String String) -> m (Dynamic t (Maybe (String, (Double, Double))))
+googleMapsAutocompletePlace :: forall x m t. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
+                            => Event t (Int, String)                           -- ^ Queries tagged with index number
+                            -> m (Event t (Int, [(String, PlacesAutocompletePredictionReference x)])) -- ^ Responses tagged with matching index number
+googleMapsAutocompletePlace queryE = performEventAsync . fmap (\(n,s) -> performer n s) . ffilter (\(n,s) -> dropWhile isSpace s /= "") $ queryE
+    where performer n s yield = liftJS . googleMapsAutocompletePlace' s $ \results -> yield (n, results)
+
+geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) 
+              => String                                           -- ^ Path to Google logo
+              -> String                                           -- ^ CSS class of Google logo
+              -> Maybe (String, (Double, Double))                 -- ^ Initial resulting location
+              -> Event t (Maybe (String, (Double, Double)))       -- ^ Event which causes the selected location to be set
+              -> Dynamic t (Map String String)                    -- ^ HTML attributes of input control
+              -> m (Dynamic t (Maybe (String, (Double, Double)))) -- ^ Name and location selected
 geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
   --TODO: Rate limiting
   --TODO: Deal with the situation where results are returned in the wrong order
@@ -326,7 +339,12 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
         elAttr "img" (Map.fromList [("src", googleLogoPath), ("class", googleLogoClass)]) $ return () --https://developers.google.com/places/policies#logo_requirements
         return l
   rec (eInputChanged, eChoice) <- searchInput' (maybe "" fst l0) (fmap (maybe "" $ fst) setL) inputAttrs eResults geoResults
-      eResults :: Event t (Map Integer (String, PlacesAutocompletePredictionReference x)) <- liftM (fmap (Map.fromList . zip [(1::Integer)..])) $ performEventAsync $ fmap (\s -> liftJS . googleMapsAutocompletePlace s) $ fmapMaybe id $ fmap (\i -> if i == "" then Nothing else Just i) eInputChanged
+      eResults :: Event t (Map Integer (String, PlacesAutocompletePredictionReference x)) <-
+        liftM (fmap (Map.fromList . zip [(1::Integer)..]))
+          . performEventAsync
+          . fmap (\s -> liftJS . googleMapsAutocompletePlace' s)
+          . ffilter (/= "")
+          $ eInputChanged
       eLocation <- getPlaceDetails eChoice
   holdDyn l0 $ leftmost [fmap Just eLocation, setL]
 

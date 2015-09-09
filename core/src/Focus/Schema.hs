@@ -22,6 +22,11 @@ deriving instance Ord (IdData a) => Ord (Id a)
 deriving instance FromJSON (IdData a) => FromJSON (Id a)
 deriving instance ToJSON (IdData a) => ToJSON (Id a)
 
+data IdValue a = IdValue (Id a) a deriving Typeable
+
+instance ShowPretty a => ShowPretty (IdValue a) where
+  showPretty (IdValue i x) = showPretty x
+
 instance (Ord k, FromJSON k, FromJSON v) => FromJSON (Map k v) where
   parseJSON v = Map.fromList <$> parseJSON v
 
