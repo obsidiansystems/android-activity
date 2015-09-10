@@ -46,7 +46,7 @@ newtype EmailT m a = EmailT { unEmailT :: ReaderT EmailEnv m a } deriving (Funct
 instance MonadIO m => MonadEmail (EmailT m) where
   sendMail mail = do
     (server, port, username, password) <- EmailT ask
-    liftIO $ putStrLn $ "Sending email " <> show (map snd $ filter ((=="Subject") . fst) $ mailHeaders mail) <> " to " <> show (map snd $ filter ((=="To") . fst) $ mailHeaders mail)
+    liftIO $ putStrLn $ "Sending email " <> show (map snd $ filter ((=="Subject") . fst) $ mailHeaders mail) <> " to " <> show (map addressEmail $ mailTo mail)
     liftIO $ sendMailWithLogin' server port username password mail
 
 instance MonadEmail m => MonadEmail (ReaderT r m) where
