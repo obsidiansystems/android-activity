@@ -19,6 +19,14 @@ import Data.Monoid
 import Network.Socket (PortNumber, HostName)
 import Data.Aeson
 import Data.Word
+import Text.Blaze.Html.Renderer.Text
+import Text.Blaze.Html5.Attributes
+import Text.Blaze.Html5 (Html, (!))
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as A
+import Focus.TH (embedFile)
+import Data.Text.Encoding
+import Data.String (fromString)
 
 class Monad m => MonadEmail m where
   sendMail :: Mail -> m ()
@@ -51,4 +59,30 @@ sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Addres
 
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
 
+emailTemplate :: (MonadRoute m, MonadBrand m) => Html -> Html -> Html -> m Html
+emailTemplate titleHtml leadHtml contentHtml = do
+  indexLink <- routeToUrl Route_Index
+  pn <- getProductName
+  return $ H.docTypeHtml $ do
+    H.head $ do
+      H.style $ H.toHtml $ decodeUtf8 $(embedFile "email.css")
+      H.title titleHtml
+    H.body $ H.table $ do
+      H.tr $ H.td $ H.table $ do
+        H.tr $ H.td $ H.h1 titleHtml
+        H.hr
+        H.tr $ H.td $ H.p ! class_ "lead" $ leadHtml
+        H.hr
+        H.tr $ H.td $ contentHtml
+      H.tr $ H.td $ H.table $ H.tr $ H.td $ do 
+        H.hr
+        H.p $ do
+          "Brought to you by " 
+          H.a ! A.href (fromString $ show indexLink) $ H.toHtml pn
 
+tableSection :: Html -> [(Html, Html)] -> Html
+tableSection titleText rows = do
+  H.tr $ H.td $ H.h2 $ titleText
+  forM_ rows $ \(title, content) -> H.tr $ do
+    H.td title
+    H.td content
