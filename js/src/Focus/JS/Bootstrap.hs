@@ -228,6 +228,13 @@ searchBox' i p = do
 searchBox :: MonadWidget t m => String -> m (Dynamic t (Maybe String))
 searchBox i = searchBox' i "Search..."
 
+readonlyInput :: forall t m. MonadWidget t m => String -> String -> String -> Event t String -> m (TextInput t)
+readonlyInput inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
+                                                            & textInputConfig_initialValue .~  initial
+                                                            & setValue .~ eSetVal
+                                                            & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("readonly", "readonly")])
+
+
 inputWithPlaceholder' :: forall t m. MonadWidget t m => String -> String -> String -> Event t String -> m (TextInput t)
 inputWithPlaceholder' inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
                                                                     & textInputConfig_initialValue .~  initial
