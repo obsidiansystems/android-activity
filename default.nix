@@ -362,10 +362,9 @@ let
     buildTools = [] ++ commonTools pkgs;
   });
   mkFrontend = src: haskellPackages:
-    with haskellPackages;
-    let
-      frontendCommon = common haskellPackages;
-      in haskellPackages.mkDerivation (rec {
+    let frontendCommon = common haskellPackages;
+    in haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+      mkDerivation (rec {
         pname = "${appName}-frontend";
         version = appVersion;
         license = null;
@@ -383,7 +382,7 @@ let
           common = frontendCommon;
           inherit haskellPackages;
         };
-    });
+      })) {};
   mkGhcjsApp = src: pkgs.stdenv.mkDerivation (rec {
     name = "ghcjs-app";
     unminified = mkFrontend src frontendHaskellPackages;
@@ -463,5 +462,6 @@ in pkgs.stdenv.mkDerivation (rec {
   passthru = {
     frontend = frontend.unminified;
     frontendGhc = mkFrontend ../frontend backendHaskellPackages;
+    nixpkgs = pkgs;
   };
 })
