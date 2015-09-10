@@ -113,14 +113,14 @@ asyncApi r f = do
     liftIO $ f rsp
   return ()
 
-requesting :: (Request r, ToJSON a, FromJSON a, MonadWidget t m) => Event t (r a) -> m (Event t a)
-requesting requestE = performEventAsync $ fmap (\r yield -> liftIO $ asyncApi r yield) requestE
+requesting :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
+requesting requestE = performEventAsync $ fmap (\r yield -> liftJS $ asyncApi r yield) requestE
 
-requestingMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, Traversable f) => Event t (f (r a)) -> m (Event t (f a))
+requestingMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
 requestingMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   resps <- forM rs $ \r -> do
     resp <- liftIO newEmptyMVar
-    _ <- liftIO (asyncApi r $ liftIO . putMVar resp)
+    _ <- liftJS $ asyncApi r $ liftIO . putMVar resp
     return resp
   _ <- liftIO . forkIO $ cb =<< forM resps takeMVar
   return ()
