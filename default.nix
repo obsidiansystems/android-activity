@@ -434,10 +434,9 @@ in pkgs.stdenv.mkDerivation (rec {
     ln -s "$frontend/frontend.jsexe" "$out"
   '';
   backend =
-    with backendHaskellPackages;
     let
       backendCommon = common backendHaskellPackages;
-    in backendHaskellPackages.mkDerivation (rec {
+    in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-backend}: mkDerivation (rec {
       pname = "${appName}-backend";
       license = null;
       version = appVersion;
@@ -458,7 +457,7 @@ in pkgs.stdenv.mkDerivation (rec {
         common = backendCommon;
         haskellPackages = backendHaskellPackages;
       };
-    });
+    })) {};
   passthru = {
     frontend = frontend.unminified;
     frontendGhc = mkFrontend ../frontend backendHaskellPackages;
