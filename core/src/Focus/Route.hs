@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies #-}
 module Focus.Route where
 
 import Focus.Account
@@ -18,17 +18,17 @@ import Control.Monad.Reader
 import Control.Monad.IO.Class
 import Data.Default
 
-class Monad m => MonadRoute r m where
+class Monad m => MonadRoute r m | m -> r where
   routeToUrl :: r -> m URI
 
 type RouteEnv = (String, String, String)
 
-newtype RouteT m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand)
+newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand)
 
-runRouteT :: RouteT m a -> RouteEnv -> m a
+runRouteT :: RouteT r m a -> RouteEnv -> m a
 runRouteT = runReaderT . unRouteT
 
-instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT m) where
+instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
   routeToUrl r = do
     (baseProto, baseHost, basePort) <- RouteT ask
     let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"

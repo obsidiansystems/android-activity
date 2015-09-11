@@ -43,7 +43,7 @@ makeDefaultKeyIdSimple ''Account 'AccountIdKey
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m, MonadSign m, MonadRoute m, MonadEmail m, MonadBrand m) => Id Account -> m Bool
+ensureAccountExists :: (PersistBackend m, MonadSign m, MonadRoute r m, MonadEmail m, MonadBrand m) => Id Account -> m Bool
 ensureAccountExists aid = do
   nonce <- getTime
   result <- insertBy AccountId $ Account (unId aid) Nothing (Just nonce)

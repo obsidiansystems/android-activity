@@ -27,6 +27,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 import Focus.TH (embedFile)
 import Data.Text.Encoding
 import Data.String (fromString)
+import Data.Default
 
 class Monad m => MonadEmail m where
   sendMail :: Mail -> m ()
@@ -41,7 +42,7 @@ instance FromJSON PortNumber where
 instance ToJSON PortNumber where
   toJSON n = toJSON (fromIntegral n :: Word16)
 
-newtype EmailT m a = EmailT { unEmailT :: ReaderT EmailEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadRoute, MonadSign, MonadBrand)
+newtype EmailT m a = EmailT { unEmailT :: ReaderT EmailEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadRoute r, MonadSign, MonadBrand)
 
 instance MonadIO m => MonadEmail (EmailT m) where
   sendMail mail = do
@@ -59,9 +60,9 @@ sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Addres
 
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
 
-emailTemplate :: (MonadRoute m, MonadBrand m) => Html -> Html -> Html -> m Html
+emailTemplate :: (MonadRoute r m, Default r, MonadBrand m) => Html -> Html -> Html -> m Html
 emailTemplate titleHtml leadHtml contentHtml = do
-  indexLink <- routeToUrl Route_Index
+  indexLink <- routeToUrl def
   pn <- getProductName
   return $ H.docTypeHtml $ do
     H.head $ do

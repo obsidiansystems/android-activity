@@ -28,7 +28,7 @@ readSignedWithKey k s = do
     guard $ t == show (typeOf (undefined :: b))
     return v
 
-newtype SignT m a = SignT { unSignT :: ReaderT CS.Key m a } deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MonadEmail, MonadRoute, MonadBrand)
+newtype SignT m a = SignT { unSignT :: ReaderT CS.Key m a } deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MonadEmail, MonadRoute r, MonadBrand)
 
 runSignT (SignT a) r = runReaderT a r
 

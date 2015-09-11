@@ -44,21 +44,17 @@ library
 
   exposed-modules:
     Focus.JS.Bootstrap
-    Focus.JS.Request
-    Focus.JS.Listen
-    Focus.JS.WebSocket
-    Focus.JS.GoogleMap
     Focus.JS.DesktopNotification
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Request
+    Focus.JS.Route
     Focus.JS.SmoothieCharts
     Focus.JS.Time
     Focus.JS.WebSocket
     Focus.JS.Widget
-    Focus.JS.Route
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
