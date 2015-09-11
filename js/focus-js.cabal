@@ -40,13 +40,14 @@ library
     safe
 
   exposed-modules:
-    Focus.JS.Request,
-    Focus.JS.Listen,
-    Focus.JS.WebSocket,
+    Focus.JS.Request
+    Focus.JS.Listen
+    Focus.JS.WebSocket
     Focus.JS.GoogleMap
     Focus.JS.DesktopNotification
     Focus.JS.SmoothieCharts
     Focus.JS.LocalStorage
+    Focus.JS.Route
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

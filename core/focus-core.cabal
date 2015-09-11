@@ -35,6 +35,7 @@ library
                , reflex
                , async
                , HList
+               , data-default
 
   exposed-modules:
       Focus.Account

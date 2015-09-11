@@ -99,6 +99,7 @@ let
         dependent-map
         reflex
         HList
+        data-default
       ];
     });
     focus-js = self.mkDerivation ({
