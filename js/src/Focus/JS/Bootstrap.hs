@@ -126,22 +126,26 @@ timeInput t0 = do
   tod <- liftM (fmapMaybe id . updated) $ combineDyn (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
 
-mainlandUSTimeInput :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => UTCTime -> m (Dynamic t UTCTime)
-mainlandUSTimeInput t0 = 
-  utcTimeInputMini (mainlandUSTimeZone def) t0
+mainlandUSTimeZoneMap :: (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m)) => m (Map String TimeZoneSeries)
+mainlandUSTimeZoneMap = do
+  kvs <- forM ["Eastern", "Central", "Mountain", "Pacific"] $ \n ->
+            do s <- getTimeZoneSeries ("US/" ++ n)
+               return (n,s)
+  return (Map.fromList [(n,s) | (n,Just s) <- kvs])
 
-mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
-mainlandUSTimeZone cfg = do
+mainlandUSTimeInput :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
+mainlandUSTimeInput tzMap t0 = 
+  utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
+
+mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String TimeZoneSeries -> DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
+mainlandUSTimeZone tzMap cfg = do
   let xMap = Map.fromList [(x,x) | x <- ["Eastern", "Central", "Mountain", "Pacific"]]
   selection <- fmap value $ dropdown "Eastern" (constDyn xMap) cfg
-  Just est <- getTimeZoneSeries "US/Eastern"
-  tzE <- dyn =<< mapDyn (getTimeZoneSeries . ("US/" ++)) selection
-  holdDyn est (fmapMaybe id tzE)
+  mapDyn (tzMap Map.!) selection
 
 -- TODO: The fact that the popup calendar doesn't cancel when you click elsewhere on the page kind of feels bad, but I have no idea how to approach fixing that. 
-utcTimeInputMini :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
-utcTimeInputMini tzWidget t = do
-  Just tz0 <- getTimeZoneSeries "US/Eastern" -- it sucks to have to do this, but if I try to sample the current value of tzD during widget construction, it causes a hang.
+utcTimeInputMini :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
+utcTimeInputMini tz0 tzWidget t = do
   rec let timeShown = traceEvent "timeShown" $ attachWith (\tz -> showDateTime' tz) (current tzD) time
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
