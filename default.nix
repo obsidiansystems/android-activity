@@ -89,6 +89,7 @@ let
         reflex
         HList
         file-embed
+        data-default
       ];
     });
     focus-js = self.mkDerivation ({

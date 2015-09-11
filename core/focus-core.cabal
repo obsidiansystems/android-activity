@@ -37,6 +37,7 @@ library
                , HList
                , file-embed
                , filepath
+               , data-default
 
   exposed-modules:
       Focus.Account

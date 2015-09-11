@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 module Focus.Route where
 
 import Focus.Account
@@ -16,15 +16,10 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.IO.Class
+import Data.Default
 
-data Route
-  = Route_Index
-  | Route_ResetPassword (Signed PasswordResetToken)
-  deriving (Show, Read, Eq, Ord)
-makeJson ''Route
-
-class Monad m => MonadRoute m where
-  routeToUrl :: Route -> m URI
+class Monad m => MonadRoute r m where
+  routeToUrl :: r -> m URI
 
 type RouteEnv = (String, String, String)
 
@@ -33,13 +28,13 @@ newtype RouteT m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Funct
 runRouteT :: RouteT m a -> RouteEnv -> m a
 runRouteT = runReaderT . unRouteT
 
-instance Monad m => MonadRoute (RouteT m) where
+instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT m) where
   routeToUrl r = do
     (baseProto, baseHost, basePort) <- RouteT ask
     let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
-    return $ case r of
-      Route_Index -> base "" ""
-      _ -> base ("?x=" <> (T.unpack $ decodeUtf8 $ LBS.toStrict $ encode r)) "" --TODO: https
+    return $ if r == def
+             then base "" ""
+             else base ("?x=" <> (T.unpack $ decodeUtf8 $ LBS.toStrict $ encode r)) "" --TODO: https
 
-instance MonadRoute m => MonadRoute (ReaderT r m) where
+instance MonadRoute r m => MonadRoute r (ReaderT a m) where
   routeToUrl r = lift $ routeToUrl r
