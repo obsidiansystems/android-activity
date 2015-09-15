@@ -322,11 +322,10 @@ maybeDisplay someId watcher child = do
   dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
   return ()
 
-jumbotron :: forall t m a. (MonadBrand m, MonadWidget t m) => String -> m a -> m a
-jumbotron subtitle child = divClass "jumbotron" $ do
+jumbotron :: forall t m a. MonadWidget t m => String -> String -> m a -> m a
+jumbotron t subtitle child = divClass "jumbotron" $ do
   elAttr "h1" (Map.singleton "class" "text-center") $ do
-    pn <- getProductName
-    text $ pn <> " "
+    text t
   elAttr "h1" (Map.singleton "class" "text-center") $ do
     el "small" $ text subtitle
   child
