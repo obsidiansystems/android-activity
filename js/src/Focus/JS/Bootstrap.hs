@@ -9,6 +9,10 @@ import Focus.JS.Time
 import Focus.JS.Widget
 import Focus.Schema
 import Focus.Time
+import Focus.Brand
+import Focus.Misc
+import Focus.Account
+import Focus.Sign
 
 import Foreign.JavaScript.TH
 
@@ -19,6 +23,7 @@ import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
+import Data.Text (Text)
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
 import qualified Data.Map as Map
@@ -311,3 +316,137 @@ progressBar :: MonadWidget t m => String -> Dynamic t Double -> m ()
 progressBar k w = divClass "progress" $ do
   attrs <- forDyn w (\w' -> "class" =: ("progress-bar progress-bar-" <> k) <> "style" =: ("width: " <> show w' <> "%"))
   elDynAttr "div" attrs $ return ()
+
+maybeDisplay :: forall t m a b. MonadWidget t m => a -> (Dynamic t a -> m (Dynamic t (Maybe b))) -> (a -> b -> m ()) -> m ()
+maybeDisplay someId watcher child = do
+  dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
+  return ()
+
+jumbotron :: forall t m a. (MonadBrand m, MonadWidget t m) => String -> m a -> m a
+jumbotron subtitle child = divClass "jumbotron" $ do
+  elAttr "h1" (Map.singleton "class" "text-center") $ do
+    pn <- getProductName
+    text $ pn <> " "
+  elAttr "h1" (Map.singleton "class" "text-center") $ do
+    el "small" $ text subtitle
+  child
+
+withLoginWorkflow'
+  :: forall t x m loginInfo newUser a. (MonadWidget t m)
+  => (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
+      m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
+  -> Maybe loginInfo
+  -> m (Event t newUser, Event t ())
+  -- ^ New Account (New User, return to signin)
+  -> m (Event t (), Event t ())
+  -- ^ Recover (Password Reset Requested, return to signin)
+  -> m (Event t loginInfo, Event t ())
+  -- ^ Login (Successful login request, resturn to signup)
+  -> (loginInfo -> m (Event t ()))
+  -- ^ Post-login
+  -> Workflow t m (Event t (Maybe loginInfo))
+withLoginWorkflow' wrapper li0 newAccountForm recoveryForm loginForm f =
+  let loginWorkflow' = Workflow $ wrapper $ do
+        let newAccountWorkflow = Workflow $ do
+              (eSignupClick, eSigninClick) <- newAccountForm
+              return (never, fmap (const loginWorkflow) eSigninClick)
+            recoverAccountWorkflow = Workflow $ do
+              (eReset, eSigninClick) <- recoveryForm
+              return (never, fmap (const loginWorkflow) eSigninClick)
+            loginWorkflow = Workflow $ do
+              (eLoginSuccess, eNewAccountClick) <- loginForm
+              recoverLink <- elAttr "p" (Map.singleton "class" "text-center") $ do
+                text "Forgot password? "
+                link "Recover account"
+              let eNewAccount = fmap (const newAccountWorkflow) eNewAccountClick
+                  eRecoverAccount = fmap (const recoverAccountWorkflow) (_link_clicked recoverLink)
+              let eChange = leftmost [eNewAccount, eRecoverAccount]
+              return (eLoginSuccess, eChange)
+        eLoginInfo <- liftM switch $ hold never =<< workflowView loginWorkflow
+        return (fmap Just eLoginInfo, fmap f' eLoginInfo)
+      f' x = Workflow $ do
+        eLogout <- f x
+        return (fmap (const Nothing) eLogout, fmap (const loginWorkflow') eLogout)
+  in maybe loginWorkflow' f' li0
+
+recoveryForm
+  :: forall t m. (MonadWidget t m)
+  => (Event t (Id Account) -> m (Event t ()))
+  -> m (Event t (), Event t ())
+recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
+  signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
+    text "Recover or "
+    link "sign in"
+  emailBox <- emailInputWithPlaceholder "Email address"
+  submitButton <- linkClass "Recover" "btn btn-lg btn-primary btn-block"
+  eReset <- requestPasswordResetEmail $ fmap (Id . T.pack) $ tag (current $ _textInput_value emailBox) (_link_clicked submitButton)
+  el "div" $ elAttr "p" (Map.singleton "class" "text-center") $ dynText =<< holdDyn "" (fmap (const "An email with account recovery instructions has been sent.") eReset)
+  return (eReset, (_link_clicked signinLink))
+
+loginForm
+  :: forall t m a loginInfo. (MonadWidget t m)
+  => (Event t (Id Account, Text) -> m (Event t (Maybe loginInfo)))
+  -> m (Event t loginInfo, Event t ())
+loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
+  signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
+    text "Sign in or "
+    link "sign up"
+  emailBox <- emailInputWithPlaceholder "Email address"
+  passwordBox <- passwordInputWithPlaceholder "Password"
+  submitButton <- linkClass "Sign in" "btn btn-lg btn-primary btn-block"
+  let bCreds = pull $ do
+        email <- liftM (Id . T.pack) $ sample $ current $ _textInput_value emailBox
+        password <- liftM T.pack $ sample $ current $ _textInput_value passwordBox
+        return (email, password)
+  let eEmailEnter = textInputGetEnter emailBox
+      ePasswordEnter = textInputGetEnter passwordBox
+  eLoginResult <- login $ tag bCreds $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
+  errorAttrs <- holdDyn ("style" =: "display: none") (fmap (\r -> if isNothing r then "class" =: "alert alert-warning" else "style" =: "display: none") eLoginResult)
+  elDynAttr "div" errorAttrs $ do
+    icon "warning"
+    text " Invalid email address or password"
+  let eLoginSuccess = fmapMaybe id eLoginResult
+  return (eLoginSuccess, (_link_clicked signupLink))
+
+newAccountForm
+  :: MonadWidget t m
+  => m (Behavior t newUser)
+  -> (Event t newUser -> m (Event t newUserId))
+  -> m (Event t newUserId, Event t ())
+newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "form-signin") $ do
+  signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
+    text "Sign up or "
+    link "sign in"
+  newUser <- newUserForm
+  submitButton <- linkClass "Sign up" "btn btn-lg btn-primary btn-block"
+  el "div" $ elAttr "p" (Map.singleton "class" "text-center") $ dynText =<< holdDyn "" (fmap (const "An email with account activation instructions has been sent.") (_link_clicked submitButton))
+  eNewUser <- newUserReq $ tag newUser (_link_clicked submitButton)
+  return (eNewUser, (_link_clicked signinLink))
+
+passwordResetWorkflow
+  :: MonadWidget t m
+  => Signed PasswordResetToken
+  -> (Maybe loginInfo -> Workflow t m (Event t (Maybe loginInfo)))
+  -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
+  -> m (Event t (Maybe loginInfo))
+passwordResetWorkflow token withLoginWorkflow reset = do
+  liftM switch $ hold never <=< workflowView $ Workflow $ do
+    eLoginResult <- liftM (fmap Just) $ passwordReset token reset
+    let eLoggedIn = fmap (\x -> withLoginWorkflow x) eLoginResult
+    return (eLoginResult, eLoggedIn)
+
+passwordReset
+  :: MonadWidget t m
+  => Signed PasswordResetToken
+  -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
+  -> m (Event t loginInfo)
+passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") $ do
+  pw <- passwordInputWithPlaceholder "Password"
+  confirm <- passwordInputWithPlaceholder "Confirm Password"
+  dPasswordConfirmed <- combineDyn (==) (_textInput_value pw) (_textInput_value confirm)
+  dAttrs <- mapDyn (\c -> Map.singleton "class" $ "btn btn-lg btn-primary btn-block" <> if c then "" else " disabled") dPasswordConfirmed
+  (submitButton, _) <- elDynAttr' "a" dAttrs $ text "Set Password"
+  loginInfo <- reset $ fmap (\p -> (token, T.pack p)) $ tag (current (_textInput_value pw)) (domEvent Click submitButton)
+  --performEvent_ $ fmap (const $ liftIO $ windowHistoryPushState "/") loginInfo
+  return loginInfo
+

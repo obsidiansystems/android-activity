@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module Focus.Time where
 
+import Focus.Misc
 import Focus.Schema
 import Data.Time
 import System.Locale hiding (defaultTimeLocale)
@@ -94,10 +95,6 @@ dayToMonthLength = (\(y, m, _) -> gregorianMonthLength y m) . toGregorian
 
 dayToWeekDay :: Day -> WeekDay
 dayToWeekDay = intToWeekDay . thd3 . toWeekDate
-
-fst3 (a, _, _) = a
-snd3 (_, a, _) = a
-thd3 (_, _, a) = a
 
 localTimeToTwelveHourTime :: TimeOfDay -> (Int, Int, Meridian)
 localTimeToTwelveHourTime tod =
