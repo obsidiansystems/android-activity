@@ -38,3 +38,16 @@ instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
 
 instance MonadRoute r m => MonadRoute r (ReaderT a m) where
   routeToUrl r = lift $ routeToUrl r
+
+newtype SubRouteT r r' m a = SubRouteT (ReaderT (r' -> r) m a) deriving (Functor, Applicative, Monad, MonadIO, MonadBrand)
+
+instance (MonadRoute r m) => MonadRoute r' (SubRouteT r r' m) where
+  routeToUrl r = SubRouteT $ do
+    routeConv <- ask
+    lift $ routeToUrl $ routeConv r
+
+instance MonadTrans (SubRouteT r r') where
+  lift = SubRouteT . lift
+
+runSubRouteT :: SubRouteT r r' m a -> (r' -> r) -> m a
+runSubRouteT (SubRouteT a) f = runReaderT a f

@@ -15,15 +15,19 @@ import Focus.Schema
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Crypto.PasswordStore
-import Data.Aeson
-import Data.Map (Map)
+import Data.Default
+import Data.String
 import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
 import Database.Groundhog
+import Database.Groundhog.Core
 import Database.Groundhog.TH
-import qualified Data.Map as Map
 import qualified Data.Text as T
+import Text.Blaze.Html5 (Html)
+import qualified Text.Blaze.Html5 as H
+import Text.Blaze.Html5.Attributes as A
+import Data.List.NonEmpty
 
 mkPersist defaultCodegenConfig [groundhog|
   - entity: Account
@@ -41,6 +45,7 @@ mkPersist defaultCodegenConfig [groundhog|
 
 makeDefaultKeyIdSimple ''Account 'AccountIdKey
 
+migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
@@ -50,6 +55,7 @@ ensureAccountExists aid = do
   result <- insertBy AccountId $ Account (unId aid) Nothing (Just nonce)
   return $ isRight result
 
+generatePasswordResetToken :: (PersistBackend m, MonadSign m) => Id Account -> m (Signed PasswordResetToken)
 generatePasswordResetToken aid = do
   nonce <- getTime
   sign $ PasswordResetToken (aid, nonce)
@@ -84,10 +90,31 @@ generateAndSendPasswordResetEmail
   => (Signed PasswordResetToken -> Id Account -> m ())
   -> Id Account
   -> m UTCTime
-generateAndSendPasswordResetEmail sendPasswordResetEmail aid = do
+generateAndSendPasswordResetEmail pwEmail aid = do
   nonce <- getTime
   prt <- sign $ PasswordResetToken (aid, nonce)
-  sendPasswordResetEmail prt aid
+  pwEmail prt aid
   return nonce
 
+newAccountEmail :: (MonadBrand m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> m Html
+newAccountEmail f token = do
+  passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset token
+  b <- getBrand
+  emailTemplate (H.text $ "Welcome to " <> _brand_productName b)
+                (H.a H.! A.href (fromString $ show passwordResetLink) $ H.text "Click here to verify your email")
+                (H.p $ H.text $ _brand_description b)
+
+sendNewAccountEmail :: (MonadRoute r m, Default r, MonadBrand m, MonadEmail m) => (AccountRoute -> r) -> Id Account -> Signed PasswordResetToken -> m ()
+sendNewAccountEmail f aid prt = do
+  pn <- liftM T.pack getProductName
+  body <- newAccountEmail f prt
+  sendEmailDefault (unId aid :| []) (pn <> " Verification Email") body
+
+sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> Id Account -> m ()
+sendPasswordResetEmail f prt aid = do
+  passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
+  pn <- getProductName
+  let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
+      body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
+  sendEmailDefault (unId aid :| []) (T.pack pn <> " Password Reset") =<< emailTemplate (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
 

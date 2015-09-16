@@ -58,6 +58,11 @@ runEmailT = runReaderT . unEmailT
 sendEmailFrom :: MonadEmail m => Text -> Text -> NonEmpty Text -> Text -> Html -> m ()
 sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Address (Just name) email) (map (Address Nothing) $ toList recipients) [] [] subject [(htmlPart $ renderHtml body)]
 
+sendEmailDefault :: (MonadEmail m, MonadBrand m) => NonEmpty Text -> Text -> Html -> m ()
+sendEmailDefault recipients subject body = do
+  b <- getBrand
+  sendEmailFrom (_brand_defaultEmailName b) (_brand_defaultEmail b) recipients subject body
+
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
 
 emailTemplate :: (MonadRoute r m, Default r, MonadBrand m) => Html -> Html -> Html -> m Html
