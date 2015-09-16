@@ -40,7 +40,8 @@ library
     safe,
     timezone-series,
     timezone-olson,
-    binary
+    binary,
+    raw-strings-qq
 
   exposed-modules:
     Focus.JS.Bootstrap
