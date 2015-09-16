@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 -- | Various functions for making dealing with Groundhog more pleasant
 module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
                                   , module Database.Groundhog
@@ -8,8 +8,10 @@ module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
 
 import Focus.TH
 
+import Database.Groundhog.Postgresql as DB
 import Database.Groundhog
 import Database.Groundhog.Core
+import Database.Groundhog.Core as DB
 import Database.Groundhog.TH
 import Database.Groundhog.TH.Settings
 import Language.Haskell.TH
@@ -19,6 +21,9 @@ import Control.Lens
 import Control.Monad.Loops
 import Data.List
 import Data.Time.Clock
+import Control.Monad.Trans
+import Control.Monad.Reader
+import Control.Monad.State
 
 import Debug.Trace
 
@@ -76,3 +81,33 @@ makePersistFieldNewtype t = do
           return ($(conE c) x, pv')
         dbType p (~($(conP c [varP xName]))) = dbType p $(varE xName)
     |]
+
+instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract this newtype-wrapper-monad-stack stuff
+  type PhantomDb (ReaderT r m) = PhantomDb m
+  insert = lift . DB.insert
+  insert_ = lift . DB.insert_
+  insertBy u v = lift $ DB.insertBy u v
+  insertByAll = lift . DB.insertByAll
+  replace k v = lift $ DB.replace k v
+  replaceBy u v = lift $ DB.replaceBy u v
+  select = lift . DB.select
+  selectAll = lift DB.selectAll
+  get = lift . DB.get
+  getBy = lift . DB.getBy
+  update us c = lift $ DB.update us c
+  delete = lift . DB.delete
+  deleteBy = lift . DB.deleteBy
+  deleteAll = lift . DB.deleteAll
+  count = lift . DB.count
+  countAll = lift . DB.countAll
+  project p o = lift $ DB.project p o
+  migrate v = mapStateT (lift) $ DB.migrate v
+  executeRaw c q p = lift $ DB.executeRaw c q p
+  queryRaw c q p f = do
+    k <- ask
+    lift $ DB.queryRaw c q p $ \rp -> runReaderT (f $ lift rp) k
+  insertList = lift . DB.insertList
+  getList = lift . DB.getList
+
+
+

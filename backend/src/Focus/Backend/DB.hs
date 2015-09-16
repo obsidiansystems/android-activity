@@ -2,6 +2,8 @@
 
 module Focus.Backend.DB where
 
+import Focus.Brand
+import Focus.Route
 import Focus.Schema
 import Focus.Backend.Schema.TH
 
@@ -67,3 +69,4 @@ runDb :: ( MonadIO m
       -> Pool cm
       -> m b
 runDb a dbConns = withResource dbConns $ runDbConn a
+

@@ -55,6 +55,17 @@ ensureAccountExists aid = do
   result <- insertBy AccountId $ Account (unId aid) Nothing (Just nonce)
   return $ isRight result
 
+ensureAccountExistsEmail
+  :: (PersistBackend m, MonadSign m, MonadBrand m, MonadRoute r m, Default r, MonadEmail m)
+  => (Signed PasswordResetToken -> Id Account -> m ())
+  -> Id Account
+  -> m ()
+ensureAccountExistsEmail pwEmail aid = do
+  isNew <- ensureAccountExists aid
+  when isNew $ do
+    nonce <- generateAndSendPasswordResetEmail pwEmail aid
+    update [Account_passwordResetNonceField =. Just nonce] (Account_emailField ==. unId aid)
+
 generatePasswordResetToken :: (PersistBackend m, MonadSign m) => Id Account -> m (Signed PasswordResetToken)
 generatePasswordResetToken aid = do
   nonce <- getTime
