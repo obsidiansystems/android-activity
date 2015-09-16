@@ -10,6 +10,9 @@ import Control.Monad.Reader
 
 data Brand
   = Brand { _brand_productName :: Text
+          , _brand_description :: Text
+          , _brand_defaultEmailName :: Text
+          , _brand_defaultEmail :: Text
           }
 
 instance Show Brand where
