@@ -12,6 +12,7 @@ import Focus.Sign
 import Focus.Route
 import Focus.Schema
 
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer
 import Crypto.PasswordStore
 import Data.Aeson
@@ -70,4 +71,23 @@ resetPasswordWithToken prt password = do
   True <- return $ account_passwordResetNonce a == Just nonce
   setAccountPassword aid password
   return aid
+
+login :: (PersistBackend m) => (Id Account -> m loginInfo) -> Id Account -> Text -> m (Maybe loginInfo)
+login toLoginInfo aid password = runMaybeT $ do
+  a <- MaybeT $ getBy $ fromId aid
+  ph <- MaybeT $ return $ account_passwordHash a
+  guard $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph
+  lift $ toLoginInfo aid
+
+generateAndSendPasswordResetEmail
+  :: (PersistBackend m, MonadEmail m, MonadRoute r m, MonadSign m, MonadBrand m)
+  => (Signed PasswordResetToken -> Id Account -> m ())
+  -> Id Account
+  -> m UTCTime
+generateAndSendPasswordResetEmail sendPasswordResetEmail aid = do
+  nonce <- getTime
+  prt <- sign $ PasswordResetToken (aid, nonce)
+  sendPasswordResetEmail prt aid
+  return nonce
+
 
