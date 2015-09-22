@@ -516,7 +516,7 @@ dayInputMini d0 = do
         return attrs'
       (date, close) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") . elDynAttr "div" attrs $ do
         d <- dayInput d0
-        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 50%; left: 5%; float: left") $ do
+        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 90%; left: 5%; float: left") $ do
           (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
           (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
           return (tag (current d) (domEvent Click a), domEvent Click x)
