@@ -487,3 +487,39 @@ styleTagSignin = el "style" $ text [r|
     border-top-right-radius: 0;
   }
 |]
+
+toggleButton :: MonadWidget t m => Bool -> String -> String -> String -> m (Dynamic t Bool)
+toggleButton b0 k t1 t2 = divClass "btn-grp" $ do
+  rec short <- buttonDynAttr selAttrA $ do
+        dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
+        text t1
+      long <- buttonDynAttr selAttrB $ do
+        dyn =<< mapDyn (\sel' -> if not sel' then icon "check" else return ()) sel
+        text t2
+      sel <- holdDyn b0 $ leftmost [fmap (const True) short, fmap (const False) long]
+      let baseAttr :: String -> Map String String
+          baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: "width: 50%;"
+      selAttrA <- mapDyn (\sel' -> if sel' then baseAttr "btn-primary" else baseAttr "") sel
+      selAttrB <- mapDyn (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
+  return sel
+
+dayInputMini :: MonadWidget t m => Day -> m (Dynamic t Day)
+dayInputMini d0 = do
+  let showDate = formatTime defaultTimeLocale "%b %e, %Y"
+  rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
+        elClass "span" "input-group-addon" $ icon "clock-o"
+        _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+                             & textInputConfig_setValue .~ fmap showDate date
+                             & textInputConfig_initialValue .~ showDate d0
+        isOpen <- holdDyn False $ leftmost [fmap (const False) date, fmap (const True) (domEvent Click e'), fmap (const False) close]
+        attrs' :: Dynamic t (Map String String) <- mapDyn (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
+        return attrs'
+      (date, close) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") . elDynAttr "div" attrs $ do
+        d <- dayInput d0
+        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 50%; left: 5%; float: left") $ do
+          (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
+          (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
+          return (tag (current d) (domEvent Click a), domEvent Click x)
+  holdDyn d0 date
+
+
