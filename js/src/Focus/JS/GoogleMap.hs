@@ -373,12 +373,18 @@ googleMapsAutocompletePlace queryE = performEventAsync . fmap (\(n,s) -> perform
     where performer n s yield = liftJS . googleMapsAutocompletePlace' s $ \results -> yield (n, results)
 
 geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
-              => String                                           -- ^ Path to Google logo
-              -> String                                           -- ^ CSS class of Google logo
-              -> Maybe (String, (Double, Double))                 -- ^ Initial resulting location
-              -> Event t (Maybe (String, (Double, Double)))       -- ^ Event which causes the selected location to be set
-              -> Dynamic t (Map String String)                    -- ^ HTML attributes of input control
-              -> m (Dynamic t (Maybe (String, (Double, Double)))) -- ^ Name and location selected
+              => String
+              -- ^ Path to Google logo
+              -> String
+              -- ^ CSS class of Google logo
+              -> Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue))
+              -- ^ Initial resulting location
+              -> Event t (Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
+              -- ^ Event which causes the selected location to be set
+              -> Dynamic t (Map String String)
+              -- ^ HTML attributes of input control
+              -> m (Dynamic t (Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue))))
+              -- ^ Name and location selected
 geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
   --TODO: Rate limiting
   --TODO: Deal with the situation where results are returned in the wrong order
@@ -396,11 +402,8 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
       eLocation <- getPlaceDetails eChoice
   holdDyn l0 $ leftmost [fmap Just eLocation, setL]
 
-getPlaceDetails :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, (Double, Double)))
-getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, fst result)) eChoice
-
-getPlaceDetails' :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
-getPlaceDetails' eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
+getPlaceDetails :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
+getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
 
 -- newtype GoogleMapLatLng = GoogleMapLatLng { unGoogleMapLatLng :: JSRef GoogleMapLatLng }
 -- JS(googleMapGetCenter_, "$1.getCenter()", JSRef GoogleMap -> IO (JSRef GoogleMapLatLng))
