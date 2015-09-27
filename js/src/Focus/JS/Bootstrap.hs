@@ -529,7 +529,7 @@ checkButton b0 active inactive txt = do
         text $ " " <> txt
       selected <- toggle b0 e
       toggleClass <- mapDyn (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
-      iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o" else "fa fa-square-o") selected
+      iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected
 
 
