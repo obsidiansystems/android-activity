@@ -522,4 +522,14 @@ dayInputMini d0 = do
           return (tag (current d) (domEvent Click a), domEvent Click x)
   holdDyn d0 date
 
+checkButton :: MonadWidget t m => Bool -> String -> String -> String -> m (Dynamic t Bool)
+checkButton b0 active inactive txt = do
+  rec e <- buttonDynAttr toggleClass $ do
+        elDynAttr "i" iconClass $ return ()
+        text $ " " <> txt
+      selected <- toggle b0 e
+      toggleClass <- mapDyn (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
+      iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o" else "fa fa-square-o") selected
+  return selected
+
 
