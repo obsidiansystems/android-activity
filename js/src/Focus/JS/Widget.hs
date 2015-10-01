@@ -7,6 +7,18 @@ import Data.Ratio
 import Data.Map (Map)
 import qualified Data.Map as Map
 
+data SpinnerParts m a b = SpinnerParts { _spinnerParts_pre  :: m ()
+                                       , _spinnerParts_wait :: a -> m ()
+                                       , _spinnerParts_post :: b -> m () }
+
+spinner :: (MonadWidget t m) => SpinnerParts m a b -> Event t a -> Event t b -> m ()
+spinner (SpinnerParts pre wait post) request response = fmap (const ()) $ widgetHold pre (leftmost [fmap post response, fmap wait request])
+
+withSpinner :: MonadWidget t m => SpinnerParts m a b -> (Event t a -> m (Event t b)) -> (Event t a -> m (Event t b))
+withSpinner sp asyncW request = do response <- asyncW request
+                                   spinner sp request response
+                                   return response
+
 enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown f cfg = do
   let xs = [minBound .. maxBound] :: [k]
