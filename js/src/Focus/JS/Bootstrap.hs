@@ -39,8 +39,15 @@ button s = buttonClass "btn btn-primary" s
 buttonClass :: MonadWidget t m => String -> String -> m (Event t ())
 buttonClass k s = button' k $ text s
 
+buttonActiveClass :: MonadWidget t m => String -> Dynamic t Bool -> String -> m (Event t ())
+buttonActiveClass k actD s = buttonActive' k actD (text s)
+
 button' :: MonadWidget t m => String -> m a -> m (Event t ())
 button' k w = buttonDynAttr (constDyn $ "class" =: k <> "type" =: "button") w
+
+buttonActive' :: MonadWidget t m => String -> Dynamic t Bool -> m a -> m (Event t ())
+buttonActive' k actD w = do attrs <- forDyn actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
+                            buttonDynAttr attrs w
 
 buttonDynAttr :: MonadWidget t m => Dynamic t (Map String String) -> m a -> m (Event t ())
 buttonDynAttr attrs w = liftM (domEvent Click . fst) $ elDynAttr' "button" attrs w
