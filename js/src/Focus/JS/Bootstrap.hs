@@ -453,7 +453,9 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   dPasswordConfirmed <- combineDyn (==) (_textInput_value pw) (_textInput_value confirm)
   dAttrs <- mapDyn (\c -> Map.singleton "class" $ "btn btn-lg btn-primary btn-block" <> if c then "" else " disabled") dPasswordConfirmed
   (submitButton, _) <- elDynAttr' "a" dAttrs $ text "Set Password"
-  loginInfo <- reset $ fmap (\p -> (token, T.pack p)) $ tag (current (_textInput_value pw)) (domEvent Click submitButton)
+  let enterPressed = gate (current dPasswordConfirmed) $ leftmost [textInputGetEnter pw, textInputGetEnter confirm]
+      submit = leftmost [domEvent Click submitButton, enterPressed]
+  loginInfo <- reset $ fmap (\p -> (token, T.pack p)) $ tag (current (_textInput_value pw)) submit
   --performEvent_ $ fmap (const $ liftIO $ windowHistoryPushState "/") loginInfo
   return loginInfo
 

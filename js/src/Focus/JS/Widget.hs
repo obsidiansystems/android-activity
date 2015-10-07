@@ -6,6 +6,12 @@ import qualified Data.Foldable as F
 import Data.Ratio
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Control.Monad
+
+-- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
+resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
+resetAfterEach w = do rec success <- liftM (switch . current) $ widgetHold w (fmap (const $ w) success)
+                      return success
 
 data SpinnerParts m a b = SpinnerParts { _spinnerParts_pre  :: m ()
                                        , _spinnerParts_wait :: a -> m ()
