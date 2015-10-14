@@ -189,6 +189,7 @@ let
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
 
+  myPostgres = pkgs.postgresql94;
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
       groundhog = self.mkDerivation ({
@@ -293,7 +294,7 @@ let
           raw-strings-qq
         ];
         pkgconfigDepends = [
-          pkgs.postgresql94
+          myPostgres
         ];
       });
       singletons = self.mkDerivation ({
@@ -419,49 +420,116 @@ let
       zopfli
     ];
   };
-in pkgs.stdenv.mkDerivation (rec {
-  name = "${appName}-${appVersion}";
-  static = ../static;
-  marketing = ../marketing;
-  # Give the minification step its own derivation so that backend rebuilds don't redo the minification
-  frontend = mkGhcjsApp ../frontend;
-  builder = builtins.toFile "builder.sh" ''
-    source "$stdenv/setup"
+  result =  pkgs.stdenv.mkDerivation (rec {
+    name = "${appName}-${appVersion}";
+    static = ../static;
+    marketing = ../marketing;
+    # Give the minification step its own derivation so that backend rebuilds don't redo the minification
+    frontend = mkGhcjsApp ../frontend;
+    builder = builtins.toFile "builder.sh" ''
+      source "$stdenv/setup"
 
-    mkdir -p "$out"
-    cp -r "$static" "$out/static"
-    cp -r "$marketing" "$out/marketing"
-    ln -s "$backend/bin/backend" "$out"
-    ln -s "$frontend/frontend.jsexe" "$out"
-  '';
-  backend =
-    let
-      backendCommon = common backendHaskellPackages;
-    in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-backend}: mkDerivation (rec {
-      pname = "${appName}-backend";
-      license = null;
-      version = appVersion;
-      src = ../backend;
-      preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
-      preBuild = ''
-        ln -sfT ${static} static
-      '';
-      buildDepends = [
-        backendCommon
-        vector-algorithms
-        focus-core focus-backend
-      ] ++ backendDepends backendHaskellPackages;
-      buildTools = [] ++ backendTools pkgs;
-      isExecutable = true;
-      configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
-      passthru = {
-        common = backendCommon;
-        haskellPackages = backendHaskellPackages;
+      mkdir -p "$out"
+      cp -r "$static" "$out/static"
+      cp -r "$marketing" "$out/marketing"
+      ln -s "$backend/bin/backend" "$out"
+      ln -s "$frontend/frontend.jsexe" "$out"
+    '';
+    backend =
+      let
+        backendCommon = common backendHaskellPackages;
+      in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-backend}: mkDerivation (rec {
+        pname = "${appName}-backend";
+        license = null;
+        version = appVersion;
+        src = ../backend;
+        preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
+        preBuild = ''
+          ln -sfT ${static} static
+        '';
+        buildDepends = [
+          backendCommon
+          vector-algorithms
+          focus-core focus-backend
+        ] ++ backendDepends backendHaskellPackages;
+        buildTools = [] ++ backendTools pkgs;
+        isExecutable = true;
+        configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
+        passthru = {
+          common = backendCommon;
+          haskellPackages = backendHaskellPackages;
+        };
+      })) {};
+    passthru = rec {
+      frontend = frontend.unminified;
+      frontendGhc = mkFrontend ../frontend backendHaskellPackages;
+      nixpkgs = pkgs;
+      completeServer = { hostName }: import "${nixpkgs.path}/nixos" {
+        system = "x86_64-linux";
+        configuration = { config, pkgs, ... }: {
+          imports = [ "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix" ];
+          services.journald.rateLimitBurst = 0;
+          ec2.hvm = true;
+
+          environment.systemPackages = with pkgs; [
+            emacs24-nox
+            git
+            rxvt_unicode.terminfo
+            myPostgres
+          ];
+
+          networking = {
+            inherit hostName;
+            firewall.allowedTCPPorts = [
+              80 443
+            ];
+          };
+
+          services.nginx = {
+            enable = true;
+            httpConfig = ''
+              server {
+                listen 80;
+                location / {
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_set_header Host $http_host;
+                  proxy_read_timeout 300s;
+                }
+                access_log off;
+              }
+            '';
+          };
+
+
+          systemd.services.backend = {
+            wantedBy = [ "multi-user.target" ];
+            after = [ "network.target" ];
+            restartIfChanged = true;
+            script = ''
+              export HOME=/var/lib/backend
+              mkdir -p "$HOME"
+              cd "$HOME"
+              pwd
+              ln -sft . "${result}"/*
+              mkdir -p log
+              exec ./backend
+            '';
+            serviceConfig = {
+              User = "backend";
+              KillMode = "process";
+            };
+          };
+          users.extraUsers.backend = {
+            description = "backend server user";
+            home = "/var/lib/backend";
+            createHome = true;
+            isSystemUser = true;
+            uid = 500;
+            group = "backend";
+          };
+          users.extraGroups.backend.gid = 500;
+        };
       };
-    })) {};
-  passthru = {
-    frontend = frontend.unminified;
-    frontendGhc = mkFrontend ../frontend backendHaskellPackages;
-    nixpkgs = pkgs;
-  };
-})
+    };
+  });
+in result
