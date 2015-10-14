@@ -9,6 +9,7 @@ let
       });
     };
   };
+  nixpkgs = tryReflex.nixpkgs;
   pkgs = tryReflex.nixpkgs;
   inherit (pkgs) stdenv;
   overrideCabal = drv: f: if isNull drv then null else (drv.override (args: args // {
@@ -460,7 +461,7 @@ let
           haskellPackages = backendHaskellPackages;
         };
       })) {};
-    passthru = rec {
+    passthru = {
       frontend = frontend.unminified;
       frontendGhc = mkFrontend ../frontend backendHaskellPackages;
       nixpkgs = pkgs;
