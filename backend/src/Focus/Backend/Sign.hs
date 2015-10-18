@@ -21,8 +21,8 @@ import Control.Monad.Trans.Maybe
 signWithKey k (v :: b) = do
   liftIO $ liftM (Signed . decodeUtf8) $ CS.encryptIO k $ LBS.toStrict $ encode (show $ typeOf (undefined :: b), v)
 
+readSignedWithKey :: (Typeable a, FromJSON a) => CS.Key -> Signed a -> Maybe a
 readSignedWithKey k s = do
-  return $ do
     tvJson <- CS.decrypt k $ encodeUtf8 $ unSigned s
     (t, v :: b) <- decodeValue' $ LBS.fromStrict tvJson
     guard $ t == show (typeOf (undefined :: b))
@@ -51,7 +51,7 @@ instance MonadIO m => MonadSign (SignT m) where
     signWithKey k a
   readSigned s = do
     k <- SignT ask
-    readSignedWithKey k s
+    return $ readSignedWithKey k s
 
 instance MonadSign m => MonadSign (MaybeT m) where
   sign = lift . sign

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds #-}
 module Focus.Backend.Listen where
 
 import Focus.Backend.Schema.TH
@@ -38,12 +38,16 @@ import Data.ByteString (ByteString)
 import Data.Proxy
 import Data.Maybe
 
-data TableListener n
-   = TableListener { tableListenerGetInitial :: forall m. PersistBackend m => m [n]
-                   , tableListenerGetUpdate :: forall m. PersistBackend m => LBS.ByteString -> m [n]
+type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
+
+newtype PerClientListener a n = PerClientListener (forall m. MonadListenDb m => a -> m [n])
+
+data TableListener a n
+   = TableListener { tableListenerGetInitial :: forall m. MonadListenDb m => a -> m [n]
+                   , tableListenerGetUpdate :: forall m. MonadListenDb m => LBS.ByteString -> m (PerClientListener a n)
                    }
 
-type Listeners n = Map ByteString (TableListener n)
+type Listeners a n = Map ByteString (TableListener a n)
 
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
 notifyEntity aid _ = notifyEntityId aid
@@ -55,22 +59,22 @@ notifyEntityId aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode aid]
   return ()
 
-tableListenerWithAutoKey :: (PersistEntity a, DefaultKeyId a, DefaultKey a ~ AutoKey a, DefaultKey a ~ Key a BackendSpecific, PrimitivePersistField (DefaultKey a), FromJSON (IdData a)) => ((Id a, a) -> n) -> TableListener n
+tableListenerWithAutoKey :: forall a n b. (PersistEntity a, DefaultKeyId a, DefaultKey a ~ AutoKey a, DefaultKey a ~ Key a BackendSpecific, PrimitivePersistField (DefaultKey a), FromJSON (IdData a)) => ((Id a, a) -> n) -> TableListener b n
 tableListenerWithAutoKey n = TableListener
-      { tableListenerGetInitial = liftM (map $ n . first toId) selectAll
+      { tableListenerGetInitial = \_ -> liftM (map $ n . first toId) selectAll
       , tableListenerGetUpdate = \xidStr -> do
-        Just xid <- return $ decodeValue' xidStr
-        mx <- get $ fromId xid
+        Just (xid :: Id a) <- return $ decodeValue' xidStr
+        mx :: Maybe a <- get $ fromId xid
         case mx of
-          Nothing -> return []
-          Just x -> return [n (xid, x)]
+          Nothing -> return $ PerClientListener $ const $ return []
+          Just x -> return $ PerClientListener $ const $ return [n (xid, x)]
       }
 
-handleListen :: (MonadSnap m, PersistBackend m', ToJSON n) => Listeners n -> TChan n -> (forall x. m' x -> m x) -> m ()
-handleListen listeners l runGroundhog = ifTop $ do
+handleListen :: (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON n) => a -> Listeners a n -> TChan (PerClientListener a n) -> (forall x. m' x -> IO x) -> m ()
+handleListen a listeners l runGroundhog = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan l
-  startingValues <- runGroundhog $ do
-    startingValues <- mapM tableListenerGetInitial $ Map.elems listeners
+  startingValues <- liftIO $ runGroundhog $ do
+    startingValues <- mapM (flip tableListenerGetInitial a) $ Map.elems listeners
     return $ concat startingValues
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
@@ -78,15 +82,16 @@ handleListen listeners l runGroundhog = ifTop $ do
       let send = sendTextData conn . encode
       send startingValues
       forever $ do
-        change <- atomically $ readTChan changes
-        send [change]
+        (PerClientListener change) <- atomically $ readTChan changes
+        change' <- runGroundhog $ change a
+        send change'
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
     handleConnectionException $ forever $ receiveDataMessage conn
     killThread senderThread
 
-listenDB :: forall n. Listeners n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan n, IO ())
+listenDB :: forall a n. Listeners a n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan (PerClientListener a n), IO ())
 listenDB listeners withConn = do
   nChan <- newBroadcastTChanIO
   daemonThread <- forkIO $ withConn $ \conn -> do
@@ -99,5 +104,5 @@ listenDB listeners withConn = do
         Nothing -> putStrLn $ "listenDB: received message from unknown channel: " <> show channel
         Just l -> do
           translation <- withConn $ (runDbConn $ tableListenerGetUpdate l $ LBS.fromStrict message) . Postgresql
-          mapM_ (atomically . writeTChan nChan) translation
+          atomically $ writeTChan nChan translation
   return (nChan, killThread daemonThread)
