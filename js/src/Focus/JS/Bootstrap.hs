@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes #-}
+{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase #-}
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
@@ -511,6 +511,17 @@ toggleButton b0 k t1 t2 = divClass "btn-grp" $ do
       selAttrA <- mapDyn (\sel' -> if sel' then baseAttr "btn-primary" else baseAttr "") sel
       selAttrB <- mapDyn (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
   return sel
+
+toggleButtonStrip :: (Ord k, MonadWidget t m) => k -> Map k String -> m (Dynamic t k)
+toggleButtonStrip s0 labelMap = divClass "btn-grp" $ do
+  rec selection <- holdDyn s0 changeE
+      let baseAttr ksel = "class" =: ("btn " <> ksel) <> "type" =: "button" <> "style" =: ("width: " ++ (show (100 / fromIntegral (Map.size labelMap) :: Double)) ++ "%;")
+      changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \k labelDyn isSelected ->
+                   do attr <- forDyn isSelected $ \case True -> baseAttr "btn-primary"; False -> baseAttr ""
+                      buttonDynAttr attr $ do
+                         dynIcon =<< (forDyn isSelected (\case True -> "check"; False -> ""))
+                         dynText labelDyn
+  return selection
 
 dayInputMini :: MonadWidget t m => Day -> m (Dynamic t Day)
 dayInputMini d0 = do
