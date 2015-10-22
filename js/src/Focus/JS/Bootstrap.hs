@@ -152,8 +152,10 @@ mainlandUSTimeInput tzMap t0 =
 
 mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String TimeZoneSeries -> DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
 mainlandUSTimeZone tzMap cfg = do
-  let xMap = Map.fromList [(x,x) | x <- ["Eastern", "Central", "Mountain", "Pacific"]]
-  selection <- fmap value $ dropdown "Eastern" (constDyn xMap) cfg
+  let labelMap, valueMap :: Map Int String
+      labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
+      valueMap = 0 =: "Pacific" <> 1 =: "Mountain" <> 2 =: "Central" <> 3 =: "Eastern"
+  selection <- mapDyn (valueMap Map.!) =<< toggleButtonStrip "btn-xs" 3 labelMap
   mapDyn (tzMap Map.!) selection
 
 -- TODO: The fact that the popup calendar doesn't cancel when you click elsewhere on the page kind of feels bad, but I have no idea how to approach fixing that. 
@@ -175,7 +177,7 @@ utcTimeInputMini tz0 tzWidget t = do
           t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
           lt <- combineDyn (\day t'' -> LocalTime day t'') d t'
           return lt
-        tzD <- elAttr "div" ("style" =: "padding-top: 5px; width: 50%; float: right") $ tzWidget
+        tzD <- elAttr "div" ("style" =: "padding-top: 5px") $ tzWidget
         elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 50%; left: 5%; float: left") $ do
           (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
           (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
@@ -512,10 +514,10 @@ toggleButton b0 k t1 t2 = divClass "btn-grp" $ do
       selAttrB <- mapDyn (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
   return sel
 
-toggleButtonStrip :: (Ord k, MonadWidget t m) => k -> Map k String -> m (Dynamic t k)
-toggleButtonStrip s0 labelMap = divClass "btn-grp" $ do
+toggleButtonStrip :: (Ord k, MonadWidget t m) => String -> k -> Map k String -> m (Dynamic t k)
+toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
   rec selection <- holdDyn s0 changeE
-      let baseAttr ksel = "class" =: ("btn " <> ksel) <> "type" =: "button" <> "style" =: ("width: " ++ (show (100 / fromIntegral (Map.size labelMap) :: Double)) ++ "%;")
+      let baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: ("width: " ++ (show (100 / fromIntegral (Map.size labelMap) :: Double)) ++ "%;")
       changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \k labelDyn isSelected ->
                    do attr <- forDyn isSelected $ \case True -> baseAttr "btn-primary"; False -> baseAttr ""
                       buttonDynAttr attr $ do
