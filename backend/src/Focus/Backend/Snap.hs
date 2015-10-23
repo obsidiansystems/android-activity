@@ -10,6 +10,10 @@ import Lucid
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG
 import Data.Default
+import Data.ByteString
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding
 import Control.Lens
 import Text.RawString.QQ
 
@@ -46,17 +50,20 @@ instance Default AppConfig where
                   , _appConfig_extraHeadMarkup = mempty
                   }
 
-serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
-serveApp app cfg = do
-  route [ ("", ifTop $ serveIndex cfg)
+serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
+serveAppAt loc app cfg = do
+  route [ (loc, ifTop $ serveIndexAt (T.unpack . decodeUtf8 $ loc) cfg) -- assumes UTF-8 filesystem
 --        , ("x", serveAssets (app </> "assets"))
-        , ("", doNotCache >> serveDirectory (app </> "static"))
-        , ("", doNotCache >> serveDirectory (app </> "frontend.jsexe"))
-        , ("", doNotCache >> error404)
+        , (loc, doNotCache >> serveDirectory (app </> "static"))
+        , (loc, doNotCache >> serveDirectory (app </> "frontend.jsexe"))
+        , (loc, doNotCache >> error404)
         ]
 
-serveIndex :: MonadSnap m => AppConfig -> m ()
-serveIndex cfg = do
+serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
+serveApp = serveAppAt ""
+
+serveIndexAt :: MonadSnap m => FilePath -> AppConfig -> m ()
+serveIndexAt loc cfg = do
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
       meta_ [charset_ "utf-8"]
@@ -97,7 +104,10 @@ serveIndex cfg = do
                     & idPrefix .~ "preload-logo-"
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ "all.js", defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (T.pack (loc </> "all.js")), defer_ "defer"] ("" :: String)
+
+serveIndex :: MonadSnap m => AppConfig -> m ()
+serveIndex = serveIndexAt ""
 
 serveAssets :: MonadSnap m => FilePath -> m ()
 serveAssets _ = return ()
