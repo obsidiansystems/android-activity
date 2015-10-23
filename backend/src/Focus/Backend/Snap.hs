@@ -12,7 +12,6 @@ import Lucid
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG
 import Data.Default
-import Data.ByteString
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
@@ -20,6 +19,7 @@ import Control.Lens
 import Text.RawString.QQ
 import Control.Exception (try)
 import System.IO.Error
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Control.Monad.IO.Class
 import System.Directory
