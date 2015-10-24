@@ -11,8 +11,8 @@ import System.IO
 
 withFocus :: IO a -> IO a
 withFocus a = do
-  putStrLn "\a" -- Ring the bell; this is mostly helpful in development; probably should be moved to a script in focus instead of the actual server start
   hSetBuffering stderr LineBuffering -- Decrease likelihood of output from multiple threads being interleaved
+  putStrLn "\a" -- Ring the bell; this is mostly helpful in development; probably should be moved to a script in focus instead of the actual server start
   a
 
  --TODO: Support a remote as well as local databases

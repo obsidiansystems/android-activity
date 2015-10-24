@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings #-}
 module Focus.Backend.Snap where
 
+import Focus.Backend.HTTP.Accept
+
 import Snap
 import Snap.Util.FileServe
 import System.FilePath
@@ -10,8 +12,23 @@ import Lucid
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG
 import Data.Default
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding
 import Control.Lens
 import Text.RawString.QQ
+import Control.Exception (try)
+import System.IO.Error
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import Control.Monad.IO.Class
+import System.Directory
+import System.Posix (getFileStatus, fileSize)
+import Control.Monad
+import Data.List
+import qualified Data.Text as T
+import Data.Text.Encoding
+import Data.Attoparsec.ByteString (parseOnly, endOfInput)
 
 error404 :: MonadSnap m => m ()
 error404 = do
@@ -46,17 +63,21 @@ instance Default AppConfig where
                   , _appConfig_extraHeadMarkup = mempty
                   }
 
-serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
-serveApp app cfg = do
-  route [ ("", ifTop $ serveIndex cfg)
---        , ("x", serveAssets (app </> "assets"))
-        , ("", doNotCache >> serveDirectory (app </> "static"))
-        , ("", doNotCache >> serveDirectory (app </> "frontend.jsexe"))
-        , ("", doNotCache >> error404)
+serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
+serveAppAt loc app cfg = do
+  route [ (loc, ifTop $ serveIndexAt (T.unpack . decodeUtf8 $ loc) cfg) -- assumes UTF-8 filesystem
+        , (loc, serveAssets (app </> "assets"))
+        , (loc, doNotCache >> serveDirectory (app </> "static"))
+        , (loc, serveAssets (app </> "frontend.jsexe.assets"))
+        , (loc, doNotCache >> serveDirectory (app </> "frontend.jsexe"))
+        , (loc, doNotCache >> error404)
         ]
 
-serveIndex :: MonadSnap m => AppConfig -> m ()
-serveIndex cfg = do
+serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
+serveApp = serveAppAt ""
+
+serveIndexAt :: MonadSnap m => FilePath -> AppConfig -> m ()
+serveIndexAt loc cfg = do
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
       meta_ [charset_ "utf-8"]
@@ -97,9 +118,37 @@ serveIndex cfg = do
                     & idPrefix .~ "preload-logo-"
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ "all.js", defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (T.pack (loc </> "all.js")), defer_ "defer"] ("" :: String)
+
+serveIndex :: MonadSnap m => AppConfig -> m ()
+serveIndex = serveIndexAt ""
 
 serveAssets :: MonadSnap m => FilePath -> m ()
-serveAssets _ = return ()
+serveAssets base = do
+  p <- getSafePath
+  assetType <- liftIO $ try $ BS.readFile $ base </> p </> "type"
+  case assetType of
+    Right "immutable" -> do
+      encodedFiles <- liftM (filter (`notElem` [".", ".."])) $ liftIO $ getDirectoryContents $ base </> p </> "encodings"
+      availableEncodings <- liftM (map snd . sort) $ forM encodedFiles $ \f -> do
+        stat <- liftIO $ getFileStatus $ base </> p </> "encodings" </> f
+        return (fileSize stat, Encoding $ encodeUtf8 $ T.pack f)
+      acceptEncodingRaw <- getsRequest $ getHeader "Accept-Encoding"
+      ae <- case acceptEncodingRaw of
+        Nothing -> return missingAcceptableEncodings
+        Just aer -> case parseOnly (acceptEncodingBody <* endOfInput) aer of
+          Right ae -> return ae
+      Just (Encoding e) <- return $ chooseEncoding availableEncodings ae
+      modifyResponse $ setHeader "Content-Encoding" e . setHeader "Vary" "Accept-Encoding"
+      cachePermanently
+      let finalFilename = base </> p </> "encodings" </> T.unpack (decodeUtf8 e)
+      stat <- liftIO $ getFileStatus finalFilename
+      modifyResponse $ setResponseCode 200 . setContentLength (fromIntegral $ fileSize stat) . setContentType (fileType defaultMimeTypes p)
+      sendFile finalFilename
+    Right "redirect" -> do
+      doNotCache
+      target <- liftIO $ BS.readFile $ base </> p </> "target"
+      redirect target
+    Left err | isDoesNotExistError err -> pass
 
 makeLenses ''AppConfig

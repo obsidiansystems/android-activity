@@ -12,6 +12,8 @@ let
   nixpkgs = tryReflex.nixpkgs;
   pkgs = tryReflex.nixpkgs;
   inherit (pkgs) stdenv;
+in with (import ./lib.nix { inherit nixpkgs; });
+let
   overrideCabal = drv: f: if isNull drv then null else (drv.override (args: args // {
     mkDerivation = drv: args.mkDerivation (drv // f drv);
   })) // {
@@ -293,6 +295,7 @@ let
           diagrams
           diagrams-svg
           raw-strings-qq
+          attoparsec
         ];
         pkgconfigDepends = [
           myPostgres
@@ -402,28 +405,11 @@ let
       frontend = unminified;
     };
   });
-  # Takes an asset, compresses it for various
-  compress = file: pkgs.stdenv.mkDerivation {
-    input = file;
-    builder = builtins.toFile "builder.sh" ''
-      source "$stdenv/setup"
-
-      mkdir -p "$out"
-
-      cp "$input" "$out/identity" & #TODO: Test this
-      zopfli -c --i5 --gzip "$input" >"$out/gzip" & #TODO: Test this
-      zopfli -c --i5 --zlib "$input" >"$out/compress" & #TODO: Test this
-      zopfli -c --i5 --deflate "$input" >"$out/deflate" & #TODO: Test this
-
-      wait
-    '';
-    buildInputs = with pkgs; [
-      zopfli
-    ];
-  };
   result =  pkgs.stdenv.mkDerivation (rec {
     name = "${appName}-${appVersion}";
     static = ../static;
+    assets = mkAssets ../static;
+    frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend}/frontend.jsexe";
     marketing = ../marketing;
     # Give the minification step its own derivation so that backend rebuilds don't redo the minification
     frontend = mkGhcjsApp ../frontend;
@@ -431,10 +417,10 @@ let
       source "$stdenv/setup"
 
       mkdir -p "$out"
-      cp -r "$static" "$out/static"
+      cp -r "$assets" "$out/assets"
       cp -r "$marketing" "$out/marketing"
       ln -s "$backend/bin/backend" "$out"
-      ln -s "$frontend/frontend.jsexe" "$out"
+      ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
     '';
     backend =
       let
