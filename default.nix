@@ -72,12 +72,12 @@ let
          description = "Heterogeneous lists";
          license = stdenv.lib.licenses.mit;
        }) { inherit (pkgs) diffutils;};
-    focus-core = self.mkDerivation ({
+    focus-core = self.callPackage ({mkDerivation, aeson, attoparsec, base64-bytestring, stripe, text, time, vector, network-uri, timezone-series, constraints, dependent-map, reflex, HList, file-embed, data-default}: mkDerivation {
       pname = "focus-core";
       license = null;
       version = "0.1";
       src = ./core;
-      buildDepends = with self; [
+      buildDepends = [
         aeson
         attoparsec
         base64-bytestring
@@ -94,14 +94,14 @@ let
         file-embed
         data-default
       ];
-    });
-    focus-js = self.mkDerivation ({
+    }) {};
+    focus-js = self.callPackage ({mkDerivation, focus-core, reflex, reflex-dom, aeson, attoparsec, text, time, vector, ghcjs-dom, constraints, timezone-series, timezone-olson, raw-strings-qq}: mkDerivation {
       license = null;
       pname = "focus-js";
       version = "0.1";
       src = ./js;
-      buildDepends = with self; [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq ];
-    });
+      buildDepends = [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq ];
+    }) {};
     dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
       version = "0.0.0.4";
       src = pkgs.fetchgit {
@@ -232,29 +232,6 @@ let
         license = pkgs.stdenv.lib.licenses.bsd3;
         platforms = self.ghc.meta.platforms;
       });
-      /*
-      snap = self.mkDerivation ({
-        pname = "snap";
-        version = "0.14.0.2";
-        revision = "1";
-        sha256 = "1yv1snkibsqd7cdxyqi7c8gvnv1hzzhw5jlk19kps526n5xvay7r";
-        editedCabalFile = "1640756ec7bfd3130869dce451904d6cc762ab6c8b8128982933fba80f325c92";
-        isLibrary = true;
-        isExecutable = true;
-        buildDepends = with self; [
-          aeson attoparsec base bytestring cereal clientsession comonad
-          configurator containers directory directory-tree dlist errors
-          filepath hashable heist lens logict MonadCatchIO-transformers mtl
-          mwc-random old-time pwstore-fast regex-posix snap-core snap-server
-          stm syb template-haskell text time transformers
-          unordered-containers vector vector-algorithms xmlhtml
-        ];
-        homepage = "http://snapframework.com/";
-        description = "Top-level package for the Snap Web Framework";
-        license = pkgs.stdenv.lib.licenses.bsd3;
-        jailbreak = true;
-      });
-      */
       stripe = self.mkDerivation ({
         pname = "stripe";
         license = null;
@@ -262,12 +239,12 @@ let
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
         version = "0.8.3";
       });
-      focus-backend = backendHaskellPackages.mkDerivation ({
+      focus-backend = self.callPackage ({mkDerivation, groundhog, groundhog-th, mtl, focus-core, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-svg, raw-strings-qq, attoparsec}: mkDerivation {
         pname = "focus-backend";
         license = null;
         version = "0.1";
         src = ./backend;
-        buildDepends = with self; [
+        buildDepends = [
           groundhog
           groundhog-th
           mtl
@@ -300,7 +277,7 @@ let
         pkgconfigDepends = [
           myPostgres
         ];
-      });
+      }) {};
       singletons = self.mkDerivation ({
         pname = "singletons";
         version = "1.1.1";
