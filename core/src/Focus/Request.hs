@@ -43,6 +43,21 @@ instance Request r => FromJSON (SomeRequest r) where
 instance Request r => ToJSON (SomeRequest r) where
   toJSON (SomeRequest r) = requestToJSON r
 
+instance ToJSON Ordering where
+  toJSON o = String $ case o of
+    LT -> "LT"
+    EQ -> "EQ"
+    GT -> "GT"
+
+instance FromJSON Ordering where
+  parseJSON v = case v of
+    String s -> case s of
+      "LT" -> return LT
+      "EQ" -> return EQ
+      "GT" -> return GT
+      _ -> fail "Parsing Ordering value failed: expected \"LT\", \"EQ\", or \"GT\""
+    _ -> typeMismatch "Ordering" v
+
 decodeWith :: LA.Parser Value -> (Value -> Result a) -> LBS.ByteString -> Maybe a
 decodeWith p to s =
   case LA.parse p s of
