@@ -342,7 +342,8 @@ jumbotron t subtitle child = divClass "jumbotron" $ do
 
 withLoginWorkflow'
   :: forall t x m loginInfo newUser a. (MonadWidget t m)
-  => (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
+  => Bool -- ^ Whether to display sign-up form first
+  -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
       m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
   -> Maybe loginInfo
   -> m (Event t newUser, Event t ())
@@ -350,12 +351,12 @@ withLoginWorkflow'
   -> m (Event t (), Event t ())
   -- ^ Recover (Password Reset Requested, return to signin)
   -> m (Event t loginInfo, Event t ())
-  -- ^ Login (Successful login request, resturn to signup)
+  -- ^ Login (Successful login request, return to signup)
   -> (loginInfo -> m (Event t ()))
   -- ^ Post-login
   -> Workflow t m (Event t (Maybe loginInfo))
-withLoginWorkflow' wrapper li0 newAccountForm recoveryForm loginForm f =
-  let loginWorkflow' = Workflow $ wrapper $ do
+withLoginWorkflow' signUp wrapper li0 newAccountForm recoveryForm loginForm f =
+  let loginWorkflow' = Workflow . wrapper $ do
         let newAccountWorkflow = Workflow $ do
               (eSignupClick, eSigninClick) <- newAccountForm
               return (never, fmap (const loginWorkflow) eSigninClick)
@@ -371,7 +372,7 @@ withLoginWorkflow' wrapper li0 newAccountForm recoveryForm loginForm f =
                   eRecoverAccount = fmap (const recoverAccountWorkflow) (_link_clicked recoverLink)
               let eChange = leftmost [eNewAccount, eRecoverAccount]
               return (eLoginSuccess, eChange)
-        eLoginInfo <- liftM switch $ hold never =<< workflowView loginWorkflow
+        eLoginInfo <- liftM switch $ hold never =<< workflowView (if signUp then newAccountWorkflow else loginWorkflow)
         return (fmap Just eLoginInfo, fmap f' eLoginInfo)
       f' x = Workflow $ do
         eLogout <- f x
