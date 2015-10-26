@@ -65,7 +65,7 @@ instance Default AppConfig where
 
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
-  route [ (loc, ifTop $ serveIndexAt (T.unpack . decodeUtf8 $ loc) cfg) -- assumes UTF-8 filesystem
+  route [ (loc, ifTop $ serveIndex cfg)
         , (loc, serveAssets (app </> "assets"))
         , (loc, doNotCache >> serveDirectory (app </> "static"))
         , (loc, serveAssets (app </> "frontend.jsexe.assets"))
@@ -76,8 +76,8 @@ serveAppAt loc app cfg = do
 serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
 serveApp = serveAppAt ""
 
-serveIndexAt :: MonadSnap m => FilePath -> AppConfig -> m ()
-serveIndexAt loc cfg = do
+serveIndex :: MonadSnap m => AppConfig -> m ()
+serveIndex cfg = do
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
       meta_ [charset_ "utf-8"]
@@ -118,10 +118,7 @@ serveIndexAt loc cfg = do
                     & idPrefix .~ "preload-logo-"
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ (T.pack (loc </> "all.js")), defer_ "defer"] ("" :: String)
-
-serveIndex :: MonadSnap m => AppConfig -> m ()
-serveIndex = serveIndexAt ""
+      script_ [type_ "text/javascript", src_ (T.pack "all.js"), defer_ "defer"] ("" :: String)
 
 serveAssets :: MonadSnap m => FilePath -> m ()
 serveAssets base = do
