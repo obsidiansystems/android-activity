@@ -384,8 +384,8 @@ let
   });
   result =  pkgs.stdenv.mkDerivation (rec {
     name = "${appName}-${appVersion}";
-    static = ../static;
     assets = mkAssets ../static;
+    zoneinfo = ../static/zoneinfo;
     frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend}/frontend.jsexe";
     marketing = ../marketing;
     # Give the minification step its own derivation so that backend rebuilds don't redo the minification
@@ -394,10 +394,11 @@ let
       source "$stdenv/setup"
 
       mkdir -p "$out"
-      cp -r "$assets" "$out/assets"
-      cp -r "$marketing" "$out/marketing"
+      ln -s "$assets" "$out/assets"
+      ln -s "$marketing" "$out/marketing"
       ln -s "$backend/bin/backend" "$out"
       ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
+      ln -s "$zoneinfo" "$out/zoneinfo"
     '';
     backend =
       let
@@ -409,7 +410,7 @@ let
         src = ../backend;
         preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
         preBuild = ''
-          ln -sfT ${static} static
+          ln -sfT ${../static} static
         '';
         buildDepends = [
           backendCommon
@@ -428,7 +429,7 @@ let
       frontend = frontend.unminified;
       frontendGhc = mkFrontend ../frontend backendHaskellPackages;
       nixpkgs = pkgs;
-      completeServer = { hostName }: import "${nixpkgs.path}/nixos" {
+      completeServer = { hostName, ssl ? false }: import "${nixpkgs.path}/nixos" {
         system = "x86_64-linux";
         configuration = { config, pkgs, ... }: {
           imports = [ "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix" ];
@@ -451,7 +452,25 @@ let
 
           services.nginx = {
             enable = true;
-            httpConfig = ''
+            httpConfig = if ssl then ''
+              server {
+                listen 80;
+                return 301 https://$host$request_uri;
+              }
+              server {
+                listen 443 ssl;
+                ssl_certificate /var/lib/backend/backend.crt;
+                ssl_certificate_key /var/lib/backend/backend.key;
+                ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;  # don’t use SSLv3 ref: POODLE
+                location / {
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header X-Forwarded-Proto "https";
+                  proxy_read_timeout 300s;
+                }
+                access_log off;
+              }
+            '' else ''
               server {
                 listen 80;
                 location / {
@@ -464,7 +483,6 @@ let
             '';
           };
 
-
           systemd.services.backend = {
             wantedBy = [ "multi-user.target" ];
             after = [ "network.target" ];
@@ -476,7 +494,7 @@ let
               pwd
               ln -sft . "${result}"/*
               mkdir -p log
-              exec ./backend
+              exec ./backend >>backend.out 2>>backend.err </dev/null
             '';
             serviceConfig = {
               User = "backend";

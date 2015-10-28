@@ -121,31 +121,45 @@ serveIndex cfg = do
       script_ [type_ "text/javascript", src_ (T.pack "all.js"), defer_ "defer"] ("" :: String)
 
 serveAssets :: MonadSnap m => FilePath -> m ()
-serveAssets base = do
-  p <- getSafePath
-  assetType <- liftIO $ try $ BS.readFile $ base </> p </> "type"
-  case assetType of
-    Right "immutable" -> do
-      encodedFiles <- liftM (filter (`notElem` [".", ".."])) $ liftIO $ getDirectoryContents $ base </> p </> "encodings"
-      availableEncodings <- liftM (map snd . sort) $ forM encodedFiles $ \f -> do
-        stat <- liftIO $ getFileStatus $ base </> p </> "encodings" </> f
-        return (fileSize stat, Encoding $ encodeUtf8 $ T.pack f)
-      acceptEncodingRaw <- getsRequest $ getHeader "Accept-Encoding"
-      ae <- case acceptEncodingRaw of
-        Nothing -> return missingAcceptableEncodings
-        Just aer -> case parseOnly (acceptEncodingBody <* endOfInput) aer of
-          Right ae -> return ae
-      Just (Encoding e) <- return $ chooseEncoding availableEncodings ae
-      modifyResponse $ setHeader "Content-Encoding" e . setHeader "Vary" "Accept-Encoding"
-      cachePermanently
-      let finalFilename = base </> p </> "encodings" </> T.unpack (decodeUtf8 e)
-      stat <- liftIO $ getFileStatus finalFilename
-      modifyResponse $ setResponseCode 200 . setContentLength (fromIntegral $ fileSize stat) . setContentType (fileType defaultMimeTypes p)
-      sendFile finalFilename
-    Right "redirect" -> do
-      doNotCache
-      target <- liftIO $ BS.readFile $ base </> p </> "target"
-      redirect target
-    Left err | isDoesNotExistError err -> pass
+serveAssets = serveAssets' True
+
+serveAssetsInPlace :: MonadSnap m => FilePath -> m ()
+serveAssetsInPlace = serveAssets' False
+
+serveAssets' :: MonadSnap m => Bool -> FilePath -> m ()
+serveAssets' doRedirect base = do
+  pRaw <- getSafePath
+  liftIO $ print pRaw
+  let go p = do
+        assetType <- liftIO $ try $ BS.readFile $ base </> p </> "type"
+        case assetType of
+          Right "immutable" -> do
+            encodedFiles <- liftM (filter (`notElem` [".", ".."])) $ liftIO $ getDirectoryContents $ base </> p </> "encodings"
+            availableEncodings <- liftM (map snd . sort) $ forM encodedFiles $ \f -> do
+              stat <- liftIO $ getFileStatus $ base </> p </> "encodings" </> f
+              return (fileSize stat, Encoding $ encodeUtf8 $ T.pack f)
+            acceptEncodingRaw <- getsRequest $ getHeader "Accept-Encoding"
+            ae <- case acceptEncodingRaw of
+              Nothing -> return missingAcceptableEncodings
+              Just aer -> case parseOnly (acceptEncodingBody <* endOfInput) aer of
+                Right ae -> return ae
+            Just (Encoding e) <- return $ chooseEncoding availableEncodings ae
+            modifyResponse $ setHeader "Content-Encoding" e . setHeader "Vary" "Accept-Encoding"
+            if doRedirect then cachePermanently else doNotCache --TODO: Use Etags when not redirecting
+            let finalFilename = base </> p </> "encodings" </> T.unpack (decodeUtf8 e)
+            stat <- liftIO $ getFileStatus finalFilename
+            modifyResponse $ setResponseCode 200 . setContentLength (fromIntegral $ fileSize stat) . setContentType (fileType defaultMimeTypes p)
+            sendFile finalFilename
+          Right "redirect" -> do
+            target <- liftIO $ BS.readFile $ base </> p </> "target"
+            if doRedirect
+              then do
+                doNotCache
+                redirect target
+              else go $ takeDirectory p </> T.unpack (decodeUtf8 target)
+          Left err | isDoesNotExistError err -> do
+            liftIO $ putStrLn $ "Couldn't find " <> show (base </> p </> "type")
+            pass
+  go $ if "/" `isSuffixOf` pRaw || pRaw == "" then pRaw <> "index.html" else pRaw
 
 makeLenses ''AppConfig

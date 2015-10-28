@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 set -eux
 
-RESULT="$(nix-build --no-out-link -A completeServer.system --argstr hostName "$1")"
-BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$1'"; }).config.users.extraUsers.backend.home')"
-BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$1'"; }).config.users.extraUsers.backend.uid')"
-BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$1'"; }).config.users.extraGroups.backend.gid')"
+HOSTNAME="$1"
+shift
+CONFIG="$1"
+shift
 
-nix-copy-closure --to root@"$1" --gzip "$RESULT"
-ssh root@"$1" bash -x <<EOF
+
+RESULT="$(nix-build --no-out-link -A completeServer.system --argstr hostName "$HOSTNAME" "$@")"
+BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraUsers.backend.home')"
+BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraUsers.backend.uid')"
+BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraGroups.backend.gid')"
+
+nix-copy-closure --to root@"$HOSTNAME" --gzip "$RESULT"
+ssh root@"$HOSTNAME" bash -x <<EOF
 if [ ! -d "$BACKEND_HOME" ] ; then
   mkdir -p "$BACKEND_HOME"
   chown $BACKEND_UID:$BACKEND_GID "$BACKEND_HOME"
 fi
 EOF
-rsync -arvz "$2/config" root@"$1:$BACKEND_HOME"
-ssh root@"$1" bash -x <<EOF
+rsync -arvz "$CONFIG/config" root@"$HOSTNAME:$BACKEND_HOME"
+ssh root@"$HOSTNAME" bash -x <<EOF
 nix-env -p /nix/var/nix/profiles/system --set "$RESULT"
 /nix/var/nix/profiles/system/bin/switch-to-configuration switch
 EOF
