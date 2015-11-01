@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes, PatternGuards #-}
 module Focus.JS.Route where
 
 import Foreign.JavaScript.TH
