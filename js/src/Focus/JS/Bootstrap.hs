@@ -84,22 +84,32 @@ numberInput initial =
 
 dayInput :: MonadWidget t m => Day -> m (Dynamic t Day)
 dayInput d0 = do
-  rec day <- foldDyn ($) d0 navigate
-      navigate <- do
+  let (year0, month0, dayOfMonth0) = toGregorian d0
+  rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
+      (navigate', dayClicked') <- do
         (prevButton, nextButton) <- divClass "text-center" $ do
           p <- linkClass "<<" "btn btn-sm pull-left"
-          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText =<< mapDyn (\d -> show (dayToMonth d) <> " " <> show (dayToYear d)) day
+          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText =<< mapDyn (\(y, m) -> show m <> " " <> show y) visibleMonth
           n <- linkClass ">>" "btn btn-sm pull-right"
           return (p, n)
-        mc :: Event t (Event t Int) <- dyn =<< mapDyn monthCal day
-        dateNav <- liftM (fmap setDayDate . switch) $ hold never mc
-        return $ leftmost [fmap (const $ addGregorianMonthsClip (-1)) (_link_clicked prevButton), fmap (const $ addGregorianMonthsClip 1) (_link_clicked nextButton), dateNav]
+        mc :: Event t (Event t Int) <- dyn <=< forDyn visibleMonth $ \(y, m) -> do
+          mDayOfMonth <- forDyn day $ \d ->
+            let (y', m', dom') = toGregorian d
+            in if (y', intToMonth m') == (y, m)
+               then Just dom'
+               else Nothing
+          monthCal y m mDayOfMonth
+        dayClicked <- liftM switch $ hold never mc
+        let navigate = leftmost [ addMonths (-1) <$ _link_clicked prevButton
+                                , addMonths 1 <$ _link_clicked nextButton
+                                ]
+        return (navigate, dayClicked)
+      day <- holdDyn d0 $ attachDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
-monthCal :: forall t m. MonadWidget t m => Day -> m (Event t Int)
-monthCal startingDate = do
-  let (y, m, d0) = toGregorian startingDate
-      som = fromGregorian y m 1
+monthCal :: forall t m. MonadWidget t m => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
+monthCal y m sel = do
+  let som = fromGregorian y (monthToInt m) 1
       wd = dayToWeekDay som
       monthLength = dayToMonthLength som
       prefix = map (\x -> (x, Nothing)) $ fst $ break ((==) wd) [Sunday .. Saturday]
@@ -118,8 +128,7 @@ monthCal startingDate = do
             active <- forDyn sel $ \s -> "class" =: ("btn btn-xs" ++ if s == n && isJust s then " btn-primary" else "")
             (e, _) <- elAttr' "td" attrs $ elDynAttr "a" active $ text $ maybe "" show n
             return $ fmap (const n) $ domEvent Click e
-      let selectionMade = leftmost $ concat click
-      sel <- holdDyn (Just d0) selectionMade
+  let selectionMade = leftmost $ concat click
   return $ fmapMaybe id selectionMade
 
 timeInput :: forall t m. MonadWidget t m => TimeOfDay -> m (Dynamic t TimeOfDay)
@@ -539,10 +548,7 @@ dayInputMini d0 = do
         return attrs'
       (date, close) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") . elDynAttr "div" attrs $ do
         d <- dayInput d0
-        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 90%; left: 5%; float: left") $ do
-          (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
-          (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
-          return (tag (current d) (domEvent Click a), domEvent Click x)
+        return (updated d, never)
   holdDyn d0 date
 
 checkButton :: MonadWidget t m => Bool -> String -> String -> String -> m (Dynamic t Bool)

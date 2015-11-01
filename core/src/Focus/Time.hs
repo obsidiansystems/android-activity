@@ -9,6 +9,7 @@ import Data.Time.Format hiding (defaultTimeLocale)
 import Data.Time.Clock
 import Data.Time.Calendar.WeekDate
 import Data.Time.LocalTime.TimeZone.Series
+import Data.Fixed
 
 formatTime' s tz t = formatTime defaultTimeLocale s $ ZoneSeriesTime t tz
 
@@ -64,6 +65,10 @@ type Year = Integer
 
 weekDayToInt :: WeekDay -> Int
 weekDayToInt = (\x -> if x == 0 then 7 else x) . fromEnum
+
+addMonths :: Int -> (Integer, Month) -> (Integer, Month)
+addMonths n (y, m) = (y + carry, toEnum m')
+  where (carry, m') = (fromEnum m + n) `divMod'` 12
 
 monthToInt :: Month -> Int
 monthToInt = (+1) . fromEnum
