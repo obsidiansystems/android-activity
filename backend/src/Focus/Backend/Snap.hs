@@ -129,7 +129,6 @@ serveAssetsInPlace = serveAssets' False
 serveAssets' :: MonadSnap m => Bool -> FilePath -> m ()
 serveAssets' doRedirect base = do
   pRaw <- getSafePath
-  liftIO $ print pRaw
   let go p = do
         assetType <- liftIO $ try $ BS.readFile $ base </> p </> "type"
         case assetType of
@@ -157,9 +156,7 @@ serveAssets' doRedirect base = do
                 doNotCache
                 redirect target
               else go $ takeDirectory p </> T.unpack (decodeUtf8 target)
-          Left err | isDoesNotExistError err -> do
-            liftIO $ putStrLn $ "Couldn't find " <> show (base </> p </> "type")
-            pass
+          Left err | isDoesNotExistError err -> pass
   go $ if "/" `isSuffixOf` pRaw || pRaw == "" then pRaw <> "index.html" else pRaw
 
 makeLenses ''AppConfig
