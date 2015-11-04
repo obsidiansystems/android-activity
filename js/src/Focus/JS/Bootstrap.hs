@@ -395,7 +395,7 @@ recoveryForm
 recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Recover or "
-    link "sign in"
+    linkClass "sign in" "pointer"
   emailBox <- emailInputWithPlaceholder "Email address"
   submitButton <- linkClass "Recover" "btn btn-lg btn-primary btn-block"
   eReset <- requestPasswordResetEmail $ fmap (Id . T.pack) $ tag (current $ _textInput_value emailBox) (_link_clicked submitButton)
@@ -409,7 +409,7 @@ loginForm
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Sign in or "
-    link "sign up"
+    linkClass "sign up" "pointer"
   emailBox <- emailInputWithPlaceholder "Email address"
   passwordBox <- passwordInputWithPlaceholder "Password"
   submitButton <- linkClass "Sign in" "btn btn-lg btn-primary btn-block"
@@ -435,7 +435,7 @@ newAccountForm
 newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Sign up or "
-    link "sign in"
+    linkClass "sign in" "pointer"
   newUser <- newUserForm
   submitButton <- linkClass "Sign up" "btn btn-lg btn-primary btn-block"
   el "div" $ elAttr "p" (Map.singleton "class" "text-center") $ dynText =<< holdDyn "" (fmap (const "An email with account activation instructions has been sent.") (_link_clicked submitButton))
@@ -510,7 +510,7 @@ styleTagSignin = el "style" $ text [r|
 |]
 
 toggleButton :: MonadWidget t m => Bool -> String -> String -> String -> m (Dynamic t Bool)
-toggleButton b0 k t1 t2 = divClass "btn-grp" $ do
+toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
         dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
         text t1
