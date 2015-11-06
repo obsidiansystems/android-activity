@@ -140,8 +140,8 @@ timeInput t0 = do
   hour <- liftM value $ dropdown (fst3 twelveHrTime) (constDyn hs) (def & attributes  .~ attrs)
   text ":"
   minute <- liftM value $ dropdown (snd3 twelveHrTime) (constDyn ms) (def & attributes  .~ attrs)
-  meridian0 :: Event t Meridian <- liftM (fmap (const $ thd3 twelveHrTime)) getPostBuild
-  meridian :: Dynamic t Meridian <- liftM value $ enumDropdown showPretty (def & attributes .~ attrs & setValue .~ meridian0)
+  let meridian0 = thd3 twelveHrTime
+  meridian :: Dynamic t Meridian <- liftM value $ enumDropdown' meridian0 showPretty (def & attributes .~ attrs)
   milHour <- combineDyn (\h m -> case m of
                                       AM -> if h == 12 then 0 else h
                                       PM -> if h == 12 then 12 else h + 12) hour meridian
@@ -167,31 +167,32 @@ mainlandUSTimeZone tzMap cfg = do
   selection <- mapDyn (valueMap Map.!) =<< toggleButtonStrip "btn-xs" 3 labelMap
   mapDyn (tzMap Map.!) selection
 
--- TODO: The fact that the popup calendar doesn't cancel when you click elsewhere on the page kind of feels bad, but I have no idea how to approach fixing that. 
 utcTimeInputMini :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
 utcTimeInputMini tz0 tzWidget t = do
-  rec let timeShown = traceEvent "timeShown" $ attachWith (\tz -> showDateTime' tz) (current tzD) time
+  rec timeShown <- combineDyn (\tz t -> showDateTime' tz t) tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
-                        & textInputConfig_setValue .~ timeShown
-                        & textInputConfig_initialValue .~ (showDateTime' tz0) t
-        isOpen <- holdDyn False $ leftmost [fmap (const False) time, fmap (const True) (domEvent Click e'), fmap (const False) close]
-        attrs' :: Dynamic t (Map String String) <- mapDyn (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
+                             & textInputConfig_setValue .~ updated timeShown
+                             & textInputConfig_initialValue .~ (showDateTime' tz0) t
+        isOpen <- holdDyn False $ leftmost [fmap (const True) (domEvent Click e'), fmap (const False) close]
+        attrs' :: Dynamic t (Map String String) <- mapDyn (\x -> if x then "class" =: "dropdown-menu"
+                                                                        <> "style" =: "width: auto; position: absolute; display: block;"
+                                                                      else "class" =: "dropdown-menu")
+                                                          isOpen
         return attrs'
-      (time, close, tzD) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") -- this helps the popup appear in the correct location, 
-                          . elDynAttr "div" attrs $ do                                              -- while not affecting the layout of the page when invisible
-        d <- dayInput (localDay $ utcToLocalTime' tz0 t)
-        lt <- divClass "form-inline text-center" $ do
-          t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
-          lt <- combineDyn (\day t'' -> LocalTime day t'') d t'
-          return lt
-        tzD <- elAttr "div" ("style" =: "padding-top: 5px") $ tzWidget
-        elAttr "div" ("class" =: "btn-group" <> "style" =: "padding-top: 5px; width: 50%; left: 5%; float: left") $ do
-          (a, _) <- elAttr' "a" ("class" =: "btn btn-primary btn-sm width50") (icon "check")
-          (x, _) <- elAttr' "a" ("class" =: "btn btn-default btn-sm width50") (icon "times")
-          return (attachWith (\tz -> localTimeToUTC' tz) (current tzD) . tag (current lt) $ domEvent Click a, domEvent Click x, tzD)
-  holdDyn t time
+      (timeD, tzD, close) <- elDynAttr "div" attrs $ do
+        close <- liftM (domEvent Click . fst) $ elAttr' "div" ("class" =: "modal-background" <> "style" =: "position:fixed; background-color: rgba(0,0,0,0)") $ return ()
+        elAttr "div" ("style" =: "z-index:20; position:relative") $ do
+          rec ltD <- divClass "form-inline text-center" $ do
+                t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
+                ltD <- combineDyn (\day t'' -> LocalTime day t'') d t'
+                return ltD
+              tzD <- elAttr "div" ("style" =: "padding-top: 5px") $ tzWidget
+              d <- dayInput (localDay $ utcToLocalTime' tz0 t)
+              timeD <- combineDyn (\tz lt -> localTimeToUTC' tz lt) tzD ltD
+          return (timeD, tzD, close)
+  return timeD
 
 --TODO better way to sort lists
 mapSort :: (Ord k, Ord s) => (v -> s) -> SortOrder -> Map k v -> Map (Int,k) v

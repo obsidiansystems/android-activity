@@ -41,10 +41,13 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    return response
 
 enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
-enumDropdown f cfg = do
+enumDropdown = enumDropdown' minBound 
+
+enumDropdown' :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => k -> (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
-  dropdown minBound (constDyn xMap) cfg
+  dropdown d (constDyn xMap) cfg
 
 data ListEdit = InsertBefore | Delete | InsertAfter deriving (Eq, Ord, Show, Read)
 
