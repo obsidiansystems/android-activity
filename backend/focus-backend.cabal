@@ -15,6 +15,7 @@ library
 
   build-depends:
     focus-core,
+    focus-http,
     aeson,
     base,
     bytestring,
@@ -79,7 +80,6 @@ library
     , Focus.Backend.Snap
     , Focus.Backend.Route
     , Focus.Backend.Brand
-    , Focus.Backend.HTTP.Accept
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

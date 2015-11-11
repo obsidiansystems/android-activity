@@ -1,34 +1,24 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings #-}
 module Focus.Backend.Snap where
 
-import Focus.Backend.HTTP.Accept
+import Focus.HTTP.Serve
 
 import Snap
 import Snap.Util.FileServe
-import System.FilePath
-import Data.String
-import Data.Monoid
-import Lucid
-import Diagrams.Prelude (Diagram, renderDia, mkWidth)
-import Diagrams.Backend.SVG
-import Data.Default
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Text.Encoding
+
 import Control.Lens
-import Text.RawString.QQ
-import Control.Exception (try)
-import System.IO.Error
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Control.Monad.IO.Class
-import System.Directory
-import System.Posix (getFileStatus, fileSize)
-import Control.Monad
-import Data.List
+import Data.Default
+import Data.Monoid
+import Data.String
+import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding
-import Data.Attoparsec.ByteString (parseOnly, endOfInput)
+import Diagrams.Prelude (Diagram, renderDia, mkWidth)
+import Diagrams.Backend.SVG
+import Lucid
+import System.FilePath
+import Text.RawString.QQ
 
 error404 :: MonadSnap m => m ()
 error404 = do
@@ -42,16 +32,6 @@ ensureSecure port h = do
     uri <- getsRequest rqURI
     host <- getsRequest rqServerName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
-
-doNotCache :: MonadSnap m => m ()
-doNotCache = do
-  modifyResponse $ setHeader "Cache-Control" "no-cache, no-store, must-revalidate" 
-  modifyResponse $ setHeader "Expires" "0"
-
-cachePermanently :: MonadSnap m => m ()
-cachePermanently = do
-  modifyResponse $ setHeader "Cache-Control" "public, max-age=315360000"
-  modifyResponse $ setHeader "Expires" "Tue, 01 Feb 2050 00:00:00 GMT" --TODO: This should be set to "approximately one year from the time the response is sent"
 
 data AppConfig
    = AppConfig { _appConfig_logo :: Diagram SVG
@@ -119,44 +99,5 @@ serveIndex cfg = do
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
       script_ [type_ "text/javascript", src_ (T.pack "all.js"), defer_ "defer"] ("" :: String)
-
-serveAssets :: MonadSnap m => FilePath -> m ()
-serveAssets = serveAssets' True
-
-serveAssetsInPlace :: MonadSnap m => FilePath -> m ()
-serveAssetsInPlace = serveAssets' False
-
-serveAssets' :: MonadSnap m => Bool -> FilePath -> m ()
-serveAssets' doRedirect base = do
-  pRaw <- getSafePath
-  let go p = do
-        assetType <- liftIO $ try $ BS.readFile $ base </> p </> "type"
-        case assetType of
-          Right "immutable" -> do
-            encodedFiles <- liftM (filter (`notElem` [".", ".."])) $ liftIO $ getDirectoryContents $ base </> p </> "encodings"
-            availableEncodings <- liftM (map snd . sort) $ forM encodedFiles $ \f -> do
-              stat <- liftIO $ getFileStatus $ base </> p </> "encodings" </> f
-              return (fileSize stat, Encoding $ encodeUtf8 $ T.pack f)
-            acceptEncodingRaw <- getsRequest $ getHeader "Accept-Encoding"
-            ae <- case acceptEncodingRaw of
-              Nothing -> return missingAcceptableEncodings
-              Just aer -> case parseOnly (acceptEncodingBody <* endOfInput) aer of
-                Right ae -> return ae
-            Just (Encoding e) <- return $ chooseEncoding availableEncodings ae
-            modifyResponse $ setHeader "Content-Encoding" e . setHeader "Vary" "Accept-Encoding"
-            if doRedirect then cachePermanently else doNotCache --TODO: Use Etags when not redirecting
-            let finalFilename = base </> p </> "encodings" </> T.unpack (decodeUtf8 e)
-            stat <- liftIO $ getFileStatus finalFilename
-            modifyResponse $ setResponseCode 200 . setContentLength (fromIntegral $ fileSize stat) . setContentType (fileType defaultMimeTypes p)
-            sendFile finalFilename
-          Right "redirect" -> do
-            target <- liftIO $ BS.readFile $ base </> p </> "target"
-            if doRedirect
-              then do
-                doNotCache
-                redirect target
-              else go $ takeDirectory p </> T.unpack (decodeUtf8 target)
-          Left err | isDoesNotExistError err -> pass
-  go $ if "/" `isSuffixOf` pRaw || pRaw == "" then pRaw <> "index.html" else pRaw
 
 makeLenses ''AppConfig

@@ -239,7 +239,7 @@ let
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
         version = "0.8.3";
       });
-      focus-backend = self.callPackage ({mkDerivation, groundhog, groundhog-th, mtl, focus-core, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-svg, raw-strings-qq, attoparsec}: mkDerivation {
+      focus-backend = self.callPackage ({mkDerivation, groundhog, groundhog-th, mtl, focus-core, focus-http, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-svg, raw-strings-qq, attoparsec}: mkDerivation {
         pname = "focus-backend";
         license = null;
         version = "0.1";
@@ -249,6 +249,7 @@ let
           groundhog-th
           mtl
           focus-core
+          focus-http
           lens
           aeson
           snap
@@ -276,6 +277,19 @@ let
         ];
         pkgconfigDepends = [
           myPostgres
+        ];
+      }) {};
+      focus-http = self.callPackage ({mkDerivation, attoparsec, snap, text}: mkDerivation {
+        pname = "focus-http";
+        license = null;
+        version = "0.1";
+        src = ./http;
+        buildDepends = [
+          attoparsec
+          snap
+          text
+        ];
+        pkgconfigDepends = [
         ];
       }) {};
       singletons = self.mkDerivation ({

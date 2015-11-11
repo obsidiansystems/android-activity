@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
-module Focus.Backend.HTTP.Accept where
+module Focus.HTTP.Accept where
 
 import Prelude hiding (takeWhile)
 
