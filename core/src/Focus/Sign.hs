@@ -2,8 +2,6 @@
 module Focus.Sign where
 
 import Data.Text
-import Data.Time
-import Data.ByteString (ByteString)
 import Data.Typeable
 import Data.Aeson
 import Control.Monad.Reader

@@ -5,22 +5,15 @@ import Focus.Backend.Schema.TH
 import Focus.Schema
 
 import Focus.Request
-import Snap hiding (get)
+import Snap
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Control.Exception (evaluate)
-import Data.Int
-import Control.Lens
-import Data.Pool
 import Database.Groundhog
-import Database.Groundhog.Core hiding (Proxy (..))
-import Database.Groundhog.Expression
+import Database.Groundhog.Core
 import Database.Groundhog.Generic
-import Database.Groundhog.Instances
-import Data.Text (Text)
+import Database.Groundhog.Instances ()
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Data.Time
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Arrow
@@ -35,8 +28,6 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 import Database.Groundhog.Postgresql
 import Data.String
 import Data.ByteString (ByteString)
-import Data.Proxy
-import Data.Maybe
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
@@ -79,22 +70,22 @@ handleListen a listeners l runGroundhog = ifTop $ do
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     senderThread <- forkIO $ do
-      let send = sendTextData conn . encode
-      send startingValues
+      let send' = sendTextData conn . encode
+      send' startingValues
       forever $ do
         (PerClientListener change) <- atomically $ readTChan changes
         change' <- runGroundhog $ change a
-        send change'
+        send' change'
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
     handleConnectionException $ forever $ receiveDataMessage conn
     killThread senderThread
 
-listenDB :: forall a n. Listeners a n -> (forall a. (PG.Connection -> IO a) -> IO a) -> IO (TChan (PerClientListener a n), IO ())
-listenDB listeners withConn = do
+listenDB :: forall a n. Listeners a n -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan (PerClientListener a n), IO ())
+listenDB listeners withConn' = do
   nChan <- newBroadcastTChanIO
-  daemonThread <- forkIO $ withConn $ \conn -> do
+  daemonThread <- forkIO $ withConn' $ \conn -> do
     forM_ (Map.keys listeners) $ \k -> do
       let cmd = fromString $ "LISTEN " <> show k
       execute_ conn cmd
@@ -103,6 +94,6 @@ listenDB listeners withConn = do
       case Map.lookup channel listeners of
         Nothing -> putStrLn $ "listenDB: received message from unknown channel: " <> show channel
         Just l -> do
-          translation <- withConn $ (runDbConn $ tableListenerGetUpdate l $ LBS.fromStrict message) . Postgresql
+          translation <- withConn' $ (runDbConn $ tableListenerGetUpdate l $ LBS.fromStrict message) . Postgresql
           atomically $ writeTChan nChan translation
   return (nChan, killThread daemonThread)

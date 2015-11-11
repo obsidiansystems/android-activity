@@ -1,24 +1,13 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, UndecidableInstances, ConstraintKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Schema.TH where
 
 import Focus.Schema
 
---import Data.Text (Text)
---import qualified Data.Text as T
---import Data.Time
---import Database.Groundhog
-import Database.Groundhog.Core hiding (Proxy)
---import Database.Groundhog.TH
---import Data.Aeson.TH
---import Control.Monad
---import Data.Aeson
---import Control.Applicative
 import Data.Int
---import Data.Map (Map)
---import qualified Data.Map as Map
-import Language.Haskell.TH
 import Data.Proxy
-import Data.Monoid
+import Database.Groundhog.Core
+import Language.Haskell.TH
 
 class HasId a => DefaultKeyId a where
   toIdData :: Proxy a -> DefaultKey a -> IdData a

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Account where
 
 import Focus.Backend.DB

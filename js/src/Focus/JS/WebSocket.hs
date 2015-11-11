@@ -5,16 +5,14 @@ module Focus.JS.WebSocket where
 import Focus.Request
 
 import Prelude hiding (div, span, mapM, mapM_, concat, concatMap, all, sequence)
-import qualified Prelude
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.IO.Class
 import Control.Concurrent
 import Data.Semigroup hiding (option)
-import Data.Dependent.Map (DMap, GCompare (..), GOrdering (..), DSum (..))
+import Data.Dependent.Map (DSum (..))
 import Data.ByteString (ByteString)
 import qualified Data.Text as T
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Control.Monad.Ref
 import Data.Text.Encoding
@@ -28,19 +26,16 @@ import Data.Default
 import Data.IORef
 import Control.Lens
 
-import Data.Aeson (encode, decodeStrict', toJSON, parseJSON, FromJSON, fromJSON)
+import Data.Aeson (encode, decodeStrict', FromJSON, fromJSON)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (Parser, parse)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State
-import Control.Applicative
-import Data.Align
-import Data.These
 import Data.Constraint
 
-import Foreign.Ptr
 import Foreign.JavaScript.TH
+
+import Debug.Trace.LocationTH
 
 {-
 #ifdef __GHCJS__
@@ -131,6 +126,7 @@ webSocket path config = do
         "http:" -> "ws:"
         "https:" -> "wss:"
         "file:" -> "ws:"
+        s -> $failure ("unrecognized wsProtocol: " <> s)
       wsHost = case pageProtocol of
         "file:" -> "localhost:8000"
         _ -> pageHost
@@ -197,9 +193,10 @@ apiSocket path batches = do
               EQ -> do
                 let finishedResponses = Just $ ffor' requests $ \(With' l' (req :: req z)) ->
                       let Just rspRaw = Map.lookup l' responses'
-                          Aeson.Success rsp = fromJSONViaAllArgsHave req rspRaw
-                      in rsp
+                          Aeson.Success rsp' = fromJSONViaAllArgsHave req rspRaw
+                      in rsp'
                 return (finishedResponses, at (n, m) .~ Nothing)
+              GT -> $undef
           result = fmapMaybe fst change
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)

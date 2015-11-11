@@ -2,8 +2,6 @@
 
 module Focus.Backend.DB where
 
-import Focus.Brand
-import Focus.Route
 import Focus.Schema
 import Focus.Backend.Schema.TH
 
@@ -23,8 +21,6 @@ import Control.Arrow
 import Data.Pool
 import Database.PostgreSQL.Simple
 import Database.Groundhog.Postgresql
-import Database.Groundhog.Core
-import Control.Monad
 import Control.Monad.Trans.Control
 import Control.Monad.Logger
 import Control.Monad.IO.Class
@@ -42,6 +38,8 @@ selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
              t -> a -> m (Map (Id v) v)
 --selectMap :: (PersistBackend m, PersistEntity v, EntityConstr v c, Constructor c, Projection (c (ConstructorMarker v)) (PhantomDb m) (RestrictionHolder v c) v, HasSelectOptions opts (PhantomDb m) (RestrictionHolder v c), AutoKey v ~ DefaultKey v, DefaultKeyId v, Ord (IdData v)) => c (ConstructorMarker v) -> opts -> m (Map (Id v) v)
 selectMap constr = liftM (Map.fromList . map (first toId)) . project (AutoKeyField, constr)
+
+fieldIsJust, fieldIsNothing :: (NeverNull a, Expression db r f, PrimitivePersistField a, Projection f (Maybe a), Unifiable f (Maybe a)) => f -> Cond db r
 
 --fieldIsNothing :: forall db r a b x. (r ~ RestrictionHolder a x, EntityConstr a x, Expression db r (Maybe b), Unifiable (Field a x (Maybe b)) (Maybe b), NeverNull b, PrimitivePersistField b) => Field a x (Maybe b) -> Cond db r
 fieldIsNothing f = isFieldNothing f

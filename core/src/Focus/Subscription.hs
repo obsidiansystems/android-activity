@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, DeriveDataTypeable, DefaultSignatures, FlexibleContexts, StandaloneDeriving, UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Subscription where
 
 import Focus.Schema

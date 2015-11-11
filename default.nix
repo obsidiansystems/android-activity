@@ -72,7 +72,7 @@ let
          description = "Heterogeneous lists";
          license = stdenv.lib.licenses.mit;
        }) { inherit (pkgs) diffutils;};
-    focus-core = self.callPackage ({mkDerivation, aeson, attoparsec, base64-bytestring, stripe, text, time, vector, network-uri, timezone-series, constraints, dependent-map, reflex, HList, file-embed, data-default}: mkDerivation {
+    focus-core = self.callPackage ({mkDerivation, aeson, attoparsec, base64-bytestring, stripe, text, time, vector, network-uri, timezone-series, constraints, dependent-map, reflex, HList, file-embed, data-default, loch-th}: mkDerivation {
       pname = "focus-core";
       license = null;
       version = "0.1";
@@ -93,14 +93,15 @@ let
         HList
         file-embed
         data-default
+        loch-th
       ];
     }) {};
-    focus-js = self.callPackage ({mkDerivation, focus-core, reflex, reflex-dom, aeson, attoparsec, text, time, vector, ghcjs-dom, constraints, timezone-series, timezone-olson, raw-strings-qq}: mkDerivation {
+    focus-js = self.callPackage ({mkDerivation, focus-core, reflex, loch-th, reflex-dom, aeson, attoparsec, text, time, vector, ghcjs-dom, constraints, timezone-series, timezone-olson, raw-strings-qq}: mkDerivation {
       license = null;
       pname = "focus-js";
       version = "0.1";
       src = ./js;
-      buildDepends = [ focus-core reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq ];
+      buildDepends = [ focus-core loch-th reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq ];
     }) {};
     dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
       version = "0.0.0.4";
@@ -239,7 +240,7 @@ let
         buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ];
         version = "0.8.3";
       });
-      focus-backend = self.callPackage ({mkDerivation, groundhog, groundhog-th, mtl, focus-core, focus-http, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-svg, raw-strings-qq, attoparsec}: mkDerivation {
+      focus-backend = self.callPackage ({mkDerivation, loch-th, groundhog, groundhog-th, mtl, focus-core, focus-http, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-svg, raw-strings-qq, attoparsec}: mkDerivation {
         pname = "focus-backend";
         license = null;
         version = "0.1";
@@ -274,12 +275,13 @@ let
           diagrams-svg
           raw-strings-qq
           attoparsec
+          loch-th
         ];
         pkgconfigDepends = [
           myPostgres
         ];
       }) {};
-      focus-http = self.callPackage ({mkDerivation, attoparsec, snap, text}: mkDerivation {
+      focus-http = self.callPackage ({mkDerivation, loch-th, attoparsec, snap, text}: mkDerivation {
         pname = "focus-http";
         license = null;
         version = "0.1";
@@ -288,6 +290,7 @@ let
           attoparsec
           snap
           text
+          loch-th
         ];
         pkgconfigDepends = [
         ];
@@ -417,7 +420,7 @@ let
     backend =
       let
         backendCommon = common backendHaskellPackages;
-      in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-backend}: mkDerivation (rec {
+      in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-http, focus-core, focus-backend}: mkDerivation (rec {
         pname = "${appName}-backend";
         license = null;
         version = appVersion;
@@ -429,7 +432,7 @@ let
         buildDepends = [
           backendCommon
           vector-algorithms
-          focus-core focus-backend
+          focus-core focus-backend focus-http
         ] ++ backendDepends backendHaskellPackages;
         buildTools = [] ++ backendTools pkgs;
         isExecutable = true;

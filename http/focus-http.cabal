@@ -20,6 +20,7 @@ library
     , containers
     , directory
     , filepath
+    , loch-th
     , snap
     , snap-core
     , text
@@ -30,4 +31,4 @@ library
       Focus.HTTP.Serve
 
   other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
+  ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

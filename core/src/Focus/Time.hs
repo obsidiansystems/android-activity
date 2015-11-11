@@ -4,23 +4,24 @@ module Focus.Time where
 import Focus.Misc
 import Focus.Schema
 import Data.Time
-import System.Locale hiding (defaultTimeLocale)
-import Data.Time.Format hiding (defaultTimeLocale)
-import Data.Time.Clock
 import Data.Time.Calendar.WeekDate
 import Data.Time.LocalTime.TimeZone.Series
 import Data.Fixed
 
+formatTime' :: String -> TimeZoneSeries -> UTCTime -> String
 formatTime' s tz t = formatTime defaultTimeLocale s $ ZoneSeriesTime t tz
 
+showTime' :: TimeZoneSeries -> UTCTime -> String
 showTime' = formatTime' "%l:%M%p %Z"
 
+showDateTime' :: TimeZoneSeries -> UTCTime -> String 
 showDateTime' = formatTime' "%D %l:%M%p %Z"
 
+maybeShowTime' :: TimeZoneSeries -> String -> Maybe UTCTime -> String
 maybeShowTime' tz s = maybe s (\t -> showTime' tz t)
 
 dateTimeInputToUTCTime :: TimeZoneSeries -> String -> Maybe UTCTime
-dateTimeInputToUTCTime tz s = fmap (zoneSeriesTimeToUTC . localTimeToZoneSeriesTime tz) $ parseTime defaultTimeLocale "%FT%k:%M" $ s
+dateTimeInputToUTCTime tz s = fmap (zoneSeriesTimeToUTC . localTimeToZoneSeriesTime tz) $ parseTimeM True defaultTimeLocale "%FT%k:%M" $ s
 
 utcTimeToDateTimeInputValue :: TimeZoneSeries -> UTCTime -> String
 utcTimeToDateTimeInputValue tz t = formatTime' "%Y-%m-%dT%R" tz t
@@ -81,6 +82,7 @@ intToWeekDay :: Int -> WeekDay
 intToWeekDay i = if i < 1 || i > 7 then error "intToWeekDay: Int out of range"
                                    else if i == 7 then toEnum 0 else toEnum i
 
+paddingZero :: (Num a, Ord a, Show a) => a -> [Char]
 paddingZero n = if n >= 0 && n <10 then "0" ++ show n else show n
 
 dayToMonth :: Day -> Month
@@ -93,7 +95,7 @@ dayToYear :: Day -> Integer
 dayToYear = fst3 . toGregorian
 
 setDayDate :: Int -> Day -> Day
-setDayDate i = (\(y, m, dd) -> fromGregorian y m i) . toGregorian
+setDayDate i = (\(y, m, _) -> fromGregorian y m i) . toGregorian
 
 dayToMonthLength :: Day -> Int
 dayToMonthLength = (\(y, m, _) -> gregorianMonthLength y m) . toGregorian

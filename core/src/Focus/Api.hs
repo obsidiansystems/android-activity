@@ -1,4 +1,4 @@
-{-# LANGUAGE PolyKinds, GADTs, ScopedTypeVariables #-}
+{-# LANGUAGE PolyKinds, GADTs, ScopedTypeVariables, TemplateHaskell #-}
 module Focus.Api where
 
 import Data.Aeson
@@ -6,6 +6,8 @@ import Focus.Account
 import Focus.Request
 import Focus.Sign
 import Data.HList
+
+import Debug.Trace.LocationTH
 
 data ApiRequest :: (k -> *) -> (k -> *) -> k -> * where
   ApiRequest_Public :: public a -> ApiRequest public private a
@@ -24,6 +26,6 @@ instance (Request private, Request public) => Request (ApiRequest public private
       ("Private"::String) -> do
         token `HCons` SomeRequest p `HCons` HNil <- parseJSON body
         return $ SomeRequest $ ApiRequest_Private token p
-      e -> error $ "Could not parse tag: " ++ e
+      e -> $failure $ "Could not parse tag: " ++ e
 
 

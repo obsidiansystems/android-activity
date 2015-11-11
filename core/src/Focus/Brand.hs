@@ -5,7 +5,6 @@ import Focus.Request
 import Data.Text (Text)
 import qualified Data.Text as T
 import Control.Monad
-import Control.Applicative
 import Control.Monad.Reader
 
 data Brand

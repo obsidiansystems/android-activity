@@ -1,22 +1,16 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies #-}
 module Focus.Route where
 
-import Focus.Account
 import Focus.Brand
-import Focus.Sign
 
-import Focus.Request
-import Network.URI
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
-import Data.Text.Encoding
-import Data.Aeson
-import Data.Monoid
-import Control.Applicative
-import Control.Monad
 import Control.Monad.Reader
-import Control.Monad.IO.Class
+import Data.Aeson
+import qualified Data.ByteString.Lazy as LBS
 import Data.Default
+import qualified Data.Text as T
+import Data.Monoid
+import Data.Text.Encoding
+import Network.URI
 
 class Monad m => MonadRoute r m | m -> r where
   routeToUrl :: r -> m URI

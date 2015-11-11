@@ -1,10 +1,9 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts, TypeFamilies, UndecidableInstances #-}
-module Focus.Backend.Brand ( module Focus.Backend.Brand
-                           , module Focus.Brand
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+module Focus.Backend.Brand ( module Focus.Brand
                            ) where
 
 import Focus.Brand
-import Control.Monad.Trans
 import Control.Monad.Reader
 import Focus.Backend.TH
 

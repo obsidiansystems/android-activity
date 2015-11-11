@@ -1,34 +1,33 @@
 {-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving, DataKinds, TypeOperators, TypeFamilies, AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Request where
 
+import Control.Arrow
+import Control.Monad
+import Control.Monad.Identity
+import Control.Monad.State
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Parser
-import Data.ByteString (ByteString)
 import qualified Data.Attoparsec.Lazy as LA
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Language.Haskell.TH
-import Control.Monad
-import Control.Applicative
-import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Vector (Vector)
-import qualified Data.Vector as V
 import qualified Data.ByteString.Base64 as B64
-import Control.Monad.State
 import Data.Constraint
-import Control.Monad.Identity
-import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import qualified Data.Dependent.Map as DMap
+import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import Data.Functor.Misc
-import Reflex hiding (HList (..))
-import Control.Arrow
-import Data.Type.Equality
-import Data.Proxy
 import Data.HList
 import Data.List (isPrefixOf)
 import Data.Monoid
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Vector (Vector)
+import qualified Data.Vector as V
+import Language.Haskell.TH
 import Network.URI
+import Reflex hiding (HList (..))
+
+import Debug.Trace.LocationTH
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -76,14 +75,14 @@ vectorView v =
   else Nothing
 
 instance (FromJSON h, FromJSON (HList t)) => FromJSON (HList (h ': t)) where
-  parseJSON (Array v) = do
+  parseJSON = withArray "HList (a ': t)" $ \v -> do
     Just (aVal, v') <- return $ vectorView v
     a <- parseJSON aVal
     b <- parseJSON $ Array v'
     return $ HCons a b
 
 instance FromJSON (HList '[]) where
-  parseJSON (Array v) = do
+  parseJSON = withArray "HList '[]" $ \v -> do
     Nothing <- return $ vectorView v
     return HNil
 
@@ -108,13 +107,14 @@ makeRequest n = do
       cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       _ -> $undef
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(conT n) where
       requestToJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
       requestParseJSON v = do
-        (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
+        (tag', v') <- parseJSON v
+        $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
 -- | Extracts the name from a type variable binder.
@@ -131,17 +131,19 @@ makeJson n = do
       cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       _ -> $undef
       typeNames = map tvbName $ case x of
        (TyConI (DataD _ _ tvbs _ _)) -> tvbs
        (TyConI (NewtypeD _ _ tvbs _ _)) -> tvbs
+       _ -> $undef
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON $(foldl appT (conT n) $ map varT typeNames)   where
       toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
     instance FromJSON $(foldl appT (conT n) $ map varT typeNames) where
       parseJSON v = do
-        (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
+        (tag', v') <- parseJSON v
+        $(caseE [|tag' :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
     |]
 
 conParseJson :: (String -> String) -> (ExpQ -> ExpQ) -> ExpQ -> Con -> MatchQ
@@ -149,14 +151,7 @@ conParseJson modifyName wrapBody e c = do
   let name = conName c
   varNames <- replicateM (conArity c) $ newName "f"
   let fields = map varE varNames
-      f c' = case c' of
-        NormalC _ ts -> ts
-        RecC _ ts -> map (\(_, s, t) -> (s, t)) ts
-        InfixC t1 _ t2 -> [t1, t2]
-        ForallC _ _ c'' -> f c''
-  let ts = f c
-
-  let tuple = foldr (\a b -> conP 'HCons [varP a, b]) (conP 'HNil []) varNames
+      tuple = foldr (\a b -> conP 'HCons [varP a, b]) (conP 'HNil []) varNames
       body = doE [ bindS tuple [|parseJSON $e|]
                  , noBindS [|return $(appsE (conE name : fields))|]
                  ]
@@ -166,17 +161,10 @@ conToJson :: (String -> String) -> Con -> MatchQ
 conToJson modifyName c = do
   let name = conName c
       base = nameBase name
-      tag = modifyName base
+      tag' = modifyName base
   varNames <- replicateM (conArity c) $ newName "f"
-  let fields = map varE varNames
-      f c' = case c' of
-        NormalC _ ts -> ts
-        RecC _ ts -> map (\(_, s, t) -> (s, t)) ts
-        InfixC t1 _ t2 -> [t1, t2]
-        ForallC _ _ c'' -> f c''
-  let ts = f c
   let tuple = foldr (\a b -> appsE [conE 'HCons, varE a, b]) (conE 'HNil) varNames
-      body = [|toJSON (tag :: String, toJSON $tuple)|]
+      body = [|toJSON (tag' :: String, toJSON $tuple)|]
   match (conP name $ map varP varNames) (normalB body) []
 
 conName :: Con -> Name
@@ -264,6 +252,7 @@ makeJson' n = do
   let cons = case x of
        (TyConI (DataD _ _ _ cs _)) -> cs
        (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       _ -> $undef
       base = nameBase n
       toBeStripped = base <> "_"
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
@@ -273,8 +262,8 @@ makeJson' n = do
       toJSON' r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
     instance FromJSON' $(conT n) where
       parseJSON' v = do
-        (tag, v') <- parseJSON v
-        $(caseE [|tag :: String|] $ map (conParseJson modifyConName (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
+        (tag', v') <- parseJSON v
+        $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
 class AllArgsHave c f where
@@ -390,7 +379,7 @@ instance IncreaseHIndex t => IncreaseHIndex (h ': t) where
     Dict -> Dict
 
 instance Applicative m => Applicative (Blah t f g m) where
-  pure a = Blah $ \(es :: EventSelector t (HIndex '[])) -> pure (a, FHNil)
+  pure a = Blah $ \(_ :: EventSelector t (HIndex '[])) -> pure (a, FHNil)
   Blah (f :: BlahInternal t f g m (a -> b) l1) <*> Blah (x :: BlahInternal t f g m a l2) = case appendIncreaseHIndexInstance (Proxy :: Proxy l1) (Proxy :: Proxy l2) of
     Dict -> Blah $ \(es :: EventSelector t (HIndex (HAppendListR l1 l2))) ->
       let combine (fResult, fHList) (xResult, xHList) = (fResult xResult, fHList `fhAppend` xHList)

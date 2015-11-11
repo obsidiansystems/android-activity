@@ -6,7 +6,6 @@ import Foreign.JavaScript.TH
 import Reflex.Dom
 
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Binary.Get
@@ -29,5 +28,3 @@ createDynamicTime = do
   pb <- getPostBuild
   tn <- performEventAsync $ fmap (\_ cb -> liftIO $ void $ forkIO $ forever $ threadDelay 1000000 >> getCurrentTime >>= cb) pb
   holdDyn t tn
-
-

@@ -2,7 +2,6 @@
 module Focus.JS.Route where
 
 import Foreign.JavaScript.TH
-import Focus.Route
 import Focus.Request
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding

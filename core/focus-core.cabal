@@ -38,6 +38,7 @@ library
                , file-embed
                , filepath
                , data-default
+               , loch-th
 
   exposed-modules:
       Focus.Account
@@ -55,4 +56,4 @@ library
     , Control.Monad.TypedUnique
 
   other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
+  ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

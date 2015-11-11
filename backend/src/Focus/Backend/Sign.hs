@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, GeneralizedNewtypeDeriving, ScopedTypeVariables, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, UndecidableInstances, OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Sign where
 
 import Focus.Sign
@@ -18,6 +19,7 @@ import Data.Typeable
 import Data.Text.Encoding
 import Control.Monad.Trans.Maybe
 
+signWithKey :: (Typeable b, ToJSON b, MonadIO m) => CS.Key -> b -> m (Signed a)
 signWithKey k (v :: b) = do
   liftIO $ liftM (Signed . decodeUtf8) $ CS.encryptIO k $ LBS.toStrict $ encode (show $ typeOf (undefined :: b), v)
 
@@ -30,6 +32,7 @@ readSignedWithKey k s = do
 
 newtype SignT m a = SignT { unSignT :: ReaderT CS.Key m a } deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MonadEmail, MonadRoute r, MonadBrand)
 
+runSignT :: SignT m a  -> CS.Key -> m a
 runSignT (SignT a) r = runReaderT a r
 
 instance (MonadIO m, MonadBase IO m) => MonadBase IO (SignT m) where

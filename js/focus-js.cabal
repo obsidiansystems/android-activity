@@ -26,6 +26,7 @@ library
     containers,
     time,
     ghcjs-dom,
+    loch-th,
     ref-tf,
     reflex,
     reflex-dom,
@@ -58,4 +59,4 @@ library
     Focus.JS.Widget
 
   other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
+  ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

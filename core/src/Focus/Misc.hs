@@ -1,5 +1,6 @@
 module Focus.Misc where
 
+isRight :: Either a b -> Bool
 isRight x = case x of
   Left _ -> False
   Right _ -> True
@@ -12,8 +13,14 @@ trisequence abc = case abc of
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a,b,c) = f a b c
 
+fst3 :: (a, b, c) -> a
 fst3 (a, _, _) = a
-snd3 (_, a, _) = a
-thd3 (_, _, a) = a
+
+snd3 :: (a, b, c) -> b
+snd3 (_, b, _) = b
+
+thd3 :: (a, b, c) -> c
+thd3 (_, _, c) = c
+
 
 

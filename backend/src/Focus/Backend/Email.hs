@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, GeneralizedNewtypeDeriving, ScopedTypeVariables, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, UndecidableInstances, OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Email where
 
 import Focus.Brand
@@ -13,15 +14,13 @@ import Data.Foldable
 import Text.Blaze.Html.Renderer.Text
 import Network.Mail.SMTP (sendMailWithLogin', simpleMail, Address (..), UserName, Password)
 import Control.Monad.IO.Class
-import Control.Monad
 import Control.Monad.Reader
 import Data.Monoid
 import Network.Socket (PortNumber, HostName)
 import Data.Aeson
 import Data.Word
-import Text.Blaze.Html.Renderer.Text
 import Text.Blaze.Html5.Attributes
-import Text.Blaze.Html5 (Html, (!))
+import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import Focus.TH (embedFile)
@@ -53,15 +52,16 @@ instance MonadIO m => MonadEmail (EmailT m) where
 instance MonadEmail m => MonadEmail (ReaderT r m) where
   sendMail = lift . sendMail
 
+runEmailT :: EmailT m a -> EmailEnv -> m a
 runEmailT = runReaderT . unEmailT
 
 sendEmailFrom :: MonadEmail m => Text -> Text -> NonEmpty Text -> Text -> Html -> m ()
-sendEmailFrom name email recipients subject body = sendMail $ simpleMail (Address (Just name) email) (map (Address Nothing) $ toList recipients) [] [] subject [(htmlPart $ renderHtml body)]
+sendEmailFrom name' email recipients sub body = sendMail $ simpleMail (Address (Just name') email) (map (Address Nothing) $ toList recipients) [] [] sub [(htmlPart $ renderHtml body)]
 
 sendEmailDefault :: (MonadEmail m, MonadBrand m) => NonEmpty Text -> Text -> Html -> m ()
-sendEmailDefault recipients subject body = do
+sendEmailDefault recipients sub body = do
   b <- getBrand
-  sendEmailFrom (_brand_defaultEmailName b) (_brand_defaultEmail b) recipients subject body
+  sendEmailFrom (_brand_defaultEmailName b) (_brand_defaultEmail b) recipients sub body
 
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
 
@@ -87,8 +87,8 @@ emailTemplate titleHtml leadHtml contentHtml = do
           H.a ! A.href (fromString $ show indexLink) $ H.toHtml pn
 
 tableSection :: Html -> [(Html, Html)] -> Html
-tableSection titleText rows = do
+tableSection titleText rows' = do
   H.tr $ H.td $ H.h2 $ titleText
-  forM_ rows $ \(title, content) -> H.tr $ do
-    H.td title
-    H.td content
+  forM_ rows' $ \(title', content') -> H.tr $ do
+    H.td title'
+    H.td content'

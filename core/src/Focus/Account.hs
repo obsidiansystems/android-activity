@@ -3,7 +3,6 @@ module Focus.Account where
 
 import Focus.Schema
 import Focus.Request
-import Data.Text
 import Data.Time
 import Data.ByteString (ByteString)
 import Data.Typeable

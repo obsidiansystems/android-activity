@@ -2,8 +2,6 @@
 module Focus.JS.Widget where
 
 import Reflex.Dom
-import qualified Data.Foldable as F
-import Data.Ratio
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad
@@ -19,9 +17,9 @@ selectViewListWithKey selection vals mkChild = do
   selectChild <- listWithKey vals $ \k v -> do
     selected <- getDemuxed selectionDemux (Just k)
     selectSelf <- mkChild k v selected
-    let selection = fmap (\case False -> Just k; True -> Nothing) (current selected) -- the delay here is important!
-    return $ attach selection selectSelf
-  liftM (fmap (\case (Nothing, v) -> Nothing; (Just k, v) -> Just (k,v)) . switchPromptlyDyn) $ mapDyn (leftmost . Map.elems) selectChild
+    let selection' = fmap (\case False -> Just k; True -> Nothing) (current selected) -- the delay here is important!
+    return $ attach selection' selectSelf
+  liftM (fmap (\case (Nothing, _) -> Nothing; (Just k, v) -> Just (k,v)) . switchPromptlyDyn) $ mapDyn (leftmost . Map.elems) selectChild
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)

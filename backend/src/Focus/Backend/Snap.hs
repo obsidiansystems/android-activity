@@ -8,11 +8,9 @@ import Snap.Util.FileServe
 
 import Control.Lens
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.Default
 import Data.Monoid
 import Data.String
-import Data.Text (Text)
 import qualified Data.Text as T
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG

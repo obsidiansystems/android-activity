@@ -25,7 +25,6 @@ import Control.Concurrent
 import System.IO.Error
 import System.Posix.Signals
 import System.Process.Internals
-import Data.Typeable
 
 import System.Environment
 import Language.Haskell.TH.Syntax
@@ -34,7 +33,7 @@ import Data.FileEmbed
 import System.IO.Temp
 import Paths_focus_backend
 
-import Debug.Trace
+import Debug.Trace.LocationTH
 
 initLocalPostgres :: FilePath -> IO ()
 initLocalPostgres dbDir = do
@@ -106,7 +105,8 @@ serveLocalPostgres dbDir = do
             | isAlreadyInUseError e
             -> do
               hPutStrLn stderr $ "Error: control socket already exists; that probably means that another instance of serveLocalPostgres is already running"
-              throwIO e
+              $checkIO $ throwIO e
+            | otherwise -> $checkIO $ throwIO e
   bracket createSocket (\_ -> removeFile socketPath) $ \_ -> do
     -- Between bind and listen, the socket will be in a non-accepting state; this should last a very brief time, so the client should just briefly wait and then retry
     listen controlSocket 128
@@ -151,6 +151,7 @@ withLocalPostgres dbDir a = do
                   hClose serverIn
                   hGetLine serverOut
                   acquire -- Try again
+            | otherwise -> $checkIO $ throwIO e
   bracket_ acquire (shutdown s ShutdownBoth >> sClose s) $ do
     dbUri <- getLocalPostgresConnectionString $ dbDir </> "db"
     a dbUri
@@ -172,10 +173,10 @@ withIoProc = $(do
                  [| \n x io -> io $ proc ghcPath $ strippedArgs ++ ["-e", showName n ++ " (read " ++ show (show x) ++ ")"] |]
          else do let extractPackageDBs [] = []
                      extractPackageDBs ("-package-db" : db : t) = db : extractPackageDBs t
-                     extractPackageDBs (h : t) = extractPackageDBs t
+                     extractPackageDBs (_ : t) = extractPackageDBs t
                      extractPackages [] = []
                      extractPackages ("-package-id" : p : t) = p : extractPackages t
-                     extractPackages (h : t) = extractPackages t
+                     extractPackages (_ : t) = extractPackages t
                  libDir <- runIO getLibDir
                  runIO $ print args
                  packageDBTars <- runIO $ forM (extractPackageDBs args) $ \db -> do

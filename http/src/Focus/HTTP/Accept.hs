@@ -15,10 +15,7 @@ import Data.Monoid
 import Data.Fixed
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Either
-import Data.Tuple
 import Control.Arrow
 import Data.List
 import Data.String
@@ -32,6 +29,7 @@ newtype QValue = QValue { unQValue :: Fixed QValueResolution } deriving (Show, R
 -- | When no Accept-encoding header is present, prefer identity, then gzip or compress, then anything else available
 --
 -- See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
+missingAcceptableEncodings :: AcceptableEncodings
 missingAcceptableEncodings = AcceptableEncodings
   { _acceptableEncodings_defaultQValue = QValue 0.001
   , _acceptableEncodings_byEncoding = Map.fromList
@@ -48,7 +46,7 @@ data AcceptableEncodings
    deriving (Show, Read, Eq, Ord)
 
 chooseEncoding :: [Encoding] -> AcceptableEncodings -> Maybe Encoding
-chooseEncoding es ae = fmap snd $ listToMaybe $ sort $ catMaybes $ zipWith f es [1..]
+chooseEncoding es ae = fmap snd $ listToMaybe $ sort $ catMaybes $ zipWith f es [(1::Int)..]
   where f e n = case encodingQValue e ae of
           QValue 0 -> Nothing
           q -> Just ((Down q, n), e) -- Choose by quality first (in descending order), then by the server's preference order
@@ -142,7 +140,7 @@ starRule minNum maxNum element = do
     Nothing -> many' element
     Just n -> do
       let countUpTo 0 _ = return []
-          countUpTo n a = liftM2' (:) a (countUpTo (pred n) a) <|> return []
+          countUpTo m a = liftM2' (:) a (countUpTo (pred m) a) <|> return []
       countUpTo (n - numMandatory) element
   return $ mandatoryVals ++ optionalVals
 
@@ -163,7 +161,7 @@ hashRule minNum maxNum element = do
         if isInitial then void $ optional sep else sep
         liftM2' (:) (skipMany lws >> element) $ processMandatory False $ pred n
       processOptional :: Bool -> Maybe Int -> Parser [a]
-      processOptional isInitial (Just 0) = return []
+      processOptional _ (Just 0) = return []
       processOptional isInitial n = (<|> return []) $ do
         if isInitial then void $ optional sep else sep
         liftM2' (:) (skipMany lws >> element) $ processOptional False $ fmap pred n

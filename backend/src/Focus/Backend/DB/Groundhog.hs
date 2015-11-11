@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Various functions for making dealing with Groundhog more pleasant
 module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
                                   , module Database.Groundhog
@@ -11,7 +12,6 @@ import Focus.TH
 import Database.Groundhog.Postgresql as DB
 import Database.Groundhog
 import Database.Groundhog.Core
-import Database.Groundhog.Core as DB
 import Database.Groundhog.TH
 import Database.Groundhog.TH.Settings
 import Language.Haskell.TH
@@ -36,22 +36,22 @@ mkFocusPersist migrationFunctionName = mkPersist $ defaultCodegenConfig
   , namingStyle =
     let ns = namingStyle defaultCodegenConfig
         dropPrefix p x = if p `isPrefixOf` x then drop (length p) x else error $ "mkFocusPersist: dropPrefix: expected string with prefix " <> show p <> ", got string " <> show x
-    in ns { mkDbFieldName = \typeName conName conPos fieldName fieldPos ->
-             mkDbFieldName ns typeName conName conPos (dropPrefix ("_" <> (_head %~ toLower) typeName <> "_") fieldName) fieldPos
-          , mkExprFieldName = \typeName conName conPos fieldName fieldPos ->
-             mkExprFieldName ns typeName conName conPos (dropPrefix "_" fieldName) fieldPos
-          , mkExprSelectorName  = \typeName conName fieldName fieldPos ->
-             mkExprSelectorName ns typeName conName (dropPrefix "_" fieldName) fieldPos
+    in ns { mkDbFieldName = \typeName cN conPos fieldName fieldPos ->
+             mkDbFieldName ns typeName cN conPos (dropPrefix ("_" <> (_head %~ toLower) typeName <> "_") fieldName) fieldPos
+          , mkExprFieldName = \typeName cN conPos fieldName fieldPos ->
+             mkExprFieldName ns typeName cN conPos (dropPrefix "_" fieldName) fieldPos
+          , mkExprSelectorName  = \typeName cN fieldName fieldPos ->
+             mkExprSelectorName ns typeName cN (dropPrefix "_" fieldName) fieldPos
           }
   }
 
 -- | Apply the given function to field names before building Groundhog names based on them
 prefilterFieldsNamingStyle :: (String -> String) -> NamingStyle -> NamingStyle
 prefilterFieldsNamingStyle f ns = ns
-  { mkDbFieldName = \typeName conName conPos fieldName fieldPos ->
-      mkDbFieldName ns typeName conName conPos (f fieldName) fieldPos
-  , mkExprFieldName = \typeName conName conPos fieldName fieldPos ->
-      mkExprFieldName ns typeName conName conPos (f fieldName) fieldPos
+  { mkDbFieldName = \typeName cN conPos fieldName fieldPos ->
+      mkDbFieldName ns typeName cN conPos (f fieldName) fieldPos
+  , mkExprFieldName = \typeName cN conPos fieldName fieldPos ->
+      mkExprFieldName ns typeName cN conPos (f fieldName) fieldPos
   }
 
 popAllRows :: (PersistBackend m, PersistField b) => m (Maybe [PersistValue]) -> m [b]

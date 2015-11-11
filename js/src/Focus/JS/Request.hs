@@ -9,7 +9,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Aeson
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Monad
 import Foreign.JavaScript.TH
 import Focus.Request
@@ -114,7 +113,7 @@ asyncApi r f = do
   return ()
 
 requesting :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
-requesting requestE = performEventAsync $ fmap (\r yield -> liftJS $ asyncApi r yield) requestE
+requesting requestE = performEventAsync $ fmap (\r yield' -> liftJS $ asyncApi r yield') requestE
 
 requestingMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
 requestingMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do

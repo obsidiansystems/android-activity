@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Focus.HTTP.Serve where
 
 import Focus.HTTP.Accept
@@ -6,21 +6,21 @@ import Focus.HTTP.Accept
 import Snap
 import Snap.Util.FileServe
 
-import Control.Exception (try)
+import Control.Exception (try, throwIO)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Attoparsec.ByteString (parseOnly, endOfInput)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.List
 import Data.Monoid
-import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
 import System.Directory
 import System.FilePath
 import System.IO.Error
 import System.Posix (getFileStatus, fileSize)
+
+import Debug.Trace.LocationTH
 
 cachePermanently :: MonadSnap m => m ()
 cachePermanently = do
@@ -54,6 +54,7 @@ serveAssets' doRedirect base = do
               Nothing -> return missingAcceptableEncodings
               Just aer -> case parseOnly (acceptEncodingBody <* endOfInput) aer of
                 Right ae -> return ae
+                Left err -> $failure err
             Just (Encoding e) <- return $ chooseEncoding availableEncodings ae
             modifyResponse $ setHeader "Content-Encoding" e . setHeader "Vary" "Accept-Encoding"
             if doRedirect then cachePermanently else doNotCache --TODO: Use Etags when not redirecting
@@ -68,5 +69,7 @@ serveAssets' doRedirect base = do
                 doNotCache
                 redirect target
               else go $ takeDirectory p </> T.unpack (decodeUtf8 target)
+          Right unknown -> $failure (T.unpack ("serveAssets': Unknown asset " <> decodeUtf8 unknown))
           Left err | isDoesNotExistError err -> pass
+                   | otherwise -> liftIO $ $checkIO $ throwIO err
   go $ if "/" `isSuffixOf` pRaw || pRaw == "" then pRaw <> "index.html" else pRaw

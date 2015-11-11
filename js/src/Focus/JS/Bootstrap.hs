@@ -4,12 +4,10 @@ module Focus.JS.Bootstrap where
 import Reflex.Dom hiding (button)
 
 import Focus.JS.FontAwesome
-import Focus.JS.Request
 import Focus.JS.Time
 import Focus.JS.Widget
 import Focus.Schema
 import Focus.Time
-import Focus.Brand
 import Focus.Misc
 import Focus.Account
 import Focus.Sign
@@ -84,7 +82,7 @@ numberInput initial =
 
 dayInput :: MonadWidget t m => Day -> m (Dynamic t Day)
 dayInput d0 = do
-  let (year0, month0, dayOfMonth0) = toGregorian d0
+  let (year0, month0, _ {- dayOfMonth0 -} ) = toGregorian d0
   rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
       (navigate', dayClicked') <- do
         (prevButton, nextButton) <- divClass "text-center" $ do
@@ -160,7 +158,7 @@ mainlandUSTimeInput tzMap t0 =
   utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
 
 mainlandUSTimeZone :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String TimeZoneSeries -> DropdownConfig t String -> m (Dynamic t TimeZoneSeries)
-mainlandUSTimeZone tzMap cfg = do
+mainlandUSTimeZone tzMap _ {- cfg -} = do
   let labelMap, valueMap :: Map Int String
       labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
       valueMap = 0 =: "Pacific" <> 1 =: "Mountain" <> 2 =: "Central" <> 3 =: "Eastern"
@@ -169,7 +167,7 @@ mainlandUSTimeZone tzMap cfg = do
 
 utcTimeInputMini :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
 utcTimeInputMini tz0 tzWidget t = do
-  rec timeShown <- combineDyn (\tz t -> showDateTime' tz t) tzD timeD
+  rec timeShown <- combineDyn (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
@@ -182,16 +180,16 @@ utcTimeInputMini tz0 tzWidget t = do
                                                           isOpen
         return attrs'
       (timeD, tzD, close) <- elDynAttr "div" attrs $ do
-        close <- liftM (domEvent Click . fst) $ elAttr' "div" ("class" =: "modal-background" <> "style" =: "position:fixed; background-color: rgba(0,0,0,0)") $ return ()
+        close' <- liftM (domEvent Click . fst) $ elAttr' "div" ("class" =: "modal-background" <> "style" =: "position:fixed; background-color: rgba(0,0,0,0)") $ return ()
         elAttr "div" ("style" =: "z-index:20; position:relative") $ do
           rec ltD <- divClass "form-inline text-center" $ do
                 t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
-                ltD <- combineDyn (\day t'' -> LocalTime day t'') d t'
-                return ltD
+                ltD' <- combineDyn (\day t'' -> LocalTime day t'') d t'
+                return ltD'
               tzD <- elAttr "div" ("style" =: "padding-top: 5px") $ tzWidget
               d <- dayInput (localDay $ utcToLocalTime' tz0 t)
               timeD <- combineDyn (\tz lt -> localTimeToUTC' tz lt) tzD ltD
-          return (timeD, tzD, close)
+          return (timeD, tzD, close')
   return timeD
 
 --TODO better way to sort lists
@@ -258,7 +256,7 @@ searchBox :: MonadWidget t m => String -> m (Dynamic t (Maybe String))
 searchBox i = searchBox' i "Search..."
 
 readonlyInput :: forall t m. MonadWidget t m => String -> String -> String -> Event t String -> m (TextInput t)
-readonlyInput inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
+readonlyInput inputType initial _ eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
                                                             & textInputConfig_initialValue .~  initial
                                                             & setValue .~ eSetVal
                                                             & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("readonly", "readonly")])
@@ -303,6 +301,7 @@ stamp' k v = stampWidget k $ text v
 stampWidget :: MonadWidget t m => String -> m a -> m a
 stampWidget k w = elAttr "span" ("class" =: ("stamp " <> k)) w
 
+stampDefaultStyle :: Map String String
 stampDefaultStyle = "style" =: "color: white; text-transform: uppercase; font-weight: bold; padding-left: 0.25em; padding-right: 0.25em; font-size: small; border-radius: 0.25em; box-shadow: 1px 1px 1px black; text-shadow: 1px 1px 1px black;"
 
 tristateButton :: MonadWidget t m => String -> String -> Dynamic t (Maybe Bool) -> m (Event t ())
@@ -351,7 +350,7 @@ jumbotron t subtitle child = divClass "jumbotron" $ do
   child
 
 withLoginWorkflow'
-  :: forall t x m loginInfo newUser a. (MonadWidget t m)
+  :: forall t m loginInfo newUser. (MonadWidget t m)
   => Bool -- ^ Whether to display sign-up form first
   -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
       m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
@@ -365,16 +364,16 @@ withLoginWorkflow'
   -> (loginInfo -> m (Event t ()))
   -- ^ Post-login
   -> Workflow t m (Event t (Maybe loginInfo))
-withLoginWorkflow' signUp wrapper li0 newAccountForm recoveryForm loginForm f =
+withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f =
   let loginWorkflow' = Workflow . wrapper $ do
         let newAccountWorkflow = Workflow $ do
-              (eSignupClick, eSigninClick) <- newAccountForm
+              (_ {- eSignupClick -}, eSigninClick) <- newAccountForm'
               return (never, fmap (const loginWorkflow) eSigninClick)
             recoverAccountWorkflow = Workflow $ do
-              (eReset, eSigninClick) <- recoveryForm
+              (_ {- eReset -}, eSigninClick) <- recoveryForm'
               return (never, fmap (const loginWorkflow) eSigninClick)
             loginWorkflow = Workflow $ do
-              (eLoginSuccess, eNewAccountClick) <- loginForm
+              (eLoginSuccess, eNewAccountClick) <- loginForm'
               recoverLink <- elAttr "p" (Map.singleton "class" "text-center") $ do
                 text "Forgot password? "
                 link "Recover account"
@@ -404,7 +403,7 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
   return (eReset, (_link_clicked signinLink))
 
 loginForm
-  :: forall t m a loginInfo. (MonadWidget t m)
+  :: forall t m loginInfo. (MonadWidget t m)
   => (Event t (Id Account, Text) -> m (Event t (Maybe loginInfo)))
   -> m (Event t loginInfo, Event t ())
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
@@ -421,7 +420,7 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   let eEmailEnter = textInputGetEnter emailBox
       ePasswordEnter = textInputGetEnter passwordBox
   eLoginResult <- login $ tag bCreds $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
-  errorAttrs <- holdDyn ("style" =: "display: none") (fmap (\r -> if isNothing r then "class" =: "alert alert-warning" else "style" =: "display: none") eLoginResult)
+  errorAttrs <- holdDyn ("style" =: "display: none") (fmap (\r' -> if isNothing r' then "class" =: "alert alert-warning" else "style" =: "display: none") eLoginResult)
   elDynAttr "div" errorAttrs $ do
     icon "warning"
     text " Invalid email address or password"
@@ -529,7 +528,7 @@ toggleButtonStrip :: (Ord k, MonadWidget t m) => String -> k -> Map k String -> 
 toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
   rec selection <- holdDyn s0 changeE
       let baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: ("width: " ++ (show (100 / fromIntegral (Map.size labelMap) :: Double)) ++ "%;")
-      changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \k labelDyn isSelected ->
+      changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \_ labelDyn isSelected ->
                    do attr <- forDyn isSelected $ \case True -> baseAttr "btn-primary"; False -> baseAttr ""
                       buttonDynAttr attr $ do
                          dynIcon =<< (forDyn isSelected (\case True -> "check"; False -> ""))

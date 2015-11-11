@@ -1,25 +1,11 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Subscription where
 
-import Focus.Backend.Schema.TH
-import Focus.Schema
-import Focus.Subscription
-
-import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time
-import Database.Groundhog
+import Database.Groundhog.Instances ()
 import Database.Groundhog.Generic
-import Database.Groundhog.Core hiding (Proxy)
-import Database.Groundhog.TH
-import Data.Aeson.TH
-import Control.Monad
-import Data.Aeson
-import Control.Applicative
-import Data.Int
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Proxy
+import Database.Groundhog.Core
 
 import Web.Stripe.Plan
 import Web.Stripe.Utils (CustomerId (..), unCustomerId)
