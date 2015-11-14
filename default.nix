@@ -12,7 +12,7 @@ let
   nixpkgs = tryReflex.nixpkgs;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
-in with (import ./lib.nix { inherit nixpkgs; });
+in with (import ./http/assets.nix { inherit nixpkgs; });
 let
   myPostgres = nixpkgs.postgresql94;
   backendHaskellPackagesBase = tryReflex.ghc;
