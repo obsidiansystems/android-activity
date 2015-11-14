@@ -33,3 +33,6 @@
 	path = try-reflex
 	url = git@github.com:ryantrinkle/try-reflex
 	branch = ghcjs-improved-base
+[submodule "http"]
+	path = http
+	url = git@github.com:obsidiansystems/focus-http.git
