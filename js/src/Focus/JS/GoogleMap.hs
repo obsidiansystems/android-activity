@@ -129,6 +129,13 @@ importJS Unsafe "new google['maps']['places']['AutocompleteService'](null, {})" 
 importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> String -> JSFun x -> m () |]
 -- (JSArray PlacesAutocompletePrediction -> JSRef String -> IO ()) -> IO ())
 
+-- TODO: figure out if this can be done without the extra performEvent -- I don't really understand the full manner in which liftJS operates well enough to determine if this is possible.
+geolocating :: (MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m))
+            => Event t a -> m (Event t ((Double, Double), a))
+geolocating e =
+  do e' <- performEventAsync . fmap (\v k -> liftJS $ getGeolocationCurrentPosition (\p -> do k (p,v))) $ e
+     performEvent . fmap (\(p,v) -> do (x,y) <- liftJS $ geolocationPositionGetCoord p; return ((x,y),v)) $ e'
+
 getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadIO m) => (GeolocationPosition x -> IO ()) -> m ()
 getGeolocationCurrentPosition cb = do
   rec f <- mkJSFun $ \(success:_) -> do
