@@ -15,7 +15,7 @@ library
 
   build-depends:
     focus-core,
-    focus-http,
+    focus-serve,
     aeson,
     base,
     bytestring,

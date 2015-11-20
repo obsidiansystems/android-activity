@@ -12,8 +12,6 @@ let
   nixpkgs = tryReflex.nixpkgs;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
-in with (import ./http/assets.nix { inherit nixpkgs; });
-let
   myPostgres = nixpkgs.postgresql94;
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
@@ -43,11 +41,12 @@ let
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
       focus-backend = self.callPackage ./backend { inherit myPostgres;};
-      focus-http = self.callPackage ./http {};
+      focus-serve = self.callPackage ./http/serve {};
     };
   };
   frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
   backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+  mkAssets = (import ./http/assets.nix { inherit nixpkgs; haskellPackages = backendHaskellPackages; }).mkAssets;
 in
 { name
 , version
@@ -157,7 +156,7 @@ let
     backend =
       let
         backendCommon = common backendHaskellPackages;
-      in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-http, focus-core, focus-backend}: mkDerivation (rec {
+      in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
         pname = "${appName}-backend";
         license = null;
         version = appVersion;
@@ -169,7 +168,7 @@ let
         buildDepends = [
           backendCommon
           vector-algorithms
-          focus-core focus-backend focus-http
+          focus-core focus-backend focus-serve
         ] ++ backendDepends backendHaskellPackages;
         buildTools = [] ++ backendTools pkgs;
         isExecutable = true;
