@@ -1,5 +1,5 @@
 {
   url = git://github.com/ryantrinkle/reflex-dom.git;
-  rev = "853e2c5e0056d384c1802ace80941d16a0bfea13";
-  sha256 = "08f9abc6f745dcfeae1b4dee159651d31b7338df343d1b7ff3aea387a8d8a8ec";
+  rev = "af398f1017b04623fa677127be6c0d2042982dae";
+  sha256 = "759e04a4dace94542f02183f6a7cb50341c8b95acd5c8be7bddc430fcfaad0be";
 }
