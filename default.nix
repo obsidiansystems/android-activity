@@ -40,7 +40,7 @@ let
   };
   extendBackendHaskellPackages = haskellPackages: haskellPackages.override {
     overrides = self: super: sharedOverrides self super // {
-      focus-backend = self.callPackage ./backend { inherit myPostgres;};
+      focus-backend = self.callPackage ./backend { inherit myPostgres; };
       focus-serve = self.callPackage ./http/serve {};
     };
   };
@@ -96,6 +96,7 @@ let
       focus-core
     ] ++ commonDepends haskellPackages;
     buildTools = [] ++ commonTools pkgs;
+    doHaddock = false;
   });
   mkFrontend = src: haskellPackages:
     let frontendCommon = common haskellPackages;
