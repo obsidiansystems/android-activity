@@ -179,7 +179,6 @@ withIoProc = $(do
                      extractPackages ("-package-id" : p : t) = p : extractPackages t
                      extractPackages (_ : t) = extractPackages t
                  libDir <- runIO getLibDir
-                 runIO $ print args
                  packageDBTars <- runIO $ forM (extractPackageDBs args) $ \db -> do
                    let filename = takeFileName db
                    entries <- Tar.pack (takeDirectory db) [filename]
