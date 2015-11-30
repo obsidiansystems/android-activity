@@ -85,6 +85,7 @@ shutdownPostgresFast postgres = do
 
 psqlLocal :: FilePath -> IO ()
 psqlLocal p = withLocalPostgres p $ \dbUri -> do
+  installHandler keyboardSignal Ignore Nothing
   (_, _, _, psql) <- createProcess $ proc $(staticWhich "psql")
     [ T.unpack $ decodeUtf8 dbUri
     ]
