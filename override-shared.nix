@@ -12,20 +12,10 @@ in self: super: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
     });
-    websockets = overrideCabal super.websockets (drv: {
-      version = "0.9.5.0";
-      sha256 = "016h213sk3n662ri8ns1sswcnaml61qckprdgxdp0m2a77amivmy";
-    });
-    websockets-snap = overrideCabal super.websockets-snap (drv: {
-      version = "0.9.2.0";
-      sha256 = "03szycdvygw1zkv2s090wn2jii9sqbplgbycmpm5mfm3r0jhbhxp";
-    });
     heist = overrideCabal super.heist (drv: {
       jailbreak = true;
     });
     snap-core = overrideCabal super.snap-core (drv: {
-      revision = "1";
-      editedCabalFile = "1930x1w1xlyqfpwjhr64z2y12idfaz17jdk9fn699pxvb08djb85";
       jailbreak = true;
     });
     snap-server = overrideCabal super.snap-server (drv: {

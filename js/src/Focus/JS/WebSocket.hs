@@ -7,6 +7,7 @@ import Focus.Request
 import Prelude hiding (div, span, mapM, mapM_, concat, concatMap, all, sequence)
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
+import Control.Monad.IO.Class
 import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
 
@@ -40,15 +41,11 @@ importJS Unsafe "(function(that) { var ws = new WebSocket(that[0]); ws['binaryTy
 
 importJS Unsafe "this[0]['send'](String.fromCharCode.apply(null, this[1]))" "webSocketSend_" [t| forall x m. MonadJS x m => JSWebSocket x -> JSUint8Array x -> m () |]
 
-importJS Unsafe "location['host']" "getLocationHost" [t| forall x m. MonadJS x m => m String |]
-
-importJS Unsafe "location['protocol']" "getLocationProtocol" [t| forall x m. MonadJS x m => m String |]
-
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
 webSocket :: forall x t m. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> WebSocketConfig t -> m (WebSocket t)
 webSocket path config = do
-  pageHost <- liftJS getLocationHost
-  pageProtocol <- liftJS getLocationProtocol
+  pageHost <- liftIO . getLocationHost =<< askWebView
+  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
   let wsProtocol = case pageProtocol of
         "http:" -> "ws:"
         "https:" -> "wss:"
