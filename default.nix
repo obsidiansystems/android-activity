@@ -139,7 +139,7 @@ let
   result =  pkgs.stdenv.mkDerivation (rec {
     name = "${appName}-${appVersion}";
     assets = mkAssets ../static;
-    zoneinfo = ../static/zoneinfo;
+    zoneinfo = ./zoneinfo;
     frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend}/frontend.jsexe";
     marketing = ../marketing;
     # Give the minification step its own derivation so that backend rebuilds don't redo the minification
