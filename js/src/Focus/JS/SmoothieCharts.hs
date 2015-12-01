@@ -17,7 +17,6 @@ import qualified Data.Text as T
 import Data.Text.Encoding
 import GHCJS.DOM.Types hiding (Event, Text)
 import qualified Data.ByteString.Lazy as LBS
-import Foreign.JavaScript.TH
 
 newtype SmoothieChart x = SmoothieChart { unSmoothieChart :: JSRef x }
 

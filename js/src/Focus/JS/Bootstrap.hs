@@ -12,8 +12,6 @@ import Focus.Misc
 import Focus.Account
 import Focus.Sign
 
-import Foreign.JavaScript.TH
-
 import Safe
 import Control.Monad
 import Data.List

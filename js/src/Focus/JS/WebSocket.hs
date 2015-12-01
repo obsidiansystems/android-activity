@@ -23,8 +23,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Constraint
 
-import Foreign.JavaScript.TH
-
 import Debug.Trace.LocationTH
 
 newtype JSWebSocket x = JSWebSocket { unWebSocket :: JSRef x }
