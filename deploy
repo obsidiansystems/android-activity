@@ -12,7 +12,7 @@ BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostNa
 BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraUsers.backend.uid')"
 BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraGroups.backend.gid')"
 
-nix-copy-closure --to root@"$HOSTNAME" --gzip "$RESULT" $(readlink "$(nix-build --no-out-link)"/*assets/*/encodings/identity | sed 's_\(^/nix/store/[^/]*\).*_\1_') # The last part here is to work around https://www.pivotaltracker.com/story/show/109156520
+nix-copy-closure --to root@"$HOSTNAME" --gzip "$RESULT" $(readlink $(find -L "$(nix-build --no-out-link)"/*assets | grep 'encodings/identity$') | sed 's_\(^/nix/store/[^/]*\).*_\1_') # The last part here is to work around https://www.pivotaltracker.com/story/show/109156520
 ssh root@"$HOSTNAME" bash -x <<EOF
 if [ ! -d "$BACKEND_HOME" ] ; then
   mkdir -p "$BACKEND_HOME"

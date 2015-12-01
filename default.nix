@@ -94,7 +94,7 @@ in rec {
         buildTools = [] ++ commonTools pkgs;
         doHaddock = false;
       });
-      mkFrontend = src: haskellPackages:
+      mkFrontend = src: haskellPackages: static:
         let frontendCommon = common haskellPackages;
         in haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
@@ -103,6 +103,9 @@ in rec {
             license = null;
             inherit src;
             preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
+            preBuild = ''
+              ln -sfT ${static} static
+            '';
             buildDepends = [
               frontendCommon
               focus-core
@@ -116,9 +119,9 @@ in rec {
               inherit haskellPackages;
             };
           })) {};
-      mkGhcjsApp = src: pkgs.stdenv.mkDerivation (rec {
+      mkGhcjsApp = src: static: pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend src frontendHaskellPackages;
+        unminified = mkFrontend src frontendHaskellPackages static;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -136,10 +139,10 @@ in rec {
         name = "${appName}-${appVersion}";
         assets = mkAssets ../static;
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend}/frontend.jsexe";
+        frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend ../static}/frontend.jsexe";
         marketing = ../marketing;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
-        frontend = mkGhcjsApp ../frontend;
+        frontend = mkGhcjsApp ../frontend ../static;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -177,7 +180,7 @@ in rec {
           })) {};
         passthru = {
           frontend = frontend.unminified;
-          frontendGhc = mkFrontend ../frontend backendHaskellPackages;
+          frontendGhc = mkFrontend ../frontend backendHaskellPackages ../static;
           nixpkgs = pkgs;
           completeServer = { hostName, ssl ? false }: import "${nixpkgs.path}/nixos" {
             system = "x86_64-linux";
