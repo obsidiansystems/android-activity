@@ -28,6 +28,7 @@ in rec {
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
         // { focus-core = self.callPackage ./core {};
              focus-js = self.callPackage ./js {};
+             focus-serve = self.callPackage ./http/serve {};
              reflex-dom = self.callPackage ./reflex-dom {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
