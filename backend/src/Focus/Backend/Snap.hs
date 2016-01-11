@@ -17,6 +17,7 @@ import Diagrams.Backend.SVG
 import Lucid
 import System.FilePath
 import Text.RawString.QQ
+import Control.Monad.IO.Class
 
 error404 :: MonadSnap m => m ()
 error404 = do
@@ -41,12 +42,15 @@ instance Default AppConfig where
                   , _appConfig_extraHeadMarkup = mempty
                   }
 
+frontendJsexeAssets :: FilePath
+frontendJsexeAssets = "frontend.jsexe.assets"
+
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
   route [ (loc, ifTop $ serveIndex cfg)
         , (loc, serveAssets (app </> "assets"))
+        , (loc, serveAssets (app </> frontendJsexeAssets))
         , (loc, doNotCache >> serveDirectory (app </> "static"))
-        , (loc, serveAssets (app </> "frontend.jsexe.assets"))
         , (loc, doNotCache >> serveDirectory (app </> "frontend.jsexe"))
         , (loc, doNotCache >> error404)
         ]
@@ -56,6 +60,7 @@ serveApp = serveAppAt ""
 
 serveIndex :: MonadSnap m => AppConfig -> m ()
 serveIndex cfg = do
+  appJsPath <- liftIO $ getAssetPath frontendJsexeAssets "all.js"
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
       meta_ [charset_ "utf-8"]
@@ -96,6 +101,6 @@ serveIndex cfg = do
                     & idPrefix .~ "preload-logo-"
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ (T.pack "all.js"), defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
