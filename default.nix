@@ -57,7 +57,7 @@ in rec {
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
-      mkAssets = (import ./http/assets.nix { inherit nixpkgs; haskellPackages = backendHaskellPackages; }).mkAssets;
+      mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
 
       libraryHeader = ''
         library
