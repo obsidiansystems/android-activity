@@ -4,7 +4,6 @@ module Focus.Backend.Snap where
 import Focus.HTTP.Serve
 
 import Snap
-import Snap.Util.FileServe
 
 import Control.Lens
 import Data.ByteString (ByteString)
@@ -48,10 +47,8 @@ frontendJsexeAssets = "frontend.jsexe.assets"
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
   route [ (loc, ifTop $ serveIndex cfg)
-        , (loc, serveAssets (app </> "assets"))
-        , (loc, serveAssets (app </> frontendJsexeAssets))
-        , (loc, doNotCache >> serveDirectory (app </> "static"))
-        , (loc, doNotCache >> serveDirectory (app </> "frontend.jsexe"))
+        , (loc, serveAssets (app </> "assets") (app </> "static"))
+        , (loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))
         , (loc, doNotCache >> error404)
         ]
 
@@ -101,6 +98,6 @@ serveIndex cfg = do
                     & idPrefix .~ "preload-logo-"
                     & generateDoctype .~ False
       renderDia SVG svgOpts $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ (T.pack appJsPath), defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (maybe "all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
