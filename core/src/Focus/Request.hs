@@ -16,7 +16,6 @@ import qualified Data.ByteString.Base64 as B64
 import Data.Constraint
 import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
-import Data.Functor.Misc
 import Data.HList
 import Data.List (isPrefixOf)
 import Data.Monoid
@@ -318,22 +317,22 @@ instance Traversable' (Of2 x y) where
   mapM' f (Of2a a) = liftM Of2a $ f a
   mapM' f (Of2b b) = liftM Of2b $ f b
 
-newtype Map' (k :: a -> *) (v :: a -> *) = Map' { unMap' :: DMap (WrapArg v k) }
+newtype Map' (k :: a -> *) (v :: a -> *) = Map' { unMap' :: DMap k v }
 
 instance Functor' (Map' k) where
-  fmap' f = Map' . rewrapDMap f . unMap'
+  fmap' f = Map' . DMap.mapWithKey (\_ -> f) . unMap'
 
 instance Foldable' (Map' k) where
-  foldr' f z (Map' dm) = foldr (\(WrapArg _ :=> v) a -> f v a) z $ DMap.toList dm
+  foldr' f z (Map' dm) = foldr (\(_ :=> v) a -> f v a) z $ DMap.toList dm
 
 instance Traversable' (Map' k) where
-  mapM' f (Map' dm) = liftM (Map' . DMap.fromDistinctAscList) $ mapM (\(WrapArg k :=> v) -> f v >>= \v' -> return $ WrapArg k :=> v') $ DMap.toList dm
+  mapM' f (Map' dm) = liftM (Map' . DMap.fromDistinctAscList) $ mapM (\(k :=> v) -> f v >>= \v' -> return $ k :=> v') $ DMap.toList dm
 
 map'Singleton :: k a -> v a -> Map' k v
-map'Singleton k v = Map' $ DMap.singleton (WrapArg k) v
+map'Singleton k v = Map' $ DMap.singleton k v
 
 map'Lookup :: GCompare k => k a -> Map' k v -> Maybe (v a)
-map'Lookup k (Map' dm) = DMap.lookup (WrapArg k) dm
+map'Lookup k (Map' dm) = DMap.lookup k dm
 
 fhAppend :: FHList f l1 -> FHList f l2 -> FHList f (HAppendListR l1 l2)
 fhAppend l1 l2 = case l1 of

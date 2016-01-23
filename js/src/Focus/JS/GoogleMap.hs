@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances #-}
 module Focus.JS.GoogleMap where
 
-import Control.Lens hiding (coerce, zoom)
+import Control.Lens hiding (zoom)
 import Control.Monad.IO.Class
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.Writer hiding (forM, forM_, mapM, mapM_, sequence, (<>), listen)
@@ -23,7 +23,7 @@ import Focus.JS.FontAwesome (icon)
 import Reflex
 import Reflex.Dom
 
-import GHCJS.DOM.Types hiding (Event)
+import GHCJS.DOM.Types hiding (Event, fromJSString)
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
 

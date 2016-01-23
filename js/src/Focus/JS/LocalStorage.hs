@@ -2,7 +2,7 @@
 module Focus.JS.LocalStorage where
 
 import Foreign.JavaScript.TH
-import GHCJS.DOM.DOMWindow (domWindowGetLocalStorage)
+import GHCJS.DOM.Window (getLocalStorage)
 import GHCJS.DOM
 import GHCJS.DOM.Document
 import GHCJS.DOM.Storage
@@ -15,17 +15,17 @@ import Control.Monad.Identity
 --TODO: This should really take a Storage as an argument, but on webkitgtk, this requires converting the Storage object to its JS wrapper
 importJS Unsafe "localStorage['getItem'](this[0])" "localStorageGetItemMaybe" [t| forall x m. MonadJS x m => String -> m (Maybe String) |]
 
-askDomWindow :: (HasWebView m, MonadIO m) => m DOMWindow
+askDomWindow :: (HasWebView m, MonadIO m) => m Window
 askDomWindow = do
   wv <- askWebView
   Just doc <- liftIO $ webViewGetDomDocument $ unWebViewSingleton wv
-  Just window <- liftIO $ documentGetDefaultView doc
+  Just window <- liftIO $ getDefaultView doc
   return window
 
 askLocalStorage :: (HasWebView m, MonadIO m) => m Storage
 askLocalStorage = do
   dw <- askDomWindow
-  Just s <- liftIO $ domWindowGetLocalStorage dw
+  Just s <- liftIO $ getLocalStorage dw
   return s
 
 type Key = String
@@ -52,13 +52,13 @@ storageSet = liftM (fmap runIdentity) . storageSetMany . fmap Identity
 storageSetMany :: (MonadWidget t m, Traversable f) => Event t (f (Key, Maybe Value)) -> m (Event t (f ()))
 storageSetMany sets = do
   dw <- askDomWindow
-  Just s <- liftIO $ domWindowGetLocalStorage dw
+  Just s <- liftIO $ getLocalStorage dw
   performEvent $ ffor sets $ mapM $ \(k, mv) -> liftIO $ case mv of
-    Nothing -> storageRemoveItem s k
-    Just v -> storageSetItem s k v
+    Nothing -> removeItem s k
+    Just v -> setItem s k v
 
 storageRemoveAll :: MonadWidget t m => Event t () -> m ()
 storageRemoveAll e = do
   dw <- askDomWindow
-  s <- liftIO $ domWindowGetLocalStorage dw
-  performEvent_ $ fmap (const $ maybe (return ()) (liftIO . storageClear) s) e
+  s <- liftIO $ getLocalStorage dw
+  performEvent_ $ fmap (const $ maybe (return ()) (liftIO . clear) s) e

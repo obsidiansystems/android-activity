@@ -61,6 +61,7 @@ library
     lucid,
     diagrams-lib,
     diagrams-svg,
+    lucid,
     data-default,
     raw-strings-qq,
     attoparsec

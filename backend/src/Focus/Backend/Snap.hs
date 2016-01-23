@@ -13,10 +13,12 @@ import Data.String
 import qualified Data.Text as T
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG
+import Diagrams.Backend.SVG.Attributes
 import Lucid
 import System.FilePath
 import Text.RawString.QQ
 import Control.Monad.IO.Class
+import Lucid.Base (makeAttribute)
 
 error404 :: MonadSnap m => m ()
 error404 = do
@@ -65,6 +67,11 @@ serveIndex cfg = do
       _appConfig_extraHeadMarkup cfg
       style_ [r|
         #preload-logo {
+            position: fixed;
+            left: 25%;
+            top: 25%;
+            width: 50%;
+            height: 50%;
             -webkit-animation: fadein 2s; /* Safari, Chrome and Opera > 12.1 */
                -moz-animation: fadein 2s; /* Firefox < 16 */
                 -ms-animation: fadein 2s; /* Internet Explorer */
@@ -92,12 +99,8 @@ serveIndex cfg = do
         }
       |]
     body_ $ do
-      let svgOpts = defaultSVGOptions (mkWidth 400)
-                    & idAttr .~ Just "preload-logo"
-                    & styleAttr .~ Just "position:fixed;left:25%;top:25%;width:50%;height:50%"
-                    & idPrefix .~ "preload-logo-"
-                    & generateDoctype .~ False
-      renderDia SVG svgOpts $ _appConfig_logo cfg
+      let svgOpts = SVGOptions (mkWidth 400) Nothing "preload-logo-" [makeAttribute "id" "preload-logo"] False
+      renderDia SVG svgOpts $ svgId "preload-logo" $ _appConfig_logo cfg
       script_ [type_ "text/javascript", src_ (maybe "all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig

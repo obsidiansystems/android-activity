@@ -1,13 +1,9 @@
 { nixpkgs }:
 
-with (import ./lib.nix { inherit nixpkgs; });
-let
-  inherit (nixpkgs) stdenv;
-  overrideCabal = drv: f: if isNull drv then null else (drv.override (args: args // {
-    mkDerivation = drv: args.mkDerivation (drv // f drv);
-  })) // { overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
-         };
-in self: super: {
+with nixpkgs.haskell.lib;
+let inherit (nixpkgs) stdenv;
+in
+self: super: {
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -145,23 +141,26 @@ in self: super: {
       version = "0.3.4";
       src = ./amazonka/amazonka-sts;
     });
-    lifted-async = overrideCabal super.lifted-async (drv: {
-      version = "0.7.0.1";
-      sha256 = "0skfpgqlxni3bdn7pdg2732xkijmwsz655962wrbmflh987ms8y3";
-    });
     JuicyPixels = overrideCabal super.JuicyPixels (drv: {
       jailbreak = true;
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
-      version = "1.3.1.4";
+      version = "1.3.1.10";
       src = nixpkgs.fetchgit {
-        url = git://github.com/ryantrinkle/diagrams-svg;
-        rev = "1abe6f74e9111b1c7efffed7fa693feacc7b6029";
-        sha256 = "f02fddb399989fe35ad495602f615b7c412eea5b6a7e3cf4baeb16d2a5f548ef";
+        url = git://github.com/diagrams/diagrams-svg;
+        rev = "0fcfe833844baccd567bc01986ffe0462f2c2d18";
+        sha256 = "363e271745b9d5b4985495333866ad98c89c8d40ce972c376efeb6cc64b41140";
       };
     });
     lucid-svg = overrideCabal super.lucid-svg (drv: {
       version = "0.5.0.0";
       sha256 = "1p7ipdy0nmqfg1b038a1b5nd3xh2779d2gnw4h683mm5jcbf0mvj";
+    });
+    gpx-conduit = overrideCabal super.gpx-conduit (drv: {
+      src = nixpkgs.fetchgit {
+        url = git://github.com/obsidiansystems/gpx-conduit;
+        rev = "988d97c433042e5af46ae7c38e1163eecbf928bb";
+        sha256 = "9cd3d6b3c27f9a0ae5c02769001d56f773efab9657d50b948d4355397950f28c";
+      };
     });
   }
