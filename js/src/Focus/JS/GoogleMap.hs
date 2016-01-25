@@ -22,8 +22,11 @@ import Data.Maybe
 import Focus.JS.FontAwesome (icon)
 import Reflex
 import Reflex.Dom
-
+#ifdef GHCJS
 import GHCJS.DOM.Types hiding (Event, fromJSString)
+#else
+import GHCJS.DOM.Types hiding (Event)
+#endif
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
 
