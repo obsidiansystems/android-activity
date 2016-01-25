@@ -22,7 +22,7 @@ import Data.Maybe
 import Focus.JS.FontAwesome (icon)
 import Reflex
 import Reflex.Dom
-#ifdef GHCJS
+#ifdef ghcjs_HOST_OS
 import GHCJS.DOM.Types hiding (Event, fromJSString)
 #else
 import GHCJS.DOM.Types hiding (Event)
