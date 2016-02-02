@@ -59,6 +59,7 @@ library
     file-embed,
     monad-logger,
     lucid,
+    diagrams,
     diagrams-lib,
     diagrams-svg,
     lucid,
