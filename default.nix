@@ -19,6 +19,7 @@ in rec {
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
+    , fixupStatic ? (x: x)
     }:
     let
       # Break recursion
@@ -138,7 +139,7 @@ in rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets ../static;
+        assets = mkAssets (fixupStatic ../static);
         zoneinfo = ./zoneinfo;
         frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend ../static}/frontend.jsexe";
         ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
