@@ -83,7 +83,7 @@ in rec {
         fi
       '';
 
-      common = haskellPackages: haskellPackages.mkDerivation (rec {
+      common = haskellPackages: if !(builtins.pathExists ../common) then null else haskellPackages.mkDerivation (rec {
         pname = "${appName}-common";
         version = appVersion;
         src = ../common;
@@ -141,7 +141,7 @@ in rec {
         assets = mkAssets ../static;
         zoneinfo = ./zoneinfo;
         frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend ../static}/frontend.jsexe";
-        marketing = ../marketing;
+        ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = mkGhcjsApp ../frontend ../static;
         builder = builtins.toFile "builder.sh" ''
@@ -149,7 +149,9 @@ in rec {
 
           mkdir -p "$out"
           ln -s "$assets" "$out/assets"
-          ln -s "$marketing" "$out/marketing"
+          if ! [ -z "''${marketing+x}" ] ; then
+            ln -s "$marketing" "$out/marketing"
+          fi
           ln -s "$backend/bin/backend" "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
