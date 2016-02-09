@@ -19,6 +19,8 @@ in rec {
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
+    , fixupStatic ? (x: x)
+    , overrideServerConfig ? (args: outputs: x: x)
     }:
     let
       # Break recursion
@@ -83,7 +85,7 @@ in rec {
         fi
       '';
 
-      common = haskellPackages: haskellPackages.mkDerivation (rec {
+      common = haskellPackages: if !(builtins.pathExists ../common) then null else haskellPackages.mkDerivation (rec {
         pname = "${appName}-common";
         version = appVersion;
         src = ../common;
@@ -138,18 +140,21 @@ in rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets ../static;
+        assets = mkAssets (fixupStatic ../static);
         zoneinfo = ./zoneinfo;
         frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend ../static}/frontend.jsexe";
-        marketing = ../marketing;
+        ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = mkGhcjsApp ../frontend ../static;
+        frontend_ = frontend;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
           mkdir -p "$out"
           ln -s "$assets" "$out/assets"
-          ln -s "$marketing" "$out/marketing"
+          if ! [ -z "''${marketing+x}" ] ; then
+            ln -s "$marketing" "$out/marketing"
+          fi
           ln -s "$backend/bin/backend" "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
@@ -179,13 +184,67 @@ in rec {
               haskellPackages = backendHaskellPackages;
             };
           })) {};
-        passthru = {
-          frontend = frontend.unminified;
+        passthru = rec {
+          frontend = frontend_.unminified;
           frontendGhc = mkFrontend ../frontend backendHaskellPackages ../static;
           nixpkgs = pkgs;
-          completeServer = { hostName, ssl ? false }: import "${nixpkgs.path}/nixos" {
+          backendService = {user, port}: {
+            wantedBy = [ "multi-user.target" ];
+            after = [ "network.target" ];
+            restartIfChanged = true;
+            script = ''
+              ln -sft . "${result}"/*
+              mkdir -p log
+              exec ./backend -p "${builtins.toString port}" >>backend.out 2>>backend.err </dev/null
+            '';
+            serviceConfig = {
+              User = user;
+              KillMode = "process";
+              WorkingDirectory = "~";
+            };
+          };
+          defaultBackendPort = 8000;
+          defaultBackendUid = 500;
+          defaultBackendGid = 500;
+          completeServer = { hostName, ssl ? false }:
+            let nginxService = {locations}:
+                  let locationConfig = path: port: ''
+                        location ${path} {
+                          ${if path != "/" then "rewrite ^${path}(.*)$ /$1 break;" else ""}
+                          proxy_pass http://127.0.0.1:${builtins.toString port};
+                          proxy_set_header Host $http_host;
+                          proxy_read_timeout 300s;
+                        }
+                      '';
+                      locationConfigs = pkgs.lib.concatStringsSep "\n" (builtins.attrValues (pkgs.lib.mapAttrs locationConfig locations));
+                  in {
+                    enable = true;
+                    httpConfig = if ssl then ''
+                      server {
+                        listen 80;
+                        return 301 https://$host$request_uri;
+                      }
+                      server {
+                        listen 443 ssl;
+                        ssl_certificate /var/lib/backend/backend.crt;
+                        ssl_certificate_key /var/lib/backend/backend.key;
+                        ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;  # don't use SSLv3 ref: POODLE
+                        ${locationConfigs}
+                        access_log off;
+                      }
+                      error_log  /var/log/nginx/nginx_error.log  warn;
+                    '' else ''
+                      server {
+                        listen 80;
+                        ${locationConfigs}
+                        access_log off;
+                      }
+                      error_log  /var/log/nginx/nginx_error.log  warn;
+                    '';
+                  };
+            in import "${nixpkgs.path}/nixos" {
             system = "x86_64-linux";
-            configuration = { config, pkgs, ... }: {
+            configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
               imports = [ "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix" ];
               services.journald.rateLimitBurst = 0;
               ec2.hvm = true;
@@ -204,66 +263,25 @@ in rec {
                 ];
               };
 
-              services.nginx = {
-                enable = true;
-                httpConfig = if ssl then ''
-                  server {
-                    listen 80;
-                    return 301 https://$host$request_uri;
-                  }
-                  server {
-                    listen 443 ssl;
-                    ssl_certificate /var/lib/backend/backend.crt;
-                    ssl_certificate_key /var/lib/backend/backend.key;
-                    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;  # don’t use SSLv3 ref: POODLE
-                    location / {
-                      proxy_pass http://127.0.0.1:8000;
-                      proxy_set_header Host $http_host;
-                      proxy_set_header X-Forwarded-Proto "https";
-                      proxy_read_timeout 300s;
-                    }
-                    access_log off;
-                  }
-                '' else ''
-                  server {
-                    listen 80;
-                    location / {
-                      proxy_pass http://127.0.0.1:8000;
-                      proxy_set_header Host $http_host;
-                      proxy_read_timeout 300s;
-                    }
-                    access_log off;
-                  }
-                '';
+              services.nginx = nginxService {
+                locations = {
+                  "/" = defaultBackendPort;
+                };
               };
 
-              systemd.services.backend = {
-                wantedBy = [ "multi-user.target" ];
-                after = [ "network.target" ];
-                restartIfChanged = true;
-                script = ''
-                  export HOME=/var/lib/backend
-                  mkdir -p "$HOME"
-                  cd "$HOME"
-                  pwd
-                  ln -sft . "${result}"/*
-                  mkdir -p log
-                  exec ./backend >>backend.out 2>>backend.err </dev/null
-                '';
-                serviceConfig = {
-                  User = "backend";
-                  KillMode = "process";
-                };
+              systemd.services.backend = backendService {
+                user = "backend";
+                port = defaultBackendPort;
               };
               users.extraUsers.backend = {
                 description = "backend server user";
                 home = "/var/lib/backend";
                 createHome = true;
                 isSystemUser = true;
-                uid = 500;
+                uid = defaultBackendUid;
                 group = "backend";
               };
-              users.extraGroups.backend.gid = 500;
+              users.extraGroups.backend.gid = defaultBackendUid;
             };
           };
         };
