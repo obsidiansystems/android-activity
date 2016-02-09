@@ -50,6 +50,7 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
+-- Does not notify the user that the "Account" has been created
 ensureAccountExists :: (PersistBackend m, MonadSign m) => Id Account -> m Bool
 ensureAccountExists aid = do
   nonce <- getTime
