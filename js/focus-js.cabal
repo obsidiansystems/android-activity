@@ -55,6 +55,7 @@ library
     Focus.JS.Route
     Focus.JS.SmoothieCharts
     Focus.JS.Time
+    Focus.JS.Transition
     Focus.JS.WebSocket
     Focus.JS.Widget
 
