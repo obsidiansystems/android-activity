@@ -146,6 +146,7 @@ in rec {
         ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = mkGhcjsApp ../frontend ../static;
+        frontend_ = frontend;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -184,7 +185,7 @@ in rec {
             };
           })) {};
         passthru = rec {
-          frontend = frontend.unminified;
+          frontend = frontend_.unminified;
           frontendGhc = mkFrontend ../frontend backendHaskellPackages ../static;
           nixpkgs = pkgs;
           backendService = {user, port}: {
