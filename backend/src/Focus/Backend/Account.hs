@@ -113,7 +113,8 @@ newAccountEmail :: (MonadBrand m, MonadRoute r m, Default r) => (AccountRoute ->
 newAccountEmail f token = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset token
   b <- getBrand
-  emailTemplate (H.text $ "Welcome to " <> _brand_productName b)
+  emailTemplate Nothing
+                (H.text $ "Welcome to " <> _brand_productName b)
                 (H.a H.! A.href (fromString $ show passwordResetLink) $ H.text "Click here to verify your email")
                 (H.p $ H.text $ _brand_description b)
 
@@ -129,5 +130,5 @@ sendPasswordResetEmail f prt aid = do
   pn <- getProductName
   let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
       body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
-  sendEmailDefault (unId aid :| []) (T.pack pn <> " Password Reset") =<< emailTemplate (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
+  sendEmailDefault (unId aid :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
 

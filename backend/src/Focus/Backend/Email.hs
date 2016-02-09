@@ -65,13 +65,15 @@ sendEmailDefault recipients sub body = do
 
 deriveNewtypePersistBackend (\m -> [t| EmailT $m |]) (\m -> [t| ReaderT EmailEnv $m |]) 'EmailT 'unEmailT
 
-emailTemplate :: (MonadRoute r m, Default r, MonadBrand m) => Html -> Html -> Html -> m Html
-emailTemplate titleHtml leadHtml contentHtml = do
+emailTemplate :: (MonadRoute r m, Default r, MonadBrand m) => Maybe Html -> Html -> Html -> Html -> m Html
+emailTemplate mStyleHtml titleHtml leadHtml contentHtml = do
   indexLink <- routeToUrl def
   pn <- getProductName
   return $ H.docTypeHtml $ do
     H.head $ do
-      H.style $ H.toHtml $ decodeUtf8 $(embedFile "email.css")
+      H.style $ case mStyleHtml of
+        Nothing -> H.toHtml $ decodeUtf8 $(embedFile "email.css")
+        Just styleHtml -> styleHtml
       H.title titleHtml
     H.body $ H.table $ do
       H.tr $ H.td $ H.table $ do
