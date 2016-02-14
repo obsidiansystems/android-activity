@@ -232,14 +232,14 @@ in rec {
                         ${locationConfigs}
                         access_log off;
                       }
-                      error_log  /var/log/nginx/nginx_error.log  warn;
+                      error_log  /var/log/nginx_error.log  warn;
                     '' else ''
                       server {
                         listen 80;
                         ${locationConfigs}
                         access_log off;
                       }
-                      error_log  /var/log/nginx/nginx_error.log  warn;
+                      error_log  /var/log/nginx_error.log  warn;
                     '';
                   };
             in import "${nixpkgs.path}/nixos" {
