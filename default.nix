@@ -2,7 +2,7 @@
 let
   enableProfiling = false;
 in rec {
-  tryReflex = import ./try-reflex {};
+  tryReflex = import ./try-reflex { enableLibraryProfiling = enableProfiling; };
   nixpkgs = tryReflex.nixpkgs;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
