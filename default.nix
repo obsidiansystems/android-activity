@@ -206,8 +206,9 @@ in rec {
           defaultBackendPort = 8000;
           defaultBackendUid = 500;
           defaultBackendGid = 500;
-          completeServer = { hostName, ssl ? false }:
-            let nginxService = {locations}:
+          completeServer = { hostName, ssl ? false, adminEmail ? "ops@obsidian.systems" }:
+            let acmeWebRoot = "/srv/acme/";
+                nginxService = {locations}:
                   let locationConfig = path: port: ''
                         location ${path} {
                           ${if path != "/" then "rewrite ^${path}(.*)$ /$1 break;" else ""}
@@ -221,13 +222,9 @@ in rec {
                     enable = true;
                     httpConfig = if ssl then ''
                       server {
-                        listen 80;
-                        return 301 https://$host$request_uri;
-                      }
-                      server {
                         listen 443 ssl;
-                        ssl_certificate /var/lib/backend/backend.crt;
-                        ssl_certificate_key /var/lib/backend/backend.key;
+                        ssl_certificate /var/lib/acme/${hostName}/fullchain.pem;
+                        ssl_certificate_key /var/lib/acme/${hostName}/key.pem;
                         ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;  # don't use SSLv3 ref: POODLE
                         ${locationConfigs}
                         access_log off;
@@ -246,7 +243,6 @@ in rec {
             system = "x86_64-linux";
             configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
               imports = [ "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix" ];
-              services.journald.rateLimitBurst = 0;
               ec2.hvm = true;
 
               environment.systemPackages = with pkgs; [
@@ -263,11 +259,29 @@ in rec {
                 ];
               };
 
-              services.nginx = nginxService {
-                locations = {
-                  "/" = defaultBackendPort;
+              services = {
+                journald.rateLimitBurst = 0;
+
+                nginx = nginxService {
+                  locations = {
+                    "/" = defaultBackendPort;
+                  };
                 };
-              };
+              } // (if !ssl then {} else {
+                lighttpd = {
+                  enable = true;
+                  document-root = acmeWebRoot;
+                  port = 80;
+                  enableModules = [ "mod_redirect" ];
+                  extraConfig = ''
+                    $HTTP["url"] !~ "^/\.well-known/acme-challenge" {
+                      $HTTP["host"] =~ "^.*$" {
+                        url.redirect = ( "^.*$" => "https://%0$0" )
+                      }
+                    }
+                  '';
+                };
+              });
 
               systemd.services.backend = backendService {
                 user = "backend";
@@ -282,7 +296,16 @@ in rec {
                 group = "backend";
               };
               users.extraGroups.backend.gid = defaultBackendUid;
-            };
+            } // (if !ssl then {} else {
+              security.acme.certs.${hostName} = {
+                webroot = acmeWebRoot;
+                email = adminEmail;
+                plugins = [ "fullchain.pem" "key.pem" "account_key.json" ];
+                postRun = ''
+                  systemctl reload nginx.service
+                '';
+              };
+            });
           };
         };
       });
