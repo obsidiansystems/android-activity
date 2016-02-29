@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+echo -ne '\033]0;FRONTEND\007'
+nix-shell -E 'let this = (import ./.); in (this.nixpkgs.haskell.lib.overrideCabal this.frontend (drv: { buildDepends = map (x: if (x.name or null) == this.frontend.common.name then null else x) drv.buildDepends; })).env' --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs'
