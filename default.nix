@@ -163,7 +163,7 @@ in rec {
           name = "focus";
           src = ./android;
           platformVersions = [ "23" ];
-          useGoogleAPIs = true;
+          useGoogleAPIs = false;
 
           release = true;
           keyStore = ./keystore;

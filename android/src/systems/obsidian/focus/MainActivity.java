@@ -1,9 +1,9 @@
-package com.example.android.focus;
+package systems.obsidian.focus;
 
 import android.app.Activity;
 import android.os.Bundle;
 
-public class focus extends Activity
+public class MainActivity extends Activity
 {
     /** Called when the activity is first created. */
     @Override

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -eu
+
+echo -ne '\033]0;ANDROID\007'
+
+RESULT="$(nix-build -E 'let this = import ./.; nixpkgs = this.nixpkgs; in nixpkgs.androidenv.emulateApp { name = "focus"; app = this.android; platformVersion = "23"; useGoogleAPIs = false; package = "systems.obsidian.focus"; activity = "MainActivity";}')"
+
+"$RESULT/bin/run-test-emulator"
