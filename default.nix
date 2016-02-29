@@ -159,6 +159,18 @@ in rec {
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
         '';
+        android = nixpkgs.androidenv.buildApp {
+          name = "focus";
+          src = ./android;
+          platformVersions = [ "23" ];
+          useGoogleAPIs = true;
+
+          release = true;
+          keyStore = ./keystore;
+          keyAlias = "focus";
+          keyStorePassword = "password";
+          keyAliasPassword = "password";
+        };
         backend =
           let
             backendCommon = common backendHaskellPackages;
