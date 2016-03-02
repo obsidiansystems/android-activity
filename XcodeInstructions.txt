@@ -1,0 +1,9 @@
+How to get XCode into the nix-store:
+
+1. Go to https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_7.2.1/Xcode_7.2.1.dmg
+2. Sign in with an Apple ID
+3. run the following command:
+  XDG_RUNTIME_DIR=/tmp nix-prefetch-url file:///path/to/Xcode_7.2.dmg
+4. The output of that command should end with:
+  path is ‘/nix/store/pfglxcllqbhvc7p81di46fhxm277z7yn-Xcode_7.2.dmg’
+  1j12faz6gx0csnhzg5vjny9bl16vby76dqbxhpll748mzfmxs23g
