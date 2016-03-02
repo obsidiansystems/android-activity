@@ -29,7 +29,7 @@ in stdenv.mkDerivation {
     # replace package names in source files
     sed -i 's|package systems.obsidian.focus;|package '"${packageName}"\;'|' "$out/${packageSrcDir}/MainActivity.java" "$out/${packageSrcDir}/OverridenWebViewClient.java"
 
-    # set the sdk property correctly
+    # write out local.properties
     sed -i 's|sdk\.dir=FILL-THIS-IN|sdk.dir='"$androidSdk"'/libexec/android-sdk-linux|' $out/local.properties
 
     # copy in the frontend
