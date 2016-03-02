@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+RESULT="$(nix-build --no-out-link -E 'let this = import ./.; in this.androidEmulate')"
+
+"$RESULT/bin/run-test-emulator"
