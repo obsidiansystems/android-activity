@@ -17,7 +17,7 @@ class Monad m => MonadRoute r m | m -> r where
 
 type RouteEnv = (String, String, String)
 
-newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand)
+newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand, MonadTrans)
 
 runRouteT :: RouteT r m a -> RouteEnv -> m a
 runRouteT = runReaderT . unRouteT

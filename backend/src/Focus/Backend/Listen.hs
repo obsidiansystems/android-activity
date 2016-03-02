@@ -3,7 +3,6 @@ module Focus.Backend.Listen where
 
 import Focus.Backend.Schema.TH
 import Focus.Schema
-
 import Focus.Request
 import Snap
 import Data.Aeson
@@ -24,6 +23,7 @@ import Control.Exception (handle)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Database.PostgreSQL.Simple as PG
+import Data.Pool
 import qualified Database.PostgreSQL.Simple.Notification as PG
 import Database.Groundhog.Postgresql
 import Data.String
@@ -39,6 +39,9 @@ data TableListener a n
                    }
 
 type Listeners a n = Map ByteString (TableListener a n)
+
+withNotifications :: Pool Postgresql -> Listeners a n -> (TChan (PerClientListener a n) -> IO r) -> IO r
+withNotifications db notifications k = bracket (listenDB notifications $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
 
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
 notifyEntity aid _ = notifyEntityId aid
@@ -97,3 +100,16 @@ listenDB listeners withConn' = do
           translation <- withConn' $ (runDbConn $ tableListenerGetUpdate l $ LBS.fromStrict message) . Postgresql
           atomically $ writeTChan nChan translation
   return (nChan, killThread daemonThread)
+
+-- The 'account' type is typically Maybe (Id Account), while 'notification' is the app's Notification API type.
+tableListener :: forall a b account notification. (FromJSON (IdData a), FromJSON a)
+              => ((Id a, b) -> notification)
+              -> (forall m. MonadListenDb m => account -> Maybe (Id a) -> m [(Id a, b)])
+              -> TableListener account notification
+tableListener n f = TableListener
+    { tableListenerGetInitial = \aid -> liftM (map n) (f aid Nothing)
+    , tableListenerGetUpdate = \xidStr -> do
+        Just (xid :: Id a) <- return $ decodeValue' xidStr
+        return $ PerClientListener $ \aid -> liftM (map n) $ f aid (Just xid)
+    }
+

@@ -2,7 +2,7 @@ In your new project's git repository,
 git submodule add -b develop git@gitlab.com:obsidian.systems/focus.git
 git submodule update --init --recursive
 
-mkdir common common/src frontend frontend/src backend backend/src static 
+mkdir common common/src frontend frontend/src backend backend/src static config
 
 Create a default.nix with something like the following contents:
 

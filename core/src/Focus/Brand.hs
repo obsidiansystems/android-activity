@@ -23,7 +23,7 @@ class Monad m => MonadBrand m where
 getProductName :: MonadBrand m => m String
 getProductName = liftM (T.unpack . _brand_productName) getBrand
 
-newtype BrandT m a = BrandT { unBrandT :: ReaderT Brand m a } deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+newtype BrandT m a = BrandT { unBrandT :: ReaderT Brand m a } deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadTrans)
 
 instance Monad m => MonadBrand (BrandT m) where
   getBrand = BrandT ask
