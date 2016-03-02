@@ -43,6 +43,12 @@ type Listeners a n = Map ByteString (TableListener a n)
 withNotifications :: Pool Postgresql -> Listeners a n -> (TChan (PerClientListener a n) -> IO r) -> IO r
 withNotifications db notifications k = bracket (listenDB notifications $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
 
+insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Id a)
+insertAndNotify t = do
+  tid <- liftM toId $ insert t
+  notifyEntity tid t
+  return tid
+
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
 notifyEntity aid _ = notifyEntityId aid
 
