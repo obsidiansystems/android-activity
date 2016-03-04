@@ -12,6 +12,7 @@ in rec {
   mkDerivation = 
     { name
     , version
+    , androidPackagePrefix ? "systems.obsidian"
     , backendDepends ? (p: [])
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
@@ -158,7 +159,31 @@ in rec {
           ln -s "$backend/bin/backend" "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
+          ln -s "$androidApp" "$out/android"
         '';
+        androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
+        androidApp = nixpkgs.androidenv.buildApp {
+          name = appName;
+          src = androidSrc;
+          platformVersions = [ "23" ];
+          useGoogleAPIs = false;
+
+          release = true;
+          keyStore = ./keystore;
+          keyAlias = "focus";
+          keyStorePassword = "password";
+          keyAliasPassword = "password";
+        };
+        androidEmulate = nixpkgs.androidenv.emulateApp {
+          name = appName;
+          app = androidApp;
+          platformVersion = "23";
+          enableGPU = true;
+          abiVersion = "x86_64";
+          useGoogleAPIs = false;
+          package = androidPackagePrefix + "." + appName;
+          activity = ".MainActivity";
+        };
         backend =
           let
             backendCommon = common backendHaskellPackages;

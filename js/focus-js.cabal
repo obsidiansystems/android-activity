@@ -46,6 +46,7 @@ library
     http-types
 
   exposed-modules:
+    Focus.JS.BaseJSInstances
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
