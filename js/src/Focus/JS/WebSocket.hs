@@ -33,12 +33,6 @@ instance ToJS x (JSWebSocket x) where
 instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
--- Some of this is already in Reflex.Dom.WebSocket.Foreign, but that module isn't exposed.
-
-importJS Unsafe "(function(that) { var ws = new WebSocket(that[0]); ws['binaryType'] = 'arraybuffer'; ws['onmessage'] = function(e){ that[1](e.data); }; ws['onclose'] = function(e){ that[2](); }; return ws; })(this)" "newWebSocket_" [t| forall x m. MonadJS x m => String -> JSFun x -> JSFun x -> m (JSWebSocket x) |]
-
-importJS Unsafe "this[0]['send'](String.fromCharCode.apply(null, this[1]))" "webSocketSend_" [t| forall x m. MonadJS x m => JSWebSocket x -> JSUint8Array x -> m () |]
-
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
 webSocket :: forall x t m. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> WebSocketConfig t -> m (WebSocket t)
 webSocket path config = do
