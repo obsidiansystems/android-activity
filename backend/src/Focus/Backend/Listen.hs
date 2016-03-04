@@ -70,8 +70,8 @@ tableListenerWithAutoKey n = TableListener
           Just x -> return $ PerClientListener $ const $ return [n (xid, x)]
       }
 
-handleListen :: (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON n) => a -> Listeners a n -> TChan (PerClientListener a n) -> (forall x. m' x -> IO x) -> m ()
-handleListen a listeners l runGroundhog = ifTop $ do
+handleListen :: (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON n) => a -> Listeners a n -> TChan (PerClientListener a n) -> (forall x. m' x -> IO x) -> (DataMessage -> IO ()) -> m ()
+handleListen a listeners l runGroundhog onReceive = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan l
   startingValues <- liftIO $ runGroundhog $ do
     startingValues <- mapM (flip tableListenerGetInitial a) $ Map.elems listeners
@@ -88,7 +88,7 @@ handleListen a listeners l runGroundhog = ifTop $ do
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
-    handleConnectionException $ forever $ receiveDataMessage conn
+    handleConnectionException $ forever $ receiveDataMessage conn >>= onReceive
     killThread senderThread
 
 listenDB :: forall a n. Listeners a n -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan (PerClientListener a n), IO ())
