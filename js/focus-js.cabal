@@ -42,11 +42,13 @@ library
     timezone-series,
     timezone-olson,
     binary,
-    raw-strings-qq
+    raw-strings-qq,
+    http-types
 
   exposed-modules:
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
+    Focus.JS.Env
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen
