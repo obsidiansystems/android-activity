@@ -17,6 +17,8 @@ in rec {
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
     , frontendTools ? (p: [])
+    , testDepends ? (p: [])
+    , testTools ? (p : [])
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
@@ -209,6 +211,30 @@ in rec {
               haskellPackages = backendHaskellPackages;
             };
           })) {};
+        ${if builtins.pathExists ../tests then "tests" else null} =
+          let testCommon = common backendHaskellPackages;
+          in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
+              pname = "${appName}-tests";
+              license = null;
+              version = appVersion;
+              src = ../tests;
+              preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
+              preBuild = ''
+                ln -sfT ${../static} static
+              '';
+              buildDepends = [
+                testCommon
+                vector-algorithms
+                focus-core focus-backend focus-serve
+              ] ++ testDepends backendHaskellPackages;
+              buildTools = [] ++ testTools pkgs;
+              isExecutable = true;
+              configureFlags = [ "--ghc-option=-lgcc_s" ];
+              passthru = {
+                common = testCommon;
+                haskellPackages = backendHaskellPackages;
+              };
+        })) {};
         passthru = rec {
           frontend = frontend_.unminified;
           frontendGhc = mkFrontend ../frontend backendHaskellPackages ../static;
