@@ -4,4 +4,4 @@ set -eu
 FOCUS_PACKAGE="$1"
 shift
 
-nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.backend.haskellPackages.focus-'"$FOCUS_PACKAGE"' [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.ghcid ]).env' --command "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=dist-ghcid --ghc-option=-w && ghcid -c'cabal repl --builddir=dist-ghcid'" "$@"
+nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.backend.haskellPackages.focus-'"$FOCUS_PACKAGE"' [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.ghcid this.backend.haskellPackages.cabal-install ]).env' --command "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=dist-ghcid --ghc-option=-w && ghcid -c'cabal repl --builddir=dist-ghcid'" "$@"
