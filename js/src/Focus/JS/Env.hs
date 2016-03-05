@@ -16,19 +16,16 @@ import Network.HTTP.Types.URI
 import Reflex.Dom hiding (webSocket)
 import Focus.JS.WebSocket
 
-runFrontendWidget :: forall t x m a notification env authToken. (MonadFix m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken)
-                  => (Event t [notification] -> m env) -- build environment from websocket notification event
-                  -> Maybe authToken
-                  -> ReaderT env m a
-                  -> m a
-runFrontendWidget fromNotifications auth child = do
+listenNotifications :: forall t x m notification authToken. (MonadFix m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken)
+                    => Maybe authToken
+                    -> m (Event t [notification])
+listenNotifications auth = do
   eNotifications' <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-                       webSocket ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth)) def
+    webSocket ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth)) def
   rec notificationBuffer <- foldDyn (\a b -> maybe [] (\a' -> reverse a' ++ b) a) [] $ leftmost [fmap Just eNotifications', fmap (const Nothing) eNotifications]
       t <- tickLossy 1 =<< liftIO getCurrentTime
       let eNotifications = ffilter (not . null) . fmap reverse $ tag (current notificationBuffer) t
-  e <- fromNotifications eNotifications
-  runReaderT child e
+  return eNotifications
 
 class (Ord (Id a)) => EnvType e a a' | a -> a', a' -> a where
   allInEnv :: (MonadReader (e t) m) => m (Dynamic t (Map (Id a) a'))
