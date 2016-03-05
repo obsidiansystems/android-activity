@@ -7,6 +7,7 @@ import Focus.Request
 import Snap
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
+import Data.Int
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.Generic
@@ -17,9 +18,9 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Arrow
 import Control.Monad.Writer
-import Network.WebSockets
+import Network.WebSockets as WS
 import Network.WebSockets.Snap
-import Control.Exception (handle)
+import Control.Exception (handle, try, SomeException, displayException)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Database.PostgreSQL.Simple as PG
@@ -70,7 +71,14 @@ tableListenerWithAutoKey n = TableListener
           Just x -> return $ PerClientListener $ const $ return [n (xid, x)]
       }
 
-handleListen :: (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON n) => a -> Listeners a n -> TChan (PerClientListener a n) -> (forall x. m' x -> IO x) -> (DataMessage -> IO ()) -> m ()
+handleListen :: forall m m' n rsp rq a.
+                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON n, ToJSON rsp, FromJSON rq) 
+             => a 
+             -> Listeners a n 
+             -> TChan (PerClientListener a n) 
+             -> (forall x. m' x -> IO x) 
+             -> (rq -> IO rsp)
+             -> m ()
 handleListen a listeners l runGroundhog onReceive = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan l
   startingValues <- liftIO $ runGroundhog $ do
@@ -88,7 +96,19 @@ handleListen a listeners l runGroundhog onReceive = ifTop $ do
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
-    handleConnectionException $ forever $ receiveDataMessage conn >>= onReceive
+    handleConnectionException $ forever $ do
+      dm <- receiveDataMessage conn
+      let (wrapper, r) = case dm of
+            WS.Text r' -> (WS.Text, r')
+            WS.Binary r' -> (WS.Binary, r')
+          sender act = do
+            (er :: Either SomeException (Either String (Int64, rsp))) <- try act
+            sendDataMessage conn . wrapper . encode $ case er of
+              Left se -> Left (displayException se)
+              Right rsp -> rsp
+      case eitherDecode' r of
+        Left s -> sender . return $ Left s
+        Right (rid :: Int64, rq) -> sender $ fmap (Right . (,) rid) $ onReceive rq
     killThread senderThread
 
 listenDB :: forall a n. Listeners a n -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan (PerClientListener a n), IO ())
