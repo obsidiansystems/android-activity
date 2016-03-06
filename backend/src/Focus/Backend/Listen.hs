@@ -6,15 +6,12 @@ import Focus.Schema
 import Focus.Request
 import Focus.WebSocket
 
-import Control.Arrow
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (handle, try, SomeException, displayException)
 import Control.Monad.Writer
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.IORef
-import Data.Map (Map)
 import Data.Pool
 import Data.String
 import Data.Text.Encoding
@@ -28,7 +25,6 @@ import Network.WebSockets as WS
 import Network.WebSockets.Snap
 import Snap
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Database.PostgreSQL.Simple.Notification as PG
 
