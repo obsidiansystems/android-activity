@@ -4,10 +4,10 @@ module Focus.Backend.Listen where
 import Focus.Backend.Schema.TH
 import Focus.Schema
 import Focus.Request
+import Focus.WebSocket
 import Snap
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Int
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.Generic
@@ -87,7 +87,7 @@ handleListen a listeners l runGroundhog onReceive = ifTop $ do
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     senderThread <- forkIO $ do
-      let send' = sendTextData conn . encode
+      let send' = sendTextData conn . encodeR . WebSocketData_Listen
       send' startingValues
       forever $ do
         (PerClientListener change) <- atomically $ readTChan changes
@@ -101,15 +101,17 @@ handleListen a listeners l runGroundhog onReceive = ifTop $ do
       let (wrapper, r) = case dm of
             WS.Text r' -> (WS.Text, r')
             WS.Binary r' -> (WS.Binary, r')
-          sender act = do
-            (er :: Either SomeException (Either String (Int64, rsp))) <- try act
-            sendDataMessage conn . wrapper . encode $ case er of
-              Left se -> Left (displayException se)
-              Right rsp -> rsp
+          sender rid act = do
+            er <- try act
+            sendDataMessage conn . wrapper . encodeR . WebSocketData_Api rid $ case er of
+              Left (se :: SomeException) -> Left (displayException se)
+              Right rsp -> Right rsp
       case eitherDecode' r of
-        Left s -> sender . return $ Left s
-        Right (rid :: Int64, rq) -> sender $ fmap (Right . (,) rid) $ onReceive rq
+        Left _ -> return ()
+        Right (rid, rq) -> sender rid $ onReceive rq
     killThread senderThread
+ where encodeR :: WebSocketData [n] (Either String rsp) -> LBS.ByteString
+       encodeR = encode
 
 listenDB :: forall a n. Listeners a n -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan (PerClientListener a n), IO ())
 listenDB listeners withConn' = do

@@ -19,6 +19,7 @@ library
                , base64-bytestring
                , bytestring
                , containers
+               , lens
                , mtl
                , network-uri
                , old-locale
@@ -53,6 +54,7 @@ library
     , Focus.Sign
     , Focus.Concurrent
     , Focus.TH
+    , Focus.WebSocket
     , Control.Monad.TypedUnique
 
   other-extensions: TemplateHaskell
