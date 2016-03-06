@@ -10,7 +10,6 @@ import qualified Data.Map as Map
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Data.Time.Clock
 import Focus.Request
 import Focus.Schema
 import Focus.WebSocket
@@ -19,32 +18,21 @@ import Reflex.Dom hiding (webSocket, Value)
 
 import Focus.JS.WebSocket
 
-openWebsocket :: forall t m x authToken notification req rsp
-               . (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON authToken, ToJSON req)
-              => Maybe authToken
-              -> Event t [(Value, req)]
-              -> m (Event t [notification], Event t (Value, Either String rsp))
-openWebsocket auth eReq = do
+openAndListenWebsocket :: forall t m x authToken notification req rsp vs
+                        . (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON authToken, ToJSON req, ToJSON vs)
+                       => Maybe authToken
+                       -> Event t [(Value, req)]
+                       -> Event t vs
+                       -> m (Event t notification, Event t (Value, Either String rsp))
+openAndListenWebsocket auth eReq eViewSelector = do
   eMessages <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
     webSocket 
       ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth))
-      (WebSocketConfig $ fmap (map (LBS.toStrict . encode . uncurry wsd_send_api)) $ eReq)
+      (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
+                                                                      , fmap ((:[]) . WebSocketData_Listen) eViewSelector
+                                                                      ])
   let eNotifications = fmapMaybe (^? _WebSocketData_Listen) eMessages
       eResponses = fmapMaybe (^? _WebSocketData_Api) eMessages
-  return (eNotifications, eResponses)
- where wsd_send_api :: Value -> req -> WebSocketData () req -- Todo, read requests instead of ()
-       wsd_send_api = WebSocketData_Api
-
-openAndListenWebsocket :: forall t x m notification authToken req rsp
-                        . (MonadFix m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken, ToJSON req, FromJSON rsp)
-                       => Maybe authToken
-                       -> Event t [(Value, req)]
-                       -> m (Event t [notification], Event t (Value, Either String rsp))
-openAndListenWebsocket auth eReq = do
-  (eNotifications', eResponses) <- openWebsocket auth eReq
-  rec notificationBuffer <- foldDyn (\a b -> maybe [] (\a' -> reverse a' ++ b) a) [] $ leftmost [fmap Just eNotifications', fmap (const Nothing) eNotifications]
-      t <- tickLossy 1 =<< liftIO getCurrentTime
-      let eNotifications = ffilter (not . null) . fmap reverse $ tag (current notificationBuffer) t
   return (eNotifications, eResponses)
 
 class (Ord (Id a)) => EnvType e a a' | a -> a', a' -> a where
