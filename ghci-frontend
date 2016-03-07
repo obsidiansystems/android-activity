@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-set -eu
+set -eu -o pipefail
 
 nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --command "ghci -ifrontend/src Main" "$@"
