@@ -43,7 +43,8 @@ library
     timezone-olson,
     binary,
     raw-strings-qq,
-    http-types
+    http-types,
+    exception-transformers
 
   exposed-modules:
     Focus.JS.BaseJSInstances
