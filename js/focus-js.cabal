@@ -25,6 +25,7 @@ library
     bytestring,
     containers,
     time,
+    ghcjs-base,
     ghcjs-dom,
     loch-th,
     ref-tf,
@@ -36,6 +37,7 @@ library
     these,
     mtl,
     dependent-map,
+    dependent-sum,
     data-default,
     constraints,
     safe,
@@ -51,8 +53,10 @@ library
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
+    Focus.JS.FileReader
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
+    Focus.JS.ImageUpload
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Request
