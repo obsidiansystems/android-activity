@@ -144,34 +144,28 @@ data RequestEnv t m = RequestEnv { _requestEnv_response :: Event t ((Int64, Int6
 minId :: Int64
 minId = 1
 
-newtype RequestT t req m a = RequestT { unRequestT :: DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) (StateT Int64 (ReaderT (RequestEnv t m) m)) a } deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument, MonadDynamicWriter t (Event t [((Int64, Int64), SomeRequest req)]))
+newtype RequestT t req m a = 
+  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)) a } 
+ deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument)
 
-deriving instance Monad m => MonadReader (RequestEnv t m) (RequestT t req m)
-deriving instance Monad m => MonadState Int64 (RequestT t req m)
-
-runRequestT :: (Reflex t, Monad m, MonadHold t m) => RequestT t req m a -> Int64 -> RequestEnv t m -> m (a, Dynamic t (Event t [((Int64, Int64), SomeRequest req)]), Int64)
-runRequestT (RequestT m) s e = do
-  ((a, dw), i) <- runReaderT (runStateT (runDynamicWriterT m) s) e
-  return (a, dw, i)
-
-runRequestTWebSocket :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken, ToJSON vs, Request req)
+runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken, ToJSON vs, Request req)
                      => Maybe authToken
                      -> Event t vs
                      -> RequestT t req m a
                      -> m (a, Event t notification)
-runRequestTWebSocket auth eViewSelector m = do
+runRequestT auth eViewSelector (RequestT m) = do
   nextInvocation <- liftIO $ newRef (minId + 1)
   rec (eNotification, eResponse) <- openAndListenWebsocket auth (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelector
       let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
                             , _requestEnv_currentInvocation = minId
                             , _requestEnv_nextInvocation = nextInvocation
                             }
-      (a, dReq, _) <- runRequestT m minId rEnv
+      ((a, _), dReq) <- runDynamicWriterT (runReaderT (runStateT m minId) rEnv)
   return (a, eNotification)
   where
     valueToMaybe r = case fromJSON r of
-                          Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r
-                          Success a -> Just a
+      Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r
+      Success a -> Just a
 
 instance MonadTrans (RequestT t req) where
   lift = RequestT . lift . lift . lift
@@ -192,51 +186,36 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t 
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
 
-instance MonadWidget t m => MonadWidget t (StateT Int64 (ReaderT (RequestEnv t m) m)) where
-  type WidgetHost (StateT Int64 (ReaderT (RequestEnv t m) m)) = WidgetHost m
-  type GuiAction (StateT Int64 (ReaderT (RequestEnv t m) m)) = GuiAction m
-  type WidgetOutput t (StateT Int64 (ReaderT (RequestEnv t m) m)) = WidgetOutput t m
+instance MonadWidget t m => MonadWidget t (RequestT t req m) where
+  type WidgetHost (RequestT t req m) = WidgetHost m
+  type GuiAction (RequestT t req m) = GuiAction m
+  type WidgetOutput t (RequestT t req m) = WidgetOutput t (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)
   askParent = lift askParent
-  subWidget n w = do
-    s <- get
-    e <- ask
-    (a, ns) <- lift $ lift $ subWidget n $ runReaderT (runStateT w s) e
-    put ns
+  subWidget n (RequestT w) = do
+    s <- RequestT get
+    e <- RequestT ask
+    (a, ns) <- RequestT $ lift $ lift $ subWidget n $ runReaderT (runStateT w s) e
+    RequestT $ put ns
     return a
-  subWidgetWithVoidActions n w = do
-    s <- get
-    e <- ask
-    ((a, ns), wo) <- lift $ lift $ subWidgetWithVoidActions n $ runReaderT (runStateT w s) e
-    put ns
+  subWidgetWithVoidActions n (RequestT w) = do
+    s <- RequestT get
+    e <- RequestT ask
+    ((a, ns), wo) <- RequestT $ lift $ lift $ subWidgetWithVoidActions n $ runReaderT (runStateT w s) e
+    RequestT $ put ns
     return (a, wo)
-  liftWidgetHost = lift . liftWidgetHost
-  schedulePostBuild = lift . schedulePostBuild
-  addVoidAction = lift . addVoidAction
+  liftWidgetHost = RequestT . lift . liftWidgetHost
+  schedulePostBuild = RequestT . lift . schedulePostBuild
+  addVoidAction = RequestT . lift . addVoidAction
   getRunWidget = do
-    runWidget <- lift $ lift getRunWidget
-    e <- ask
-    return $ \rootElement w -> do
+    runWidget <- RequestT $ lift $ lift getRunWidget
+    e <- RequestT ask
+    return $ \rootElement (RequestT w) -> do
       s <- readRef (_requestEnv_nextInvocation e)
       writeRef (_requestEnv_nextInvocation e) (s + 1)
       let e' = e { _requestEnv_currentInvocation = s }
       ((a, _), postBuild, voidActions) <- runWidget rootElement $ runReaderT (runStateT w minId) e'
       return (a, postBuild, voidActions)
-  tellWidgetOutput = lift . tellWidgetOutput
-
-instance MonadWidget t m => MonadWidget t (RequestT t req m) where
-  type WidgetHost (RequestT t req m) = WidgetHost (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) (StateT Int64 (ReaderT (RequestEnv t m) m)))
-  type GuiAction (RequestT t req m) = GuiAction (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) (StateT Int64 (ReaderT (RequestEnv t m) m)))
-  type WidgetOutput t (RequestT t req m) = WidgetOutput t (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) (StateT Int64 (ReaderT (RequestEnv t m) m)))
-  askParent = RequestT askParent
-  subWidget n w = RequestT $ subWidget n $ unRequestT w
-  subWidgetWithVoidActions n w = RequestT $ subWidgetWithVoidActions n $ unRequestT w
-  liftWidgetHost = RequestT . liftWidgetHost
-  schedulePostBuild = RequestT . schedulePostBuild
-  addVoidAction = RequestT . addVoidAction
-  getRunWidget = do
-    widgetRunner <- RequestT getRunWidget
-    return $ \n m -> widgetRunner n (unRequestT m)
-  tellWidgetOutput = RequestT . tellWidgetOutput
+  tellWidgetOutput = RequestT . lift . tellWidgetOutput
 
 class (Request req, MonadWidget t m) => MonadRequest t req m where
   requesting :: (ToJSON a, FromJSON a, HasJS x (WidgetHost m)) => Event t (req a) -> m (Event t a)
@@ -244,10 +223,10 @@ class (Request req, MonadWidget t m) => MonadRequest t req m where
 
 instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do
-    rid <- state $ \s -> (s, s + 1)
-    c <- asks _requestEnv_currentInvocation
-    tellDyn $ constDyn $ fmap ((:[]) . (,) (rid, c) . SomeRequest) e
-    rsp <- asks _requestEnv_response
+    rid <- RequestT $ state $ \s -> (s, s + 1)
+    c <- RequestT $ asks _requestEnv_currentInvocation
+    RequestT $ lift $ lift $ tellDyn $ constDyn $ fmap ((:[]) . (,) (rid, c) . SomeRequest) e
+    rsp <- RequestT $ asks _requestEnv_response
     return $ fforMaybe rsp $ \(rspId, r) ->
       if rspId == (rid, c)
          then case r of
@@ -273,5 +252,3 @@ instance MonadState s m => MonadState s (DynamicWriterT t w m) where
 instance HasJS x m => HasJS x (DynamicWriterT t w m) where
   type JSM (DynamicWriterT t w m) = JSM m
   liftJS = lift . liftJS
-
-
