@@ -52,28 +52,28 @@ notifyEntityId aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
-handleListen :: forall m m' rsp rq notification vs v.
-                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification, FromJSON vs, ToJSON v)
+handleListen :: forall m m' rsp rq notification vs vp.
+                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification, FromJSON vs, ToJSON vp)
              => (forall x. m' x -> IO x)
              -> TChan notification
              -> vs
-             -> (vs -> m' v)
+             -> (vs -> vs -> vs)
+             -> (vs -> m' vp)
+             -> (vs -> notification -> m' (Maybe vp))
              -> (rq -> IO rsp)
              -> m ()
-handleListen runGroundhog chan vs0 updateView processRequest = ifTop $ do
+handleListen runGroundhog chan vs0 diffViewSel getView getPatch processRequest = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan chan
   vsRef <- liftIO $ newIORef vs0
-  let updateView' = do
-        vs <- readIORef vsRef
-        runGroundhog $ updateView vs
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     let send' = sendTextData conn . encodeR . WebSocketData_Listen
     senderThread <- forkIO $ do
-      send' =<< updateView'
+      send' =<< (runGroundhog . getView) =<< readIORef vsRef
       forever $ do
-        _ <- atomically $ readTChan changes
-        send' =<< updateView'
+        change <- atomically $ readTChan changes
+        mp <- (\vs -> runGroundhog $ getPatch vs change) =<< readIORef vsRef
+        forM_ mp send'
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
@@ -91,10 +91,12 @@ handleListen runGroundhog chan vs0 updateView processRequest = ifTop $ do
         Left _ -> return ()
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
         Right (WebSocketData_Listen vs) -> do
+          vsOld <- readIORef vsRef
+          let vsDiff = diffViewSel vs vsOld
           atomicModifyIORef vsRef (const (vs, ()))
-          send' =<< updateView'
+          send' =<< runGroundhog (getView vsDiff)
     killThread senderThread
- where encodeR :: WebSocketData v (Either String rsp) -> LBS.ByteString
+ where encodeR :: WebSocketData vp (Either String rsp) -> LBS.ByteString
        encodeR = encode
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
