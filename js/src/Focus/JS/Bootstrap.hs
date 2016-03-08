@@ -388,7 +388,7 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
 
 recoveryForm
   :: forall t m. (MonadWidget t m)
-  => (Event t (Id Account) -> m (Event t ()))
+  => (Event t Email -> m (Event t ()))
   -> m (Event t (), Event t ())
 recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
@@ -396,13 +396,13 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
     linkClass "sign in" "pointer"
   emailBox <- emailInputWithPlaceholder "Email address"
   submitButton <- linkClass "Recover" "btn btn-lg btn-primary btn-block"
-  eReset <- requestPasswordResetEmail $ fmap (Id . T.pack) $ tag (current $ _textInput_value emailBox) (_link_clicked submitButton)
+  eReset <- requestPasswordResetEmail . fmap T.pack $ tag (current $ _textInput_value emailBox) (_link_clicked submitButton)
   el "div" $ elAttr "p" (Map.singleton "class" "text-center") $ dynText =<< holdDyn "" (fmap (const "An email with account recovery instructions has been sent.") eReset)
   return (eReset, (_link_clicked signinLink))
 
 loginForm
   :: forall t m loginInfo. (MonadWidget t m)
-  => (Event t (Id Account, Text) -> m (Event t (Maybe loginInfo)))
+  => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
   -> m (Event t loginInfo, Event t ())
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
@@ -412,7 +412,7 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   passwordBox <- passwordInputWithPlaceholder "Password"
   submitButton <- linkClass "Sign in" "btn btn-lg btn-primary btn-block"
   let bCreds = pull $ do
-        email <- liftM (Id . T.pack) $ sample $ current $ _textInput_value emailBox
+        email <- liftM T.pack $ sample $ current $ _textInput_value emailBox
         password <- liftM T.pack $ sample $ current $ _textInput_value passwordBox
         return (email, password)
   let eEmailEnter = textInputGetEnter emailBox

@@ -8,6 +8,7 @@ import Data.Int
 import Data.Proxy
 import Database.Groundhog.Core
 import Language.Haskell.TH
+import Debug.Trace.LocationTH
 
 class HasId a => DefaultKeyId a where
   toIdData :: Proxy a -> DefaultKey a -> IdData a
@@ -33,6 +34,7 @@ makeDefaultKeyIdInt64 n k = do
     instance IdDataIs $(conT n) Int64 => DefaultKeyId $(conT n) where
       toIdData _ dk = case $(lamE [conP k [varP pv]] (varE pv)) dk of
         PersistInt64 x -> x
+        _ -> $failure "makeDefaultKeyIdInt64: pattern match failure (this should be impossible)"
       fromIdData _ = $(conE k) . PersistInt64
     |]
 
