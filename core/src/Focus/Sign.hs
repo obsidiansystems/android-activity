@@ -15,5 +15,3 @@ class Monad m => MonadSign m where
 instance MonadSign m => MonadSign (ReaderT r m) where
   sign = lift . sign
   readSigned = lift . readSigned
-
-
