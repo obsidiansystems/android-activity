@@ -25,14 +25,15 @@ openAndListenWebsocket :: forall t m x authToken notification req rsp vs
                        -> Event t vs
                        -> m (Event t notification, Event t (Value, Either String rsp))
 openAndListenWebsocket auth eReq eViewSelector = do
-  eMessages <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+  (eMessages :: Event t (Either String (WebSocketData notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
     webSocket 
       ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth))
       (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
                                                                       , fmap ((:[]) . WebSocketData_Listen) eViewSelector
                                                                       ])
-  let eNotifications = fmapMaybe (^? _WebSocketData_Listen) eMessages
-      eResponses = fmapMaybe (^? _WebSocketData_Api) eMessages
+  --TODO: Handle parse errors returned by the backend
+  let eNotifications = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
+      eResponses = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
   return (eNotifications, eResponses)
 
 class (Ord (Id a)) => EnvType e a a' | a -> a', a' -> a where

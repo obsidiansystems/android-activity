@@ -68,7 +68,7 @@ handleListen runGroundhog chan vs0 updateView processRequest = ifTop $ do
         runGroundhog $ updateView vs
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
-    let send' = sendTextData conn . encodeR . WebSocketData_Listen
+    let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
     senderThread <- forkIO $ do
       send' =<< updateView'
       forever $ do
@@ -84,17 +84,17 @@ handleListen runGroundhog chan vs0 updateView processRequest = ifTop $ do
             WS.Binary r' -> (WS.Binary, r')
           sender rid act = do
             er <- try act
-            sendDataMessage conn . wrapper . encodeR . WebSocketData_Api rid $ case er of
+            sendDataMessage conn . wrapper . encodeR . Right . WebSocketData_Api rid $ case er of
               Left (se :: SomeException) -> Left (displayException se)
               Right rsp -> Right rsp
       case eitherDecode' r of
-        Left _ -> return ()
+        Left s -> sendDataMessage conn . wrapper . encodeR $ Left s
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
         Right (WebSocketData_Listen vs) -> do
           atomicModifyIORef vsRef (const (vs, ()))
           send' =<< updateView'
     killThread senderThread
- where encodeR :: WebSocketData v (Either String rsp) -> LBS.ByteString
+ where encodeR :: Either String (WebSocketData v (Either String rsp)) -> LBS.ByteString
        encodeR = encode
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
