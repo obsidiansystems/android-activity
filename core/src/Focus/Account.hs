@@ -16,8 +16,7 @@ data Account
             }
   deriving (Show, Read, Eq, Ord, Typeable)
 
-instance HasId Account where
-  type IdData Account = Email -- Accounts are identified by their email addresses
+instance HasId Account
 
 newtype PasswordResetToken = PasswordResetToken { unPasswordResetToken :: (Id Account, UTCTime) } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, Typeable)
 
