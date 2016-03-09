@@ -33,7 +33,7 @@ in stdenv.mkDerivation {
     sed -i 's|sdk\.dir=FILL-THIS-IN|sdk.dir='"$androidSdk"'/libexec/android-sdk-linux|' $out/local.properties
 
     # copy in the frontend
-    mkdir -p $out/src/main/assets
+    mkdir -p $out/assets
     cp -r --no-preserve=mode $frontend/bin/frontend.jsexe $out/assets
   '';
 }
