@@ -1,4 +1,4 @@
-{mkDerivation, aeson, attoparsec, base64-bytestring, stripe, text, time, vector, network-uri, timezone-series, constraints, dependent-map, reflex, HList, file-embed, data-default, loch-th}: 
+{mkDerivation, aeson, attoparsec, base64-bytestring, stripe, text, time, vector, network-uri, timezone-series, constraints, dependent-map, reflex, HList, file-embed, data-default, loch-th, lens}: 
 
 mkDerivation {
   pname = "focus-core";
@@ -22,5 +22,6 @@ mkDerivation {
     file-embed
     data-default
     loch-th
+    lens
   ];
 }
