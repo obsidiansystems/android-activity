@@ -5,6 +5,7 @@ module Focus.Backend.Account where
 import Focus.Backend.DB
 import Focus.Backend.Email
 import Focus.Backend.Schema.TH
+import Focus.Backend.Listen
 
 import Focus.Account
 import Focus.Brand
@@ -46,14 +47,16 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
--- Does not notify the user that the "Account" has been created
 ensureAccountExists :: (PersistBackend m, MonadSign m) => Email -> m (Maybe (Id Account)) 
 ensureAccountExists email = do
   nonce <- getTime
   result <- insertByAll $ Account email Nothing (Just nonce)
   case result of
     Left _ -> return Nothing
-    Right aid -> return (Just (toId aid))
+    Right aid -> do
+      let aid' = toId aid
+      notifyEntityId aid'
+      return (Just aid')
 
 ensureAccountExistsEmail
   :: (PersistBackend m, MonadSign m, MonadBrand m, MonadRoute r m, Default r, MonadEmail m)

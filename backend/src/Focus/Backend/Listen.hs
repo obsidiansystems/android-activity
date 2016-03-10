@@ -45,7 +45,7 @@ insertAndNotify t = do
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
 notifyEntity aid _ = notifyEntityId aid
 
-notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> m ()
+notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => Id a -> m ()
 notifyEntityId aid = do
   let proxy = undefined :: proxy (PhantomDb m)
   let cmd = "NOTIFY " <>  updateChannel <> ", ?"
