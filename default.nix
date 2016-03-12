@@ -35,6 +35,7 @@ in rec {
              focus-js = self.callPackage ./js {};
              focus-serve = self.callPackage ./http/serve {};
              focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
+             focus-client = self.callPackage ./client {};
              reflex-dom = self.callPackage ./reflex-dom {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
@@ -213,7 +214,7 @@ in rec {
           })) {};
         ${if builtins.pathExists ../tests then "tests" else null} =
           let testCommon = common backendHaskellPackages;
-          in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
+          in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
               pname = "${appName}-tests";
               license = null;
               version = appVersion;
@@ -225,7 +226,7 @@ in rec {
               buildDepends = [
                 testCommon
                 vector-algorithms
-                focus-core focus-backend focus-serve
+                focus-core focus-backend focus-client
               ] ++ testDepends backendHaskellPackages;
               buildTools = [] ++ testTools pkgs;
               isExecutable = true;
