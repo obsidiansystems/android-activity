@@ -2,9 +2,9 @@
 module Data.Indexed.Projections where
 
 import Data.Indexed
-import Control.Lens ((&), (.~), at)
-import Data.Proxy
-import Data.Map
+-- import Control.Lens ((&), (.~), at)
+-- import Data.Proxy
+-- import Data.Map
 
 data Id
 
