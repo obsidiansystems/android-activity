@@ -53,16 +53,18 @@ notifyEntityId aid = do
   return ()
 
 handleListen :: forall m m' rsp rq notification vs vp.
-                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification, FromJSON vs, ToJSON vp)
+                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
+                 FromJSON vs, ToJSON vp, Monoid vs)
              => (forall x. m' x -> IO x)
              -> TChan notification
              -> vs
              -> (vs -> vs -> vs)
              -> (vs -> m' vp)
              -> (vs -> notification -> m' (Maybe vp))
+             -> (vs -> vs -> m' ())
              -> (rq -> IO rsp)
-             -> m ()
-handleListen runGroundhog chan vs0 diffViewSel getView getPatch processRequest = ifTop $ do
+             -> m () 
+handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan chan
   vsRef <- liftIO $ newIORef vs0
   runWebSocketsSnap $ \pc -> do
@@ -94,8 +96,12 @@ handleListen runGroundhog chan vs0 diffViewSel getView getPatch processRequest =
           vsOld <- readIORef vsRef
           let vsDiff = diffViewSel vs vsOld
           atomicModifyIORef vsRef (const (vs, ()))
+          runGroundhog (onViewSelectorChange vsOld vs)
           send' =<< runGroundhog (getView vsDiff)
     killThread senderThread
+    vs <- readIORef vsRef
+    runGroundhog (onViewSelectorChange vs mempty)
+
  where encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
        encodeR = encode
 
