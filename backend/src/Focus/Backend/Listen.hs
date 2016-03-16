@@ -52,29 +52,33 @@ notifyEntityId aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
-handleListen :: forall m m' rsp rq notification vs vp.
+handleListen :: forall m m' rsp rq notification vs vp auth token.
                 (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
-                 FromJSON vs, ToJSON vp, Monoid vs)
+                 FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON auth, Monoid vs)
              => (forall x. m' x -> IO x)
              -> TChan notification
+             -> auth
+             -> (token -> auth)
              -> vs
              -> (vs -> vs -> vs)
-             -> (vs -> m' vp)
+             -> (auth -> vs -> m' vp)
              -> (vs -> notification -> m' (Maybe vp))
-             -> (vs -> vs -> m' ())
+             -> (auth -> vs -> vs -> m' ())
              -> (rq -> IO rsp)
              -> m () 
-handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
+handleListen runGroundhog chan auth0 tokenToAuth vs0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan chan
-  vsRef <- liftIO $ newIORef vs0
+  vsRef <- liftIO $ newIORef (auth0, vs0)
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
     senderThread <- forkIO $ do
-      send' =<< (runGroundhog . getView) =<< readIORef vsRef
+      (authInit, vsInit) <- readIORef vsRef
+      send' =<< runGroundhog (getView authInit vsInit)
       forever $ do
         change <- atomically $ readTChan changes
-        mp <- (\vs -> runGroundhog $ getPatch vs change) =<< readIORef vsRef
+        (_, vs) <- readIORef vsRef
+        mp <- runGroundhog $ getPatch vs change
         forM_ mp send'
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
@@ -83,7 +87,7 @@ handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorCh
       dm <- receiveDataMessage conn
       let (wrapper, r) = case dm of
             WS.Text r' -> (WS.Text, r')
-            WS.Binary r' -> (WS.Binary, r')
+            WS.Binary r' -> (WS.Text, r') --TODO: This is just for debug, because the frontend always sends binary frames and chrome doesn't allow inspecting them. Instead, we should just be able to configure the frontend to use text or binary and let the server return its responses in the same format that the frontend chooses.
           sender rid act = do
             er <- try act
             sendDataMessage conn . wrapper . encodeR . Right . WebSocketData_Api rid $ case er of
@@ -93,16 +97,28 @@ handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorCh
         Left s -> sendDataMessage conn . wrapper . encodeR $ Left s
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
         Right (WebSocketData_Listen vs) -> do
-          vsOld <- readIORef vsRef
+          (authOld, vsOld) <- readIORef vsRef
           let vsDiff = diffViewSel vs vsOld
-          atomicModifyIORef vsRef (const (vs, ()))
-          runGroundhog (onViewSelectorChange vsOld vs)
-          send' =<< runGroundhog (getView vsDiff)
+          atomicModifyIORef vsRef (const ((authOld, vs), ()))
+          runGroundhog (onViewSelectorChange authOld vsOld vs)
+          send' =<< runGroundhog (getView authOld vsDiff)
+        Right (WebSocketData_Auth token) -> do
+          let auth = tokenToAuth token
+          (authOld, vs) <- readIORef vsRef
+          let vsDiff = diffViewSel vs mempty
+              vsDiffReset = diffViewSel mempty vs
+          atomicModifyIORef vsRef (const ((auth, vs), ()))
+          sendDataMessage conn . wrapper . encodeR . Right. WebSocketData_Auth $ auth
+          runGroundhog (onViewSelectorChange authOld mempty vs)
+          runGroundhog (onViewSelectorChange auth vs mempty)
+          undoView <- runGroundhog (getView authOld vsDiffReset)
+          freshView <- runGroundhog (getView auth vsDiff)
+          send' (freshView <> undoView)
     killThread senderThread
-    vs <- readIORef vsRef
-    runGroundhog (onViewSelectorChange vs mempty)
+    (auth, vs) <- readIORef vsRef
+    runGroundhog (onViewSelectorChange auth vs mempty)
 
- where encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
+ where encodeR :: Either String (WebSocketData auth vp (Either String rsp)) -> LBS.ByteString
        encodeR = encode
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
