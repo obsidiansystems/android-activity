@@ -90,11 +90,15 @@ privateWithTimeout mt req = do
 publicWithTimeout :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> pub rsp -> ClientApp pub priv (Maybe (Either String rsp))
 publicWithTimeout mt req = requestWithTimeout mt (ApiRequest_Public req)
 
-private :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => priv rsp -> ClientApp pub priv (Maybe (Either String rsp))
-private = privateWithTimeout Nothing
+private :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => priv rsp -> ClientApp pub priv (Either String rsp)
+private req = do
+  Just rsp <- privateWithTimeout Nothing req
+  return rsp
 
-public :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => pub rsp -> ClientApp pub priv (Maybe (Either String rsp))
-public = publicWithTimeout Nothing
+public :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => pub rsp -> ClientApp pub priv (Either String rsp)
+public req = do
+  Just rsp <- publicWithTimeout Nothing req
+  return rsp
 
 setToken :: Maybe (Signed AuthToken) -> ClientApp pub priv ()
 setToken token = do
