@@ -149,13 +149,13 @@ newtype RequestT t req m a =
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument)
 
 runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON authToken, ToJSON vs, Request req)
-                     => Maybe authToken
-                     -> Event t vs
-                     -> RequestT t req m a
-                     -> m (a, Event t notification)
-runRequestT auth eViewSelector (RequestT m) = do
+            => Dynamic t (Maybe authToken)
+            -> Event t vs
+            -> RequestT t req m a
+            -> m (a, Event t notification)
+runRequestT authDyn eViewSelector (RequestT m) = do
   nextInvocation <- liftIO $ newRef (minId + 1)
-  rec (eNotification, eResponse) <- openAndListenWebsocket auth (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelector
+  rec (eNotification, eResponse) <- openAndListenWebsocket authDyn (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelector
       let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
                             , _requestEnv_currentInvocation = minId
                             , _requestEnv_nextInvocation = nextInvocation
