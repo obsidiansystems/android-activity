@@ -18,21 +18,24 @@ import Reflex.Dom hiding (webSocket, Value)
 
 import Focus.JS.WebSocket
 
-openAndListenWebsocket :: forall t m x authToken notification req rsp vs. (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON authToken, ToJSON req, ToJSON vs)
-                       => Dynamic t (Maybe authToken)
+openAndListenWebsocket :: forall t m x whoami token notification req rsp vs. (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, FromJSON whoami)
+                       => token
+                       -> Dynamic t token
                        -> Event t [(Value, req)]
                        -> Event t vs
-                       -> m (Event t notification, Event t (Value, Either String rsp))
-openAndListenWebsocket _ {- authDyn -} eReq eViewSelector = do
-  (eMessages :: Event t (Either String (WebSocketData notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-    webSocket ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ (Nothing :: Maybe authToken)))
+                       -> m (Event t whoami, Event t notification, Event t (Value, Either String rsp))
+openAndListenWebsocket token tokenDyn eReq eViewSelector = do
+  (eMessages :: Event t (Either String (WebSocketData whoami notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+    webSocket ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ token))
       (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
                                                                       , fmap ((:[]) . WebSocketData_Listen) eViewSelector
+                                                                      , fmap ((:[]) . WebSocketData_Auth) (updated tokenDyn)
                                                                       ])
   --TODO: Handle parse errors returned by the backend
-  let eNotifications = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
+  let eWhoAmI = fmapMaybe (^? _Right . _WebSocketData_Auth) eMessages
+      eNotifications = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
       eResponses = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
-  return (eNotifications, eResponses)
+  return (eWhoAmI, eNotifications, eResponses)
 
 class (Ord (Id a)) => EnvType e a a' | a -> a', a' -> a where
   allInEnv :: (MonadReader (e t) m) => m (Dynamic t (Map (Id a) a'))
