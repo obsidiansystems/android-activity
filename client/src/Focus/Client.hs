@@ -53,7 +53,7 @@ runClientApp (ClientApp m) auth = withSocketsDo $ runClient "localhost" 8000 url
                                 , _clientEnv_nextId = nextId
                                 , _clientEnv_pending =  pending
                                 }
-  --TODO: Is this ok? What about pending messages in the pipe?
+  --TODO: #115797507 Is this ok? What about pending messages in the pipe?
   killThread lid
   sendClose conn ("Bye! ;) ;) ;)" :: Text)
   return a
@@ -75,7 +75,7 @@ requestWithTimeout mtime req = ClientApp $ do
           Success r' -> r'
     mrsp <- fmap decodeOrBust <$> readMVar em & case mtime of
       Nothing -> fmap Just
-      Just t -> timeout (fromIntegral t)
+      Just t -> timeout (fromIntegral t) --TODO: #115797377
     modifyMVar_ pending $ return . Map.delete rid
     return mrsp
 
@@ -90,11 +90,18 @@ privateWithTimeout mt req = do
 publicWithTimeout :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> pub rsp -> ClientApp pub priv (Maybe (Either String rsp))
 publicWithTimeout mt req = requestWithTimeout mt (ApiRequest_Public req)
 
+private :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => priv rsp -> ClientApp pub priv (Maybe (Either String rsp))
+private = privateWithTimeout Nothing
+
+public :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => pub rsp -> ClientApp pub priv (Maybe (Either String rsp))
+public = publicWithTimeout Nothing
+
 setToken :: Maybe (Signed AuthToken) -> ClientApp pub priv ()
 setToken token = do
   mv <- asks _clientEnv_token
   liftIO $ modifyMVar_ mv (\_ -> return token)
 
+--TODO: #115797507 error handling
 listener :: Connection -> MVar (Map RequestId (MVar (Either String Value))) -> IO ()
 listener conn pending = forever $ do
   raw <- receiveData conn
@@ -104,8 +111,8 @@ listener conn pending = forever $ do
     Just (mma :: Either String (WebSocketData (Maybe (Signed AuthToken)) Value (Either String Value))) -> case mma of
       Left _ -> return () --TODO: error handling
       Right ma -> case ma of
-        WebSocketData_Auth _ -> return () --TODO: auth handling
-        WebSocketData_Listen _ -> return () --TODO: listener handling
+        WebSocketData_Auth _ -> return () --TODO: #115797465 auth handling
+        WebSocketData_Listen _ -> return () --TODO: #115797465 listener handling
         WebSocketData_Api rid' eea -> case fromJSON rid' of
           Error _ -> return () --TODO: error handling
           Success rid -> do
