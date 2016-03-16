@@ -71,15 +71,15 @@ handleListen runGroundhog chan auth0 tokenToAuth vs0 diffViewSel getView getPatc
   vsRef <- liftIO $ newIORef (auth0, vs0)
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
-    let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
+    let send' auth = sendTextData conn . encodeR . Right . WebSocketData_Listen auth
     senderThread <- forkIO $ do
       (authInit, vsInit) <- readIORef vsRef
-      send' =<< runGroundhog (getView authInit vsInit)
+      send' authInit =<< runGroundhog (getView authInit vsInit)
       forever $ do
         change <- atomically $ readTChan changes
-        (_, vs) <- readIORef vsRef
+        (auth, vs) <- readIORef vsRef
         mp <- runGroundhog $ getPatch vs change
-        forM_ mp send'
+        forM_ mp (send' auth)
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
@@ -96,28 +96,20 @@ handleListen runGroundhog chan auth0 tokenToAuth vs0 diffViewSel getView getPatc
       case eitherDecode' r of
         Left s -> sendDataMessage conn . wrapper . encodeR $ Left s
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
-        Right (WebSocketData_Listen vs) -> do
-          (authOld, vsOld) <- readIORef vsRef
-          let vsDiff = diffViewSel vs vsOld
-          atomicModifyIORef vsRef (const ((authOld, vs), ()))
-          runGroundhog (onViewSelectorChange authOld vsOld vs)
-          send' =<< runGroundhog (getView authOld vsDiff)
-        Right (WebSocketData_Auth token) -> do
+        Right (WebSocketData_Listen token vs) -> do
           let auth = tokenToAuth token
-          (authOld, vs) <- readIORef vsRef
+          (authOld, vsOld) <- readIORef vsRef
           let vsDiff = diffViewSel vs mempty
-              vsDiffReset = diffViewSel mempty vs
+              vsDiffReset = diffViewSel mempty vsOld
           atomicModifyIORef vsRef (const ((auth, vs), ()))
-          sendDataMessage conn . wrapper . encodeR . Right. WebSocketData_Auth $ auth
-          runGroundhog (onViewSelectorChange authOld mempty vs)
-          runGroundhog (onViewSelectorChange auth vs mempty)
+          runGroundhog (onViewSelectorChange authOld vsOld mempty)
           undoView <- runGroundhog (getView authOld vsDiffReset)
+          runGroundhog (onViewSelectorChange auth vs mempty)
           freshView <- runGroundhog (getView auth vsDiff)
-          send' (freshView <> undoView)
+          send' auth (freshView <> undoView)
     killThread senderThread
     (auth, vs) <- readIORef vsRef
     runGroundhog (onViewSelectorChange auth vs mempty)
-
  where encodeR :: Either String (WebSocketData auth vp (Either String rsp)) -> LBS.ByteString
        encodeR = encode
 

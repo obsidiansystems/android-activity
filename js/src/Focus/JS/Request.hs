@@ -150,19 +150,18 @@ newtype RequestT t req m a =
 
 runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON whoami, Request req)
             => token
-            -> Dynamic t token
-            -> Event t vs
+            -> Event t (token, vs)
             -> RequestT t req m a
-            -> m (a, Event t whoami, Event t notification)
-runRequestT token tokenDyn eViewSelector (RequestT m) = do
+            -> m (a, Event t (whoami, notification))
+runRequestT token0 eViewSelectorWithAuth (RequestT m) = do
   nextInvocation <- liftIO $ newRef (minId + 1)
-  rec (eWhoAmI, eNotification, eResponse) <- openAndListenWebsocket token tokenDyn (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelector
+  rec (eNotification, eResponse) <- openAndListenWebsocket token0 (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelectorWithAuth
       let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
                             , _requestEnv_currentInvocation = minId
                             , _requestEnv_nextInvocation = nextInvocation
                             }
       ((a, _), dReq) <- runDynamicWriterT (runReaderT (runStateT m minId) rEnv)
-  return (a, eWhoAmI, eNotification)
+  return (a, eNotification)
   where
     valueToMaybe r = case fromJSON r of
       Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r

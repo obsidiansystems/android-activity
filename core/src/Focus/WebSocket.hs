@@ -6,7 +6,7 @@ import Data.Aeson
 import Data.Typeable
 import GHC.Generics
 
-data WebSocketData auth d t = WebSocketData_Auth auth | WebSocketData_Listen d | WebSocketData_Api Value t
+data WebSocketData auth d t = WebSocketData_Listen auth d | WebSocketData_Api Value t
   deriving (Eq, Show, Typeable, Generic)
 
 instance (ToJSON auth, ToJSON d, ToJSON t) => ToJSON (WebSocketData auth d t)

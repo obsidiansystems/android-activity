@@ -115,8 +115,7 @@ listener conn pending = forever $ do
     Just (mma :: Either String (WebSocketData (Maybe (Signed AuthToken)) Value (Either String Value))) -> case mma of
       Left _ -> return () --TODO: error handling
       Right ma -> case ma of
-        WebSocketData_Auth _ -> return () --TODO: #115797465 auth handling
-        WebSocketData_Listen _ -> return () --TODO: #115797465 listener handling
+        WebSocketData_Listen _ _ -> return () --TODO: #115797465 listener and auth handling
         WebSocketData_Api rid' eea -> case fromJSON rid' of
           Error _ -> return () --TODO: error handling
           Success rid -> do
