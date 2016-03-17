@@ -43,7 +43,6 @@ library
 
   exposed-modules:
       Focus.Account
-    , Focus.AppendMap
     , Focus.Api
     , Focus.Brand
     , Focus.Misc

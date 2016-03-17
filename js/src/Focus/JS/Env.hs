@@ -7,23 +7,29 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Focus.AppendMap
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text.Encoding
 import Focus.Request
 import Focus.Schema
 import Focus.WebSocket
+import Network.HTTP.Types.URI
 import Reflex.Dom hiding (webSocket, Value)
 
 import Focus.JS.WebSocket
 
-openAndListenWebsocket :: forall t m x token notification req rsp vs. (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
-                       => Event t [(Value, req)]
-                       -> Event t (AppendMap token vs)
-                       -> m (Event t (AppendMap token notification), Event t (Value, Either String rsp))
-openAndListenWebsocket eReq eViewSelectorWithAuth = do
-  (eMessages :: Event t (Either String (WebSocketData token notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-    webSocket ("/listen")
+openAndListenWebsocket :: forall t m x authToken notification req rsp vs
+                        . (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON authToken, ToJSON req, ToJSON vs)
+                       => Maybe authToken
+                       -> Event t [(Value, req)]
+                       -> Event t vs
+                       -> m (Event t notification, Event t (Value, Either String rsp))
+openAndListenWebsocket auth eReq eViewSelector = do
+  (eMessages :: Event t (Either String (WebSocketData notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+    webSocket 
+      ("/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth))
       (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
-                                                                      , fmap ((:[]) . WebSocketData_Listen) eViewSelectorWithAuth
+                                                                      , fmap ((:[]) . WebSocketData_Listen) eViewSelector
                                                                       ])
   --TODO: Handle parse errors returned by the backend
   let eNotifications = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
