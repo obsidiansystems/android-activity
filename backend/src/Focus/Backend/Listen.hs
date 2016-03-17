@@ -1,6 +1,7 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds #-}
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase #-}
 module Focus.Backend.Listen where
 
+import Focus.AppendMap
 import Focus.Backend.Schema.TH
 import Focus.Schema
 import Focus.Request
@@ -9,12 +10,15 @@ import Focus.WebSocket
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (handle, try, SomeException, displayException)
+import Control.Lens
 import Control.Monad.Writer
 import Data.Aeson
+import qualified Data.Map as Map
 import Data.IORef
 import Data.Pool
 import Data.String
 import Data.Text.Encoding
+import Data.These
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.Generic
@@ -52,30 +56,32 @@ notifyEntityId aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
-handleListen :: forall m m' rsp rq notification vs vp.
+handleListen :: forall m m' rsp rq notification vs vp token.
                 (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
-                 FromJSON vs, ToJSON vp, Monoid vs)
+                 FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON token, Ord token, Monoid vs)
              => (forall x. m' x -> IO x)
              -> TChan notification
-             -> vs
+             -> AppendMap token vs
              -> (vs -> vs -> vs)
-             -> (vs -> m' vp)
+             -> (token -> vs -> m' vp)
              -> (vs -> notification -> m' (Maybe vp))
-             -> (vs -> vs -> m' ())
+             -> (token -> vs -> vs -> m' ())
              -> (rq -> IO rsp)
              -> m () 
-handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
+handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
   changes <- liftIO $ atomically $ dupTChan chan
-  vsRef <- liftIO $ newIORef vs0
+  vsRef <- liftIO $ newIORef vsMap0
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
     senderThread <- forkIO $ do
-      send' =<< (runGroundhog . getView) =<< readIORef vsRef
+      vsMapInit <- readIORef vsRef
+      send' =<< runGroundhog (iforM vsMapInit getView)
       forever $ do
         change <- atomically $ readTChan changes
-        mp <- (\vs -> runGroundhog $ getPatch vs change) =<< readIORef vsRef
-        forM_ mp send'
+        vsMap <- readIORef vsRef
+        mpMap <- fmap (_Wrapped %~ Map.mapMaybe id) $ runGroundhog $ forM vsMap (\vs -> getPatch vs change)
+        send' mpMap
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
@@ -83,7 +89,7 @@ handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorCh
       dm <- receiveDataMessage conn
       let (wrapper, r) = case dm of
             WS.Text r' -> (WS.Text, r')
-            WS.Binary r' -> (WS.Binary, r')
+            WS.Binary r' -> (WS.Text, r') --TODO
           sender rid act = do
             er <- try act
             sendDataMessage conn . wrapper . encodeR . Right . WebSocketData_Api rid $ case er of
@@ -92,18 +98,31 @@ handleListen runGroundhog chan vs0 diffViewSel getView getPatch onViewSelectorCh
       case eitherDecode' r of
         Left s -> sendDataMessage conn . wrapper . encodeR $ Left s
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
-        Right (WebSocketData_Listen vs) -> do
+        Right (WebSocketData_Listen vsMap) -> do
+          vsMapOld <- readIORef vsRef
+          let vsDiff = diffVsMaps vsMap vsMapOld
+          atomicModifyIORef vsRef (const (vsMap, ()))
+          viewMap <- fmap (_Wrapped %~ Map.mapMaybe id) $ runGroundhog $ do
+            iforM vsDiff $ \token -> \case
+              That vsOld -> onViewSelectorChange token mempty vsOld >> return Nothing
+              This vs -> onViewSelectorChange token vs mempty >> fmap Just (getView token vs)
+              These vs vsOld -> onViewSelectorChange token vs vsOld >> fmap Just (getView token (diffViewSel vs vsOld))
+          send' viewMap
+    killThread senderThread
+    vsMap <- readIORef vsRef
+    runGroundhog (iforM_ vsMap $ \token vs -> onViewSelectorChange token vs mempty)
+ where encodeR :: Either String (WebSocketData token vp (Either String rsp)) -> LBS.ByteString
+       encodeR = encode
+       diffVsMaps (AppendMap m0) (AppendMap m1) = AppendMap $ Map.mergeWithKey (\_ a b -> Just (These a b)) (fmap This) (fmap That) m0 m1
+
+{-
+Right (WebSocketData_Listen vs) -> do
           vsOld <- readIORef vsRef
           let vsDiff = diffViewSel vs vsOld
           atomicModifyIORef vsRef (const (vs, ()))
           runGroundhog (onViewSelectorChange vsOld vs)
           send' =<< runGroundhog (getView vsDiff)
-    killThread senderThread
-    vs <- readIORef vsRef
-    runGroundhog (onViewSelectorChange vs mempty)
-
- where encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
-       encodeR = encode
+-}
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
 listenDB withConn' = do
