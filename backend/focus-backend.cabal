@@ -65,6 +65,7 @@ library
     lucid,
     data-default,
     raw-strings-qq,
+    these,
     attoparsec
 
   exposed-modules:

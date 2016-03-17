@@ -1,0 +1,37 @@
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable #-}
+module Focus.AppendMap where
+
+import Control.Lens
+import Data.Aeson
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Typeable
+import GHC.Generics (Generic)
+
+newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
+  deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable)
+
+instance FunctorWithIndex k (AppendMap k) where
+  imap f = AppendMap . imap f . _unAppendMap
+  imapped = _Wrapped . imapped
+
+instance FoldableWithIndex k (AppendMap k) where
+  ifolded = _Wrapped . ifolded
+
+instance TraversableWithIndex k (AppendMap k) where
+  itraverse = itraverseOf itraversed
+  itraversed = _Wrapped . itraversed
+
+instance (Ord k, Monoid m) => Monoid (AppendMap k m) where
+  mempty = AppendMap Map.empty
+  mappend (AppendMap m0) (AppendMap m1) = AppendMap $ Map.unionWith mappend m0 m1
+
+instance (ToJSON k, ToJSON m) => ToJSON (AppendMap k m) where
+  toJSON = toJSON . Map.toList . _unAppendMap
+
+instance (FromJSON k, FromJSON m, Ord k) => FromJSON (AppendMap k m) where
+  parseJSON r = do
+    res <- parseJSON r
+    fmap AppendMap . sequence . Map.fromListWithKey (fail "duplicate key in JSON deserialization of AppendMap") . map (fmap return) $ res
+
+makeWrapped ''AppendMap

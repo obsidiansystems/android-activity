@@ -15,6 +15,7 @@ import Data.Int
 import Control.Concurrent
 import Control.Monad
 import Foreign.JavaScript.TH
+import Focus.AppendMap
 import Focus.JS.Env
 import Focus.Request
 import Control.Arrow
@@ -148,14 +149,13 @@ newtype RequestT t req m a =
   RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)) a } 
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument)
 
-runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON whoami, Request req)
-            => token
-            -> Event t (token, vs)
+runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON token, Ord token, Request req)
+            => Event t (AppendMap token vs)
             -> RequestT t req m a
-            -> m (a, Event t (whoami, notification))
-runRequestT token0 eViewSelectorWithAuth (RequestT m) = do
+            -> m (a, Event t (AppendMap token notification))
+runRequestT eViewSelectorWithAuth (RequestT m) = do
   nextInvocation <- liftIO $ newRef (minId + 1)
-  rec (eNotification, eResponse) <- openAndListenWebsocket token0 (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelectorWithAuth
+  rec (eNotification, eResponse) <- openAndListenWebsocket (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelectorWithAuth
       let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
                             , _requestEnv_currentInvocation = minId
                             , _requestEnv_nextInvocation = nextInvocation
