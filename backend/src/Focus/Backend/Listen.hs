@@ -81,7 +81,9 @@ handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelecto
         change <- atomically $ readTChan changes
         vsMap <- readIORef vsRef
         mpMap <- fmap (_Wrapped %~ Map.mapMaybe id) $ runGroundhog $ forM vsMap (\vs -> getPatch vs change)
-        send' mpMap
+        case Map.null (mpMap ^. _Wrapped) of
+          True -> return ()
+          False -> send' mpMap
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
@@ -114,15 +116,6 @@ handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelecto
  where encodeR :: Either String (WebSocketData token vp (Either String rsp)) -> LBS.ByteString
        encodeR = encode
        diffVsMaps (AppendMap m0) (AppendMap m1) = AppendMap $ Map.mergeWithKey (\_ a b -> Just (These a b)) (fmap This) (fmap That) m0 m1
-
-{-
-Right (WebSocketData_Listen vs) -> do
-          vsOld <- readIORef vsRef
-          let vsDiff = diffViewSel vs vsOld
-          atomicModifyIORef vsRef (const (vs, ()))
-          runGroundhog (onViewSelectorChange vsOld vs)
-          send' =<< runGroundhog (getView vsDiff)
--}
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
 listenDB withConn' = do
