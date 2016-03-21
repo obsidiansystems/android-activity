@@ -64,12 +64,12 @@ handleListen :: forall m m' rsp rq notification vs vp token.
              -> AppendMap token vs
              -> (vs -> vs -> vs)
              -> (token -> vs -> m' vp)
-             -> (vs -> notification -> m' (Maybe vp))
+             -> (token -> vs -> notification -> m' (Maybe vp))
              -> (token -> vs -> vs -> m' vp)
              -> (rq -> IO rsp)
              -> m () 
 handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
-  changes <- liftIO $ atomically $ dupTChan chan
+  changes <- liftIO . atomically $ dupTChan chan
   vsRef <- liftIO $ newIORef vsMap0
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
@@ -80,7 +80,7 @@ handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelecto
       forever $ do
         change <- atomically $ readTChan changes
         vsMap <- readIORef vsRef
-        mpMap <- fmap (_Wrapped %~ Map.mapMaybe id) $ runGroundhog $ forM vsMap (\vs -> getPatch vs change)
+        mpMap <- fmap (_Wrapped %~ Map.mapMaybe id) . runGroundhog $ iforM vsMap (\token vs -> getPatch token vs change)
         case Map.null (mpMap ^. _Wrapped) of
           True -> return ()
           False -> send' mpMap
