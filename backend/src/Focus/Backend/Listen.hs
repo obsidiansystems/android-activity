@@ -56,6 +56,16 @@ notifyEntityId aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
+notifyDerived :: (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a)), ToJSON (DerivedEntityHead a)) => Id a -> a -> m ()
+notifyDerived aid _ = notifyDerivedId aid
+
+notifyDerivedId :: forall a m. (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a))) => Id a -> m ()
+notifyDerivedId aid = do
+  let proxy = undefined :: proxy (PhantomDb m)
+      cmd = "NOTIFY " <> updateChannel <> ", ?"
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: DerivedEntityHead a), fromDerivedId aid)]
+  return ()
+
 handleListen :: forall m m' rsp rq notification vs vp token.
                 (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
                  FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON token, Ord token, Monoid vs)
