@@ -143,6 +143,7 @@ in rec {
         };
       });
       result =  pkgs.stdenv.mkDerivation (rec {
+        commonBackend = common backendHaskellPackages;
         name = "${appName}-${appVersion}";
         assets = mkAssets (fixupStatic ../static);
         zoneinfo = ./zoneinfo;
