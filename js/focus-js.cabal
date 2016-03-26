@@ -44,7 +44,8 @@ library
     binary,
     raw-strings-qq,
     http-types,
-    exception-transformers
+    exception-transformers,
+    haskell-src-exts
 
   exposed-modules:
     Focus.JS.BaseJSInstances
@@ -55,6 +56,7 @@ library
     Focus.JS.GoogleMap
     Focus.JS.Listen
     Focus.JS.LocalStorage
+    Focus.JS.PrettyPrint
     Focus.JS.Request
     Focus.JS.Route
     Focus.JS.SmoothieCharts
