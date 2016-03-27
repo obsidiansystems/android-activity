@@ -69,14 +69,14 @@ notifyDerivedId aid = do
 handleListen :: forall m m' rsp rq notification vs vp token.
                 (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
                  FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON token, Ord token, Monoid vs)
-             => (forall x. m' x -> IO x)
-             -> TChan notification
-             -> AppendMap token vs
-             -> (vs -> vs -> vs)
-             -> (token -> vs -> m' vp)
-             -> (token -> vs -> notification -> m' (Maybe vp))
-             -> (token -> vs -> vs -> m' vp)
-             -> (rq -> IO rsp)
+             => (forall x. m' x -> IO x) -- runGroundhog
+             -> TChan notification -- chan
+             -> AppendMap token vs -- vsMap0
+             -> (vs -> vs -> vs) -- diffViewSel
+             -> (token -> vs -> vs -> m' vp) -- getView
+             -> (token -> vs -> notification -> m' (Maybe vp)) -- getPatch
+             -> (token -> vs -> vs -> m' vp) -- onViewSelectorChange
+             -> (rq -> IO rsp) -- processRequest
              -> m () 
 handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelectorChange processRequest = ifTop $ do
   changes <- liftIO . atomically $ dupTChan chan
@@ -86,7 +86,7 @@ handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelecto
     let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
     senderThread <- forkIO $ do
       vsMapInit <- readIORef vsRef
-      send' =<< runGroundhog (iforM vsMapInit getView)
+      send' =<< runGroundhog (iforM vsMapInit (\token vs -> getView token vs vs))
       forever $ do
         change <- atomically $ readTChan changes
         vsMap <- readIORef vsRef
@@ -117,8 +117,8 @@ handleListen runGroundhog chan vsMap0 diffViewSel getView getPatch onViewSelecto
           viewMap <- fmap (_Wrapped %~ Map.mapMaybe id) . runGroundhog $ do
             iforM vsDiff $ \token -> \case
               That vsOld -> fmap Just $ onViewSelectorChange token mempty vsOld
-              This vs -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vs mempty) (getView token vs)
-              These vs vsOld -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vs vsOld) (getView token (diffViewSel vs vsOld))
+              This vs -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vs mempty) (getView token vs vs)
+              These vs vsOld -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vs vsOld) (getView token vs (diffViewSel vs vsOld))
           send' viewMap
     killThread senderThread
     vsMap <- readIORef vsRef
