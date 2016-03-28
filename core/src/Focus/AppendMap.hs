@@ -11,6 +11,15 @@ import GHC.Generics (Generic)
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable)
 
+type instance (Index (AppendMap k m)) = k
+type instance (IxValue (AppendMap k m)) = m
+
+instance Ord k => Ixed (AppendMap k m) where
+  ix i = _Wrapped . ix i
+
+instance Ord k => At (AppendMap k m) where
+  at i = _Wrapped . at i
+
 instance FunctorWithIndex k (AppendMap k) where
   imap f = AppendMap . imap f . _unAppendMap
   imapped = _Wrapped . imapped
