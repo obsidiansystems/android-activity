@@ -7,9 +7,11 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBSC8
+import Data.Either
 import Data.Int
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -42,22 +44,22 @@ data ClientEnv = ClientEnv { _clientEnv_websocket :: Connection
 newtype ClientApp (pub :: * -> *) (priv :: * -> *) a = ClientApp { _runClientApp :: ReaderT ClientEnv IO a }
   deriving (Functor, Applicative, Monad, MonadReader ClientEnv, MonadIO)
 
-runClientApp :: ClientApp pub priv a -> Maybe (Signed AuthToken) -> IO a
-runClientApp (ClientApp m) auth = withSocketsDo $ runClient "localhost" 8000 url $ \conn -> do
+runClientApp :: ClientApp pub priv a -> IO a
+runClientApp (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 url $ \conn -> do
   nextId <- newMVar 1
   pending <- newMVar Map.empty
-  authRef <- newMVar auth
+  authRef <- newMVar Nothing
   lid <- forkIO (listener conn pending)
   a <- runReaderT m $ ClientEnv { _clientEnv_websocket = conn
                                 , _clientEnv_token = authRef
                                 , _clientEnv_nextId = nextId
                                 , _clientEnv_pending =  pending
                                 }
-  --TODO: #115797507 Is this ok? What about pending messages in the pipe?
+  --TODO: Is this ok? What about pending messages in the pipe?
   killThread lid
   sendClose conn ("Bye! ;) ;) ;)" :: Text)
   return a
- where url = "/listen?token=" <> (T.unpack . decodeUtf8 . urlEncode True . LBS.toStrict . encode $ auth)
+ where url = "/listen?token"
 
 requestWithTimeout :: forall rsp pub priv. (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> ApiRequest pub priv rsp -> ClientApp pub priv (Maybe (Either String rsp))
 requestWithTimeout mtime req = ClientApp $ do
@@ -107,22 +109,18 @@ setToken token = do
 
 --TODO: #115797507 error handling
 listener :: Connection -> MVar (Map RequestId (MVar (Either String Value))) -> IO ()
-listener conn pending = forever $ do
-  raw <- receiveData conn
-  --TODO: This should be in the maybe monad or something; kill the staircase
-  case decodeValue' raw of
-    Nothing -> return () --TODO: error handling
-    Just (mma :: Either String (WebSocketData (Maybe (Signed AuthToken)) Value (Either String Value))) -> case mma of
-      Left _ -> return () --TODO: error handling
-      Right ma -> case ma of
-        WebSocketData_Listen _ -> return () --TODO: #115797465 listener and auth handling
-        WebSocketData_Api rid' eea -> case fromJSON rid' of
-          Error _ -> return () --TODO: error handling
-          Success rid -> do
-            tryReadMVar pending >>= \case
-              Nothing -> return () --TODO: error handling
-              Just mp -> case Map.lookup rid mp of
-                Nothing -> return () -- Resopnse is stale
-                Just mv -> tryPutMVar mv eea >>= \case
-                  False -> return () --TODO: error handling
-                  True -> return ()
+listener conn pending = forever $ runMaybeT $ do
+  raw <- lift $ receiveData conn
+  (mma :: Either String (WebSocketData (Maybe (Signed AuthToken)) Value (Either String Value))) <- MaybeT . return $ decodeValue' raw
+  ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
+  case ma of
+    WebSocketData_Listen _ -> return () --TODO: #115797465 listener and auth handling
+    WebSocketData_Api rid' eea -> do
+      rid <- parseToMaybeT $ fromJSON rid'
+      mp <- MaybeT $ tryReadMVar pending
+      mv <- MaybeT . return $ Map.lookup rid mp
+      lift (putMVar mv eea)
+ where 
+   parseToMaybeT r = MaybeT . return $ case r of
+     Error _ -> Nothing
+     Success r' -> Just r'
