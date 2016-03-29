@@ -14,7 +14,6 @@ import Data.Int
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
-import Data.Text (Text)
 import Debug.Trace.LocationTH
 import System.Timeout
 
@@ -45,7 +44,8 @@ newtype ClientApp select patch view (pub :: * -> *) (priv :: * -> *) a = ClientA
   deriving (Functor, Applicative, Monad, MonadReader (ClientEnv select patch view), MonadIO)
 
 runClientApp :: (Monoid select, FromJSON patch) => (select -> patch -> Maybe view -> view) -> ClientApp select patch view pub priv a -> IO a
-runClientApp patcher (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 url $ \conn -> do
+runClientApp patcher (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 "/listen" $ \conn -> do
+  listenDone <- newEmptyMVar
   nextId <- newMVar 1
   pending <- newMVar Map.empty
   authRef <- newMVar Nothing
@@ -60,13 +60,11 @@ runClientApp patcher (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 
                       , _clientEnv_currentSelector = selRef
                       , _clientEnv_patcher = patcherRef
                       }
-  lid <- forkIO (listener env)
+  lid <- forkFinally (listener env) (\_ -> putMVar listenDone ())
   a <- runReaderT m env
-  --TODO: Is this ok? What about pending messages in the pipe?
   killThread lid
-  sendClose conn ("Bye! ;) ;) ;)" :: Text)
+  takeMVar listenDone
   return a
- where url = "/listen?token"
 
 requestWithTimeout :: forall select patch view rsp pub priv. (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> ApiRequest pub priv rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
 requestWithTimeout mtime req = ClientApp $ do
@@ -131,6 +129,11 @@ setToken :: Maybe (Signed AuthToken) -> ClientApp select patch view pub priv ()
 setToken token = do
   mv <- asks _clientEnv_token
   liftIO $ modifyMVar_ mv (\_ -> return token)
+
+swapToken :: Maybe (Signed AuthToken) -> ClientApp select patch view pub priv (Maybe (Signed AuthToken))
+swapToken t = do
+  mv <- asks _clientEnv_token
+  liftIO $ swapMVar mv t
 
 listener :: forall select patch view. (Monoid select, FromJSON patch) => ClientEnv select patch view -> IO ()
 listener env = forever $ runMaybeT $ do

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+TESTS="$(nix-build --no-out-link -A tests)"
+BACKEND="$(nix-build --no-out-link -A backend)"
+
+"$TESTS/bin/tests" "$BACKEND/bin/backend"
+
+#TODO: Not needing this
+pkill backend
