@@ -14,6 +14,7 @@ import Data.Int
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
+import Data.Text (Text)
 import Debug.Trace.LocationTH
 import System.Timeout
 
@@ -64,6 +65,7 @@ runClientApp patcher (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 
   a <- runReaderT m env
   killThread lid
   takeMVar listenDone
+  sendClose conn ("Goodbye" :: Text)
   return a
 
 requestWithTimeout :: forall select patch view rsp pub priv. (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> ApiRequest pub priv rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
