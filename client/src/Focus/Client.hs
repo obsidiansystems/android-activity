@@ -41,7 +41,6 @@ data ClientEnv s p v =
             , _clientEnv_nextRequestId :: MVar RequestId
             , _clientEnv_pending :: MVar (Map RequestId (MVar (Either String Value)))
             , _clientEnv_currentView :: MVar (Maybe v)
-            , _clientEnv_wakeUpOnViewChange :: MVar ()
             , _clientEnv_currentSelector :: MVar s
             , _clientEnv_patcher :: MVar (s -> p -> Maybe v -> v)
             }
@@ -58,7 +57,6 @@ runClientApp patcher (ClientApp m) = withSocketsDo $ do
     pending <- newMVar Map.empty
     authRef <- newMVar Nothing
     viewRef <- newMVar Nothing
-    onChangeRef <- newEmptyMVar
     selRef <- newMVar mempty
     patcherRef <- newMVar patcher
     let env = ClientEnv { _clientEnv_websocket = conn
@@ -66,7 +64,6 @@ runClientApp patcher (ClientApp m) = withSocketsDo $ do
                         , _clientEnv_nextRequestId = nextRequestId
                         , _clientEnv_pending = pending
                         , _clientEnv_currentView = viewRef
-                        , _clientEnv_wakeUpOnViewChange = onChangeRef
                         , _clientEnv_currentSelector = selRef
                         , _clientEnv_patcher = patcherRef
                         }
@@ -146,16 +143,19 @@ select s = do
 listenWithTimeout :: forall select patch view pub priv a. Maybe Int64 -> (view -> Maybe a) -> ClientApp select patch view pub priv (Maybe a)
 listenWithTimeout mt l = do
   env <- ask
-  let wakeUp = _clientEnv_wakeUpOnViewChange env
-      cview = _clientEnv_currentView env
+  let cview = _clientEnv_currentView env
   liftIO $ do 
     answerMe <- newEmptyMVar
-    forkIO $ fix $ \k -> do
-      readMVar wakeUp
+    lt <- forkIO $ fix $ \k -> do
       fmap (l <=< join) (tryReadMVar cview) >>= \case
-        Nothing -> k
+        Nothing -> threadDelay 10000 >> k --TODO: Better strategy for waking up for listening
         Just result -> putMVar answerMe result
-    maybe (fmap Just) (timeout . fromIntegral) mt $ takeMVar answerMe
+    takeMVar answerMe & case mt of--TODO: #115797377
+      Nothing -> fmap Just
+      Just t -> \a -> do
+        r <- timeout (fromIntegral t) a
+        killThread lt
+        return r
 
 listen :: forall select patch view pub priv a. (view -> Maybe a) -> ClientApp select patch view pub priv a
 listen l = do
@@ -185,8 +185,6 @@ listener env = forever $ runMaybeT $ do
           putMVar viewRef $ do
             p <- nmap ^. at t
             return (patcher s p mv)
-          putMVar wakeRef ()
-          takeMVar wakeRef
           return ()
     WebSocketData_Api rid' eea -> do
       rid <- parseToMaybeT $ fromJSON rid'
@@ -199,7 +197,6 @@ listener env = forever $ runMaybeT $ do
   pending = _clientEnv_pending env
   patcherRef = _clientEnv_patcher env
   viewRef = _clientEnv_currentView env
-  wakeRef = _clientEnv_wakeUpOnViewChange env
   selectorRef = _clientEnv_currentSelector env
   parseToMaybeT r = MaybeT . return $ case r of
    Error _ -> Nothing
