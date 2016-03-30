@@ -3,6 +3,7 @@ module Focus.Client where
 
 import Control.Arrow ((&&&))
 import Control.Concurrent
+import Control.Exception
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
@@ -45,28 +46,37 @@ newtype ClientApp select patch view (pub :: * -> *) (priv :: * -> *) a = ClientA
   deriving (Functor, Applicative, Monad, MonadReader (ClientEnv select patch view), MonadIO)
 
 runClientApp :: (Monoid select, FromJSON patch) => (select -> patch -> Maybe view -> view) -> ClientApp select patch view pub priv a -> IO a
-runClientApp patcher (ClientApp m) = withSocketsDo $ runClient "localhost" 8000 "/listen" $ \conn -> do
-  listenDone <- newEmptyMVar
-  nextId <- newMVar 1
-  pending <- newMVar Map.empty
-  authRef <- newMVar Nothing
-  viewRef <- newMVar Nothing
-  selRef <- newMVar mempty
-  patcherRef <- newMVar patcher
-  let env = ClientEnv { _clientEnv_websocket = conn
-                      , _clientEnv_token = authRef
-                      , _clientEnv_nextId = nextId
-                      , _clientEnv_pending = pending
-                      , _clientEnv_currentView = viewRef
-                      , _clientEnv_currentSelector = selRef
-                      , _clientEnv_patcher = patcherRef
-                      }
-  lid <- forkFinally (listener env) (\_ -> putMVar listenDone ())
-  a <- runReaderT m env
-  killThread lid
-  takeMVar listenDone
-  sendClose conn ("Goodbye" :: Text)
-  return a
+runClientApp patcher (ClientApp m) = withSocketsDo $ do
+  result <- newEmptyMVar
+  handleConnectionException $ runClient "localhost" 8000 "/listen" $ \conn -> do
+    listenDone <- newEmptyMVar
+    nextId <- newMVar 1
+    pending <- newMVar Map.empty
+    authRef <- newMVar Nothing
+    viewRef <- newMVar Nothing
+    selRef <- newMVar mempty
+    patcherRef <- newMVar patcher
+    let env = ClientEnv { _clientEnv_websocket = conn
+                        , _clientEnv_token = authRef
+                        , _clientEnv_nextId = nextId
+                        , _clientEnv_pending = pending
+                        , _clientEnv_currentView = viewRef
+                        , _clientEnv_currentSelector = selRef
+                        , _clientEnv_patcher = patcherRef
+                        }
+    lid <- forkFinally (listener env) (\_ -> putMVar listenDone ())
+    putMVar result =<< runReaderT m env
+    killThread lid
+    takeMVar listenDone
+    handleConnectionException $ do
+      sendClose conn ("Goodbye" :: Text)
+      forever $ receiveDataMessage conn
+    return ()
+  takeMVar result
+ where
+  handleConnectionException = handle $ \e -> case e of
+    ConnectionClosed -> return ()
+    _ -> print e
 
 requestWithTimeout :: forall select patch view rsp pub priv. (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> ApiRequest pub priv rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
 requestWithTimeout mtime req = ClientApp $ do
@@ -158,12 +168,12 @@ listener env = forever $ runMaybeT $ do
       mv <- MaybeT . return $ Map.lookup rid mp
       lift (putMVar mv eea)
  where 
-   conn = _clientEnv_websocket env
-   token = _clientEnv_token env
-   pending = _clientEnv_pending env
-   patcherRef = _clientEnv_patcher env
-   viewRef = _clientEnv_currentView env
-   selectorRef = _clientEnv_currentSelector env
-   parseToMaybeT r = MaybeT . return $ case r of
-     Error _ -> Nothing
-     Success r' -> Just r'
+  conn = _clientEnv_websocket env
+  token = _clientEnv_token env
+  pending = _clientEnv_pending env
+  patcherRef = _clientEnv_patcher env
+  viewRef = _clientEnv_currentView env
+  selectorRef = _clientEnv_currentSelector env
+  parseToMaybeT r = MaybeT . return $ case r of
+   Error _ -> Nothing
+   Success r' -> Just r'
