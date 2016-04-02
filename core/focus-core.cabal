@@ -62,6 +62,8 @@ library
     , Data.Indexed
     , Data.Indexed.Projections
     , Data.SortedPair
+    , Data.Min
+    , Data.RequestInterval
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
