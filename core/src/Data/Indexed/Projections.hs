@@ -18,7 +18,7 @@ instance Foldable a => Projection Length (a v) where
   type Projected Length (a v) = Int
   project _ = length
 
--- indexed_test :: WithIndex Length (Map Int String)
+-- indexed_test :: WithIndex Length (Map Int) String
 -- indexed_test = withIndex (Proxy :: Proxy Length) mempty
 --   & at 5 .~ Just ("Hello, world!" :: String)
 --   & at 6 .~ Just "asdfasdfasdfa"

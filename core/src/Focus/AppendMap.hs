@@ -8,6 +8,8 @@ import qualified Data.Map as Map
 import Data.Typeable
 import GHC.Generics (Generic)
 
+import Data.Indexed
+
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable)
 
@@ -42,5 +44,7 @@ instance (FromJSON k, FromJSON m, Ord k) => FromJSON (AppendMap k m) where
   parseJSON r = do
     res <- parseJSON r
     fmap AppendMap . sequence . Map.fromListWithKey (fail "duplicate key in JSON deserialization of AppendMap") . map (fmap return) $ res
+
+instance HasValues (AppendMap k) (AppendMap k)
 
 makeWrapped ''AppendMap
