@@ -5,7 +5,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.RWS
+import Control.Monad.RWS.Strict
 import Data.Aeson
 import Data.Int
 import Data.Map (Map)
@@ -44,19 +44,20 @@ data ClientEnv select view patch = ClientEnv
        , _clientEnv_cropView :: (select -> view -> view)
        , _clientEnv_notifyViewChange :: TChan ()
        , _clientEnv_nextInterestId :: TVar InterestId
-       , _clientEnv_interests :: TVar (Map InterestId select)
+       , _clientEnv_interests :: TVar (Map InterestId (Signed AuthToken, select))
        }
 
 data RequestEnv pub priv select view = RequestEnv
        { _requestEnv_sendRequest :: forall rsp. (ToJSON rsp, FromJSON rsp) => (ApiRequest pub priv rsp) -> IO (Async (Either String Value))
-       , _requestEnv_registerInterest :: select -> IO (InterestId, IO ()) -- returns unregister action
+       , _requestEnv_registerInterest :: Signed AuthToken -> select -> IO (InterestId, STM ()) -- returns unregister action
+       , _requestEnv_sendInterestSet :: (ToJSON select, Monoid select) => IO ()
        , _requestEnv_listen :: forall a. Signed AuthToken -> select -> (view -> Maybe a) -> IO (Async a)
        }
 
 data RequestState select = RequestState
        { _requestState_token :: Maybe (Signed AuthToken)
        , _requestState_timeout :: Maybe Int
-       , _requestState_interests :: Map InterestId (select, IO ())
+       , _requestState_interests :: Map InterestId (select, STM ())
        }
 
 data RequestResult rsp = RequestResult_Success rsp
@@ -72,7 +73,7 @@ data ListenResult a = ListenResult_Success a
                     | ListenResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
 
-type MonadRequest pub priv select view m = (MonadIO m, MonadReader (RequestEnv pub priv select view) m, MonadState (RequestState select) m, MonadMask m)
+type MonadRequest pub priv select view m = (MonadIO m, MonadReader (RequestEnv pub priv select view) m, MonadState (RequestState select) m, MonadMask m, Monoid select, ToJSON select)
 
 makeWrapped ''RequestId
 makeWrapped ''InterestId

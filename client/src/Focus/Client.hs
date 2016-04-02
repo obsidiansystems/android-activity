@@ -10,7 +10,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.RWS
+import Control.Monad.RWS.Strict
 import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.Map as Map
@@ -48,14 +48,19 @@ requestEnv c = RequestEnv
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
             in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
       in setup >>= run
-  , _requestEnv_registerInterest = \sel -> do
+  , _requestEnv_registerInterest = \token sel -> do
       let si = _clientEnv_nextInterestId c
           interests = _clientEnv_interests c
       atomically $ do
         s <- readTVar si
         modifyTVar' si (+1)
-        modifyTVar' interests $ Map.insertWith ($failure "duplicate interest id") s sel
-        return $ (s, atomically $ modifyTVar' interests $ Map.delete s)
+        modifyTVar' interests $ Map.insertWith ($failure "duplicate interest id") s (token, sel)
+        return $ (s, modifyTVar' interests $ Map.delete s)
+  , _requestEnv_sendInterestSet = do
+      is <- Map.foldr (<>) mempty . fmap (AppendMap . uncurry Map.singleton) <$> readTVarIO (_clientEnv_interests c)
+      let payload :: WebSocketData (Signed AuthToken) select Value
+          payload = WebSocketData_Listen is
+      sendTextData conn $ encode payload
   , _requestEnv_listen = \t s l -> do
       let onChange = _clientEnv_notifyViewChange c
       viewChange <- atomically $ dupTChan onChange
@@ -158,21 +163,35 @@ withToken mt a =
   teardown t' = setToken t'
   run _ = a
 
-tellInterest :: (MonadRequest pub priv select view m) => select -> m ()
+tellInterest :: (MonadRequest pub priv select view m) => select -> m (Maybe ())
 tellInterest s = do
+  mt <- gets _requestState_token
+  case mt of
+    Nothing -> return Nothing
+    Just t -> do
+      registerInterest <- asks _requestEnv_registerInterest
+      sendInterestSet <- asks _requestEnv_sendInterestSet
+      (sid, unregister) <- liftIO $ registerInterest t s
+      requestState_interests %= Map.insert sid (s, unregister)
+      liftIO $ sendInterestSet
+      return (Just ())
+
+withInterest :: (MonadRequest pub priv select view m) => select -> m a -> m (Maybe a)
+withInterest s a = do
+  mt <- gets _requestState_token
   registerInterest <- asks _requestEnv_registerInterest
-  (sid, unregister) <- liftIO $ registerInterest s
-  requestState_interests %= Map.insert sid (s, unregister)
+  sendInterest <- asks _requestEnv_sendInterestSet
+  case mt of
+    Nothing -> return Nothing
+    Just t -> 
+      let setup = liftIO $ do
+            unregister <- snd <$> registerInterest t s
+            sendInterest
+            return unregister
+          teardown unregister = liftIO $ atomically unregister
+      in Just <$> bracket setup teardown (\_ -> a)
 
-withInterest :: (MonadRequest pub priv select view m) => select -> m a -> m a
-withInterest s a = bracket setup teardown run
-  where setup = do
-          registerInterest <- asks _requestEnv_registerInterest
-          snd <$> liftIO (registerInterest s)
-        teardown unregister = liftIO unregister
-        run _ = a
-
-runClientApp :: (Request pub, Request priv, FromJSON patch) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
+runClientApp :: (Request pub, Request priv, FromJSON patch, Monoid select, ToJSON select) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
   handleConnectionException $ runClient (_clientConfig_host cfg) 
@@ -201,11 +220,15 @@ runClientApp m cfg = withSocketsDo $ do
     bracket
       (forkFinally (listener cenv) (\_ -> atomically (putTMVar listenDone ())))
       (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> sendClose conn ("Goodbye" :: Text)) $ 
-      \_ -> bracket 
-        (runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty))
-        (\(_,s,_) -> forM_ (_requestState_interests s) $ \i -> snd i)
-        (\(a,_,_) -> atomically (putTMVar result a))
-  atomically (takeTMVar result)
+      \_ -> do
+        er <- try $ runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty)
+        case er of
+          Left (e :: SomeException) -> atomically (putTMVar result (Left e))
+          Right (a,s,_) -> atomically (forM_ (_requestState_interests s) snd >> putTMVar result (Right a)) >> (_requestEnv_sendInterestSet renv)
+  er <- atomically (takeTMVar result)
+  case er of
+    Left e -> throwM e
+    Right r -> return r
  where
   handleConnectionException = handle $ \e -> case e of
     ConnectionClosed -> return ()
