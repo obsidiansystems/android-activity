@@ -78,7 +78,7 @@ requestEnv c = RequestEnv
 
 --TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
 listener :: FromJSON patch => ClientEnv select view patch -> IO ()
-listener env = forever $ runMaybeT $ do
+listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
   (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
@@ -101,6 +101,9 @@ listener env = forever $ runMaybeT $ do
   parseToMaybeT r = MaybeT . return $ case r of
    Error _ -> Nothing
    Success r' -> Just r'
+  handleConnectionException = handle $ \e -> case e of
+    ConnectionClosed -> return ()
+    _ -> print e
 
 request :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => ApiRequest pub priv rsp -> m (RequestResult rsp)
 request req = do
@@ -219,7 +222,7 @@ runClientApp m cfg = withSocketsDo $ do
     listenDone <- newEmptyTMVarIO
     bracket
       (forkFinally (listener cenv) (\_ -> atomically (putTMVar listenDone ())))
-      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> sendClose conn ("Goodbye" :: Text)) $ 
+      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> handleConnectionException (sendClose conn ("Goodbye" :: Text) >> forever (receiveDataMessage conn))) $ 
       \_ -> do
         er <- try $ runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty)
         case er of
