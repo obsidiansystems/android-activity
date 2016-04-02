@@ -16,19 +16,23 @@ library
   build-depends: base
                , focus-core
                , aeson
+               , async
                , bytestring
                , containers
+               , exceptions
                , http-types
                , lens
                , loch-th
                , mtl
                , network
+               , stm
                , text
                , time
                , transformers
                , websockets
 
   exposed-modules: Focus.Client
+                 , Focus.Client.Types
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
