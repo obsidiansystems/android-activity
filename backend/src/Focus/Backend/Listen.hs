@@ -34,6 +34,9 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
+data NotificationType = Insert | Update | Delete
+  deriving (Show, Read, Eq, Ord, Enum, Bounded)
+
 withNotifications :: FromJSON a => Pool Postgresql -> (TChan a -> IO r) -> IO r
 withNotifications db k = bracket (listenDB $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
 
@@ -43,27 +46,27 @@ updateChannel = "updates"
 insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
   tid <- liftM toId $ insert t
-  notifyEntity tid t
+  notifyEntity Insert tid t
   return tid
 
-notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => Id a -> a -> m ()
-notifyEntity aid _ = notifyEntityId aid
+notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
+notifyEntity nt aid _ = notifyEntityId nt aid
 
-notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => Id a -> m ()
-notifyEntityId aid = do
+notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> m ()
+notifyEntityId nt aid = do
   let proxy = undefined :: proxy (PhantomDb m)
   let cmd = "NOTIFY " <>  updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: a), aid)]
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
-notifyDerived :: (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a)), ToJSON (DerivedEntityHead a)) => Id a -> a -> m ()
-notifyDerived aid _ = notifyDerivedId aid
+notifyDerived :: (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a)), ToJSON (DerivedEntityHead a)) => NotificationType -> Id a -> a -> m ()
+notifyDerived nt aid _ = notifyDerivedId nt aid
 
-notifyDerivedId :: forall a m. (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a))) => Id a -> m ()
-notifyDerivedId aid = do
+notifyDerivedId :: forall a m. (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a))) => NotificationType -> Id a -> m ()
+notifyDerivedId nt aid = do
   let proxy = undefined :: proxy (PhantomDb m)
       cmd = "NOTIFY " <> updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (entityName $ entityDef proxy (undefined :: DerivedEntityHead a), fromDerivedId aid)]
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: DerivedEntityHead a), fromDerivedId aid)]
   return ()
 
 handleListen :: forall m m' rsp rq notification vs vp token.

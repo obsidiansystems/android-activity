@@ -55,7 +55,7 @@ ensureAccountExists email = do
     Left _ -> return Nothing
     Right aid -> do
       let aid' = toId aid
-      notifyEntityId aid'
+      notifyEntityId Insert aid'
       return (Just aid')
 
 ensureAccountExistsEmail
