@@ -221,6 +221,9 @@ class (Request req, MonadWidget t m) => MonadRequest t req m where
   requesting :: (ToJSON a, FromJSON a, HasJS x (WidgetHost m)) => Event t (req a) -> m (Event t a)
   -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
 
+requesting_ :: (HasJS x (WidgetHost m), ToJSON a, FromJSON a, MonadRequest t req m) => Event t (req a) -> m ()
+requesting_ a = requesting a >> return ()
+
 instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do
     rid <- RequestT $ state $ \s -> (s, s + 1)
