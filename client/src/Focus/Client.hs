@@ -1,23 +1,22 @@
-{-# LANGUAGE ScopedTypeVariables, GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell, KindSignatures, OverloadedStrings #-}
-module Focus.Client where
+{-# LANGUAGE Rank2Types, ScopedTypeVariables, GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell, KindSignatures, OverloadedStrings, FlexibleInstances, FlexibleContexts, ConstraintKinds #-}
+module Focus.Client ( module Focus.Client
+                    , module Focus.Client.Types
+                    ) where
 
-import Control.Arrow ((&&&))
-import Control.Concurrent
-import Control.Exception
+import Control.Concurrent (forkFinally, killThread, threadDelay)
+import Control.Concurrent.Async
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Reader
+import Control.Monad.RWS
 import Control.Monad.Trans.Maybe
 import Data.Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
-import Data.Int
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Monoid
+import Data.Maybe
 import Data.Text (Text)
 import Debug.Trace.LocationTH
-import System.Timeout
 
 import Network.Socket
 import Network.WebSockets hiding (ClientApp, Request)
@@ -29,175 +28,185 @@ import Focus.Request
 import Focus.Sign
 import Focus.WebSocket
 
-newtype RequestId = RequestId { _unRequestId :: Int64 }
-  deriving (Eq, Ord, Num, Show, Read, ToJSON, FromJSON)
+import Focus.Client.Types
 
-newtype WakeupId = WakeupId { _unWakeupId :: Int64 }
-  deriving (Eq, Ord, Num, Show, Read, ToJSON ,FromJSON)
+requestEnv :: forall pub priv select view patch. (Request pub, Request priv) => ClientEnv select view patch -> RequestEnv pub priv select view
+requestEnv c = RequestEnv
+  { _requestEnv_sendRequest = \req ->
+      let sr = _clientEnv_nextRequestId c
+          pending = _clientEnv_pendingRequests c
+          setup = atomically $ do
+            s <- readTVar sr
+            modifyTVar' sr (+1)
+            em <- newTBQueue 1
+            modifyTVar' pending $ Map.insertWith ($failure "duplicate request id") s em
+            return (s, em)
+          teardown s = atomically $ modifyTVar' pending $ Map.delete s
+          run :: (RequestId, TBQueue (Either String Value)) -> IO (Async (Either String Value))
+          run (s,em) = 
+            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest pub priv))
+                payload = WebSocketData_Api (toJSON s) (SomeRequest req)
+            in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
+      in setup >>= run
+  , _requestEnv_registerInterest = \sel -> do
+      let si = _clientEnv_nextInterestId c
+          interests = _clientEnv_interests c
+      atomically $ do
+        s <- readTVar si
+        modifyTVar' si (+1)
+        modifyTVar' interests $ Map.insertWith ($failure "duplicate interest id") s sel
+        return $ (s, atomically $ modifyTVar' interests $ Map.delete s)
+  , _requestEnv_listen = \t s l -> do
+      let onChange = _clientEnv_notifyViewChange c
+      viewChange <- atomically $ dupTChan onChange
+      async $ fix $ \k -> do
+        mr <- atomically $ do
+          readTChan viewChange
+          mv <- fmap (_clientEnv_cropView c s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
+          return $ l =<< mv
+        case mr of
+          Nothing -> k
+          Just r -> return r
+  }
+ where
+  conn = _clientEnv_connection c
 
-data ClientEnv s p v = 
-  ClientEnv { _clientEnv_websocket :: Connection
-            , _clientEnv_token :: MVar (Maybe (Signed AuthToken))
-            , _clientEnv_nextRequestId :: MVar RequestId
-            , _clientEnv_pending :: MVar (Map RequestId (MVar (Either String Value)))
-            , _clientEnv_currentView :: MVar (Maybe v)
-            , _clientEnv_currentSelector :: MVar s
-            , _clientEnv_patcher :: MVar (s -> p -> Maybe v -> v)
-            }
+--TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
+listener :: FromJSON patch => ClientEnv select view patch -> IO ()
+listener env = forever $ runMaybeT $ do
+  raw <- lift $ receiveData (_clientEnv_connection env)
+  (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
+  ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
+  liftIO $ atomically $ runMaybeT $ case ma of
+    WebSocketData_Listen (AppendMap pmap) -> do
+      let applyPatch = _clientEnv_patchView env
+      lift $ modifyTVar' (_clientEnv_viewMap env) $ Map.mergeWithKey
+        (\_ x y -> Just (applyPatch x y))
+        (fmap (\p -> applyPatch p (_clientEnv_emptyView env)))
+        (const Map.empty)
+        pmap
+      lift (writeTChan (_clientEnv_notifyViewChange env) ())
+      return ()
+    WebSocketData_Api rid' eea -> do
+      rid <- parseToMaybeT $ fromJSON rid'
+      mv <- MaybeT (Map.lookup rid <$> readTVar (_clientEnv_pendingRequests env))
+      lift (writeTBQueue mv eea)
+      return ()
+ where
+  parseToMaybeT r = MaybeT . return $ case r of
+   Error _ -> Nothing
+   Success r' -> Just r'
 
-newtype ClientApp select patch view (pub :: * -> *) (priv :: * -> *) a = ClientApp { _runClientApp :: ReaderT (ClientEnv select patch view) IO a }
-  deriving (Functor, Applicative, Monad, MonadReader (ClientEnv select patch view), MonadIO)
+request :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => ApiRequest pub priv rsp -> m (RequestResult rsp)
+request req = do
+  reqP <- asks _requestEnv_sendRequest >>= \sendReq -> liftIO (sendReq req)
+  mt <- gets _requestState_timeout
+  er <- liftIO $ race (timeout mt >> return ()) (processResult <$> waitCatch reqP)
+  return $ case er of
+    Left _ -> RequestResult_Timeout (fromJust mt)
+    Right r -> r
+ where
+  timeout = \case
+    Nothing -> forever $ threadDelay 10000
+    Just t -> threadDelay t
+  processResult = \case
+    Left e -> RequestResult_Failure (show e)
+    Right (Left e) -> RequestResult_Failure e
+    Right (Right r) -> case fromJSON r of
+      Error e -> RequestResult_DecodeError r e
+      Success r' -> RequestResult_Success r'
 
-runClientApp :: (Monoid select, FromJSON patch) => (select -> patch -> Maybe view -> view) -> ClientApp select patch view pub priv a -> IO a
-runClientApp patcher (ClientApp m) = withSocketsDo $ do
-  result <- newEmptyMVar
-  handleConnectionException $ runClient "localhost" 8000 "/listen" $ \conn -> do
-    listenDone <- newEmptyMVar
-    nextRequestId <- newMVar 1
-    pending <- newMVar Map.empty
-    authRef <- newMVar Nothing
-    viewRef <- newMVar Nothing
-    selRef <- newMVar mempty
-    patcherRef <- newMVar patcher
-    let env = ClientEnv { _clientEnv_websocket = conn
-                        , _clientEnv_token = authRef
-                        , _clientEnv_nextRequestId = nextRequestId
-                        , _clientEnv_pending = pending
-                        , _clientEnv_currentView = viewRef
-                        , _clientEnv_currentSelector = selRef
-                        , _clientEnv_patcher = patcherRef
-                        }
-    lid <- forkFinally (listener env) (\_ -> putMVar listenDone ())
-    putMVar result =<< runReaderT m env
-    killThread lid
-    takeMVar listenDone
-    handleConnectionException $ do
-      sendClose conn ("Goodbye" :: Text)
-      forever $ receiveDataMessage conn
-    return ()
-  takeMVar result
+private :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => priv rsp -> m (RequestResult rsp)
+private req = do
+  mtoken <- gets _requestState_token
+  case mtoken of
+    Nothing -> return RequestResult_RequiresAuthorization
+    Just token -> request (ApiRequest_Private token req)
+
+public :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => pub rsp -> m (RequestResult rsp)
+public req = request (ApiRequest_Public req)
+
+listen :: (MonadRequest pub priv select view m, Monoid select) => (view -> Maybe a) -> m (ListenResult a)
+listen l = do
+  mtoken <- gets _requestState_token
+  case mtoken of
+    Nothing -> return ListenResult_RequiresAuthorization
+    Just t -> do
+      mListen <- asks _requestEnv_listen
+      mTimeout <- gets _requestState_timeout
+      i <- Map.foldr (\sel acc -> fst sel <> acc) mempty <$> gets _requestState_interests
+      er <- liftIO $ race (timeout mTimeout >> return ()) (fmap processListen . waitCatch =<< mListen t i l)
+      return $ case er of
+        Left _ -> ListenResult_Timeout (fromJust mTimeout)
+        Right r -> r
+ where
+   timeout = \case
+     Nothing -> forever $ threadDelay 10000
+     Just t -> threadDelay t
+   processListen = \case
+     Left e -> ListenResult_Failure (show e)
+     Right r -> ListenResult_Success r
+
+setToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
+setToken t = requestState_token <<.= t
+
+withToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) -> m a -> m a
+withToken mt a = 
+  bracket setup teardown run
+ where 
+  setup = setToken mt
+  teardown t' = setToken t'
+  run _ = a
+
+tellInterest :: (MonadRequest pub priv select view m) => select -> m ()
+tellInterest s = do
+  registerInterest <- asks _requestEnv_registerInterest
+  (sid, unregister) <- liftIO $ registerInterest s
+  requestState_interests %= Map.insert sid (s, unregister)
+
+withInterest :: (MonadRequest pub priv select view m) => select -> m a -> m a
+withInterest s a = bracket setup teardown run
+  where setup = do
+          registerInterest <- asks _requestEnv_registerInterest
+          snd <$> liftIO (registerInterest s)
+        teardown unregister = liftIO unregister
+        run _ = a
+
+runClientApp :: (Request pub, Request priv, FromJSON patch) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
+runClientApp m cfg = withSocketsDo $ do
+  result <- newEmptyTMVarIO
+  handleConnectionException $ runClient (_clientConfig_host cfg) 
+                                        (_clientConfig_port cfg) 
+                                        (_clientConfig_path cfg) $ \conn -> do
+    cenv <- atomically $ do
+      nextReq <- newTVar 1
+      pending <- newTVar Map.empty
+      views' <- newTVar Map.empty
+      notify <- newBroadcastTChan
+      nextInterest <- newTVar 1
+      interests <- newTVar Map.empty
+      return $ ClientEnv { _clientEnv_connection = conn
+                         , _clientEnv_nextRequestId = nextReq
+                         , _clientEnv_pendingRequests = pending
+                         , _clientEnv_emptyView = _clientConfig_emptyView cfg
+                         , _clientEnv_viewMap = views'
+                         , _clientEnv_patchView = _clientConfig_patchView cfg
+                         , _clientEnv_cropView = _clientConfig_cropView cfg
+                         , _clientEnv_notifyViewChange = notify
+                         , _clientEnv_nextInterestId = nextInterest
+                         , _clientEnv_interests = interests
+                         }
+    let renv = requestEnv cenv
+    listenDone <- newEmptyTMVarIO
+    bracket
+      (forkFinally (listener cenv) (\_ -> atomically (putTMVar listenDone ())))
+      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> sendClose conn ("Goodbye" :: Text)) $ 
+      \_ -> bracket 
+        (runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty))
+        (\(_,s,_) -> forM_ (_requestState_interests s) $ \i -> snd i)
+        (\(a,_,_) -> atomically (putTMVar result a))
+  atomically (takeTMVar result)
  where
   handleConnectionException = handle $ \e -> case e of
     ConnectionClosed -> return ()
     _ -> print e
-
-requestWithTimeout :: forall select patch view rsp pub priv. (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> ApiRequest pub priv rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
-requestWithTimeout mtime req = ClientApp $ do
-  conn <- asks _clientEnv_websocket
-  (next, pending) <- asks (_clientEnv_nextRequestId &&& _clientEnv_pending)
-  liftIO $ do
-    rid <- modifyMVar next $ \s -> return (s+1, s)
-    em <- newEmptyMVar
-    modifyMVar_ pending $ return . Map.insertWith ($failure "duplicate request id") rid em
-    let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest pub priv))
-        payload = WebSocketData_Api (toJSON rid) (SomeRequest req)
-    sendTextData conn $ encode payload
-    let decodeOrBust r = case fromJSON r of
-          Error _ -> $failure $ "response failed to parse: " <> LBSC8.unpack (encode r)
-          Success r' -> r'
-    mrsp <- fmap decodeOrBust <$> readMVar em & case mtime of
-      Nothing -> fmap Just
-      Just t -> timeout (fromIntegral t) --TODO: #115797377
-    modifyMVar_ pending $ return . Map.delete rid
-    return mrsp
-
-privateWithTimeout :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> priv rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
-privateWithTimeout mt req = do
-  maRef <- asks _clientEnv_token
-  ma <- liftIO (readMVar maRef)
-  case ma of
-    Nothing -> $failure $ "attempted to make private request without authentication: " <> LBSC8.unpack (encode (requestToJSON req))
-    Just auth -> requestWithTimeout mt (ApiRequest_Private auth req)
-
-publicWithTimeout :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => Maybe Int64 -> pub rsp -> ClientApp select patch view pub priv (Maybe (Either String rsp))
-publicWithTimeout mt req = requestWithTimeout mt (ApiRequest_Public req)
-
-private :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => priv rsp -> ClientApp select patch view pub priv (Either String rsp)
-private req = do
-  Just rsp <- privateWithTimeout Nothing req
-  return rsp
-
-public :: (ToJSON rsp, FromJSON rsp, Request pub, Request priv) => pub rsp -> ClientApp select patch view pub priv (Either String rsp)
-public req = do
-  Just rsp <- publicWithTimeout Nothing req
-  return rsp
-
-select :: forall select patch view pub priv. ToJSON select => select -> ClientApp select patch view pub priv ()
-select s = do
-  env <- ask
-  let conn = _clientEnv_websocket env
-      sr = _clientEnv_currentSelector env
-      vr = _clientEnv_currentView env
-      tr = _clientEnv_token env
-  _ <- liftIO $ tryTakeMVar vr
-  _ <- liftIO $ swapMVar sr s
-  mtoken <- liftIO $ readMVar tr
-  case mtoken of
-    Nothing -> return ()
-    Just token -> do
-      let payload :: WebSocketData (Signed AuthToken) select Value
-          payload = WebSocketData_Listen (AppendMap $ Map.singleton token s)
-      liftIO $ sendTextData conn $ encode payload
-      return ()
-
-listenWithTimeout :: forall select patch view pub priv a. Maybe Int64 -> (view -> Maybe a) -> ClientApp select patch view pub priv (Maybe a)
-listenWithTimeout mt l = do
-  env <- ask
-  let cview = _clientEnv_currentView env
-  liftIO $ do 
-    answerMe <- newEmptyMVar
-    lt <- forkIO $ fix $ \k -> do
-      fmap (l <=< join) (tryReadMVar cview) >>= \case
-        Nothing -> threadDelay 10000 >> k --TODO: Better strategy for waking up for listening
-        Just result -> putMVar answerMe result
-    takeMVar answerMe & case mt of--TODO: #115797377
-      Nothing -> fmap Just
-      Just t -> \a -> do
-        r <- timeout (fromIntegral t) a
-        killThread lt
-        return r
-
-listen :: forall select patch view pub priv a. (view -> Maybe a) -> ClientApp select patch view pub priv a
-listen l = do
-  Just r <- listenWithTimeout Nothing l
-  return r
-
-setToken :: Maybe (Signed AuthToken) -> ClientApp select patch view pub priv ()
-setToken token = do
-  mv <- asks _clientEnv_token
-  liftIO $ modifyMVar_ mv (\_ -> return token)
-
-swapToken :: Maybe (Signed AuthToken) -> ClientApp select patch view pub priv (Maybe (Signed AuthToken))
-swapToken t = do
-  mv <- asks _clientEnv_token
-  liftIO $ swapMVar mv t
-
-listener :: forall select patch view. (Monoid select, FromJSON patch) => ClientEnv select patch view -> IO ()
-listener env = forever $ runMaybeT $ do
-  raw <- lift $ receiveData conn
-  (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
-  ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
-  case ma of
-    WebSocketData_Listen nmap -> lift $ withMVar token $ \case
-        Nothing -> return ()
-        Just t -> withMVar selectorRef $ \s -> withMVar patcherRef $ \patcher -> do
-          mv <- fmap join $ tryTakeMVar viewRef
-          putMVar viewRef $ do
-            p <- nmap ^. at t
-            return (patcher s p mv)
-          return ()
-    WebSocketData_Api rid' eea -> do
-      rid <- parseToMaybeT $ fromJSON rid'
-      mp <- MaybeT $ tryReadMVar pending
-      mv <- MaybeT . return $ Map.lookup rid mp
-      lift (putMVar mv eea)
- where 
-  conn = _clientEnv_websocket env
-  token = _clientEnv_token env
-  pending = _clientEnv_pending env
-  patcherRef = _clientEnv_patcher env
-  viewRef = _clientEnv_currentView env
-  selectorRef = _clientEnv_currentSelector env
-  parseToMaybeT r = MaybeT . return $ case r of
-   Error _ -> Nothing
-   Success r' -> Just r'
