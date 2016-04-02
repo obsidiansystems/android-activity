@@ -110,7 +110,7 @@ handleListen runGroundhog chan vsMap0 getView getPatch onViewSelectorChange proc
               Left (se :: SomeException) -> Left (displayException se)
               Right rsp -> Right rsp
       case eitherDecode' r of
-        Left s -> sendDataMessage conn . wrapper . encodeR $ Left s
+        Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
         Right (WebSocketData_Listen vsMap) -> do
           vsMapOld <- readIORef vsRef
