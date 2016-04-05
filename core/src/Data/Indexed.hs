@@ -53,6 +53,12 @@ class HasIndex p f where
        -> f v
        -> Set (Index (f v))
   find p k f = keysByIndex p (Set.singleton k) f
+  findValues :: (Ord (Projected p (IxValue (f b))), Ord (Index (f b)), FoldableWithIndex (Index (f b)) f, At (f b), HasIndex p f)
+             => proxy p
+             -> Projected p (IxValue (f b))
+             -> f b
+             -> f b
+  findValues p k f = intersectionByKey (find p k f) f
 
 valuesByIndex :: ( Ord (Index (f' b))
                  , Ord (Index (f b))
