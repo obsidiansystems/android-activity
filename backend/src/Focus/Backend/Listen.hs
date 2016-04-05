@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase, AllowAmbiguousTypes, PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Focus.Backend.Listen where
 
 import Focus.AppendMap
@@ -20,7 +21,9 @@ import Data.String
 import Data.Text.Encoding
 import Data.These
 import Database.Groundhog
-import Database.Groundhog.Core
+import Database.Groundhog.Core hiding (Update)
+import qualified Database.Groundhog.Core as GH
+import qualified Database.Groundhog.Expression as GH
 import Database.Groundhog.Generic
 import Database.Groundhog.Instances ()
 import Database.Groundhog.Postgresql
@@ -49,24 +52,44 @@ insertAndNotify t = do
   notifyEntity Insert tid t
   return tid
 
+insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
+insertByAllAndNotify t = do
+  etid <- liftM (fmap toId) $ insertByAll t
+  case etid of
+    Left _ -> return Nothing
+    Right tid -> notifyEntity Insert tid t >> return (Just tid)
+
+insertByAllAndNotifyWithBody :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
+insertByAllAndNotifyWithBody t = do
+  etid <- liftM (fmap toId) $ insertByAll t
+  case etid of
+    Left _ -> return Nothing
+    Right tid -> notifyEntityWithBody Insert tid t >> return (Just tid)
+
+--TODO: remove type hole from signature; may need to modify groundhog to make that possible
+updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionHolder v c) (DefaultKey a), PersistEntity v, PersistEntity a, PersistBackend m, GH.Unifiable (AutoKeyField v c) (DefaultKey a), DefaultKeyId a, _) 
+                => Id a 
+                -> [GH.Update (PhantomDb m) (RestrictionHolder v c)]
+                -> m ()
+updateAndNotify tid dt = do
+  update dt (AutoKeyField ==. fromId tid)
+  notifyEntityId Update tid
+
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
 notifyEntity nt aid _ = notifyEntityId nt aid
+
+notifyEntityWithBody :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
+notifyEntityWithBody nt aid a = do
+  let proxy = undefined :: proxy (PhantomDb m)
+      cmd = "NOTIFY " <> updateChannel <> ", ?"
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: a), (aid, a))]
+  return ()
 
 notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> m ()
 notifyEntityId nt aid = do
   let proxy = undefined :: proxy (PhantomDb m)
-  let cmd = "NOTIFY " <>  updateChannel <> ", ?"
+  let cmd = "NOTIFY " <> updateChannel <> ", ?"
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: a), aid)]
-  return ()
-
-notifyDerived :: (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a)), ToJSON (DerivedEntityHead a)) => NotificationType -> Id a -> a -> m ()
-notifyDerived nt aid _ = notifyDerivedId nt aid
-
-notifyDerivedId :: forall a m. (PersistBackend m, DerivedEntity a, ToJSON (IdData (DerivedEntityHead a))) => NotificationType -> Id a -> m ()
-notifyDerivedId nt aid = do
-  let proxy = undefined :: proxy (PhantomDb m)
-      cmd = "NOTIFY " <> updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: DerivedEntityHead a), fromDerivedId aid)]
   return ()
 
 handleListen :: forall m m' rsp rq notification vs vp token.
