@@ -16,6 +16,7 @@ library
   build-depends:
     base,
     focus-core,
+    focus-http-th,
     aeson,
     attoparsec,
     bifunctors,
@@ -44,13 +45,16 @@ library
     binary,
     raw-strings-qq,
     http-types,
-    exception-transformers
+    exception-transformers,
+    filepath
 
   exposed-modules:
     Focus.JS.BaseJSInstances
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
+    Focus.JS.EmojiOne
+    Focus.JS.EmojiOne.Internal
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen
