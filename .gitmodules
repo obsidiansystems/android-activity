@@ -36,9 +36,6 @@
 [submodule "http"]
 	path = http
 	url = git@github.com:obsidiansystems/focus-http.git
-[submodule "emojione"]
-	path = emojione
-	url = git@github.com:Ranks/emojione.git
 [submodule "js/src/Focus/JS/emojione"]
 	path = js/src/Focus/JS/emojione
 	url = git@github.com:Ranks/emojione.git
