@@ -12,6 +12,7 @@ import Debug.Trace.LocationTH
 data ApiRequest :: (k -> *) -> (k -> *) -> k -> * where
   ApiRequest_Public :: public a -> ApiRequest public private a
   ApiRequest_Private :: Signed AuthToken -> private a -> ApiRequest public private a
+  deriving (Show)
 
 instance (Request private, Request public) => Request (ApiRequest public private) where
   requestToJSON r = case r of
