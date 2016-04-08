@@ -1,9 +1,9 @@
-{mkDerivation, focus-core, reflex, loch-th, reflex-dom, aeson, attoparsec, text, time, vector, ghcjs-dom, constraints, timezone-series, timezone-olson, raw-strings-qq, http-types}: 
+{mkDerivation, focus-core, focus-http-th, reflex, loch-th, reflex-dom, aeson, attoparsec, text, time, vector, ghcjs-dom, constraints, timezone-series, timezone-olson, raw-strings-qq, http-types}: 
 
 mkDerivation {
   license = null;
   pname = "focus-js";
   version = "0.1";
   src = ./.;
-  buildDepends = [ focus-core loch-th reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq http-types ];
+  buildDepends = [ focus-core focus-http-th loch-th reflex reflex-dom aeson attoparsec text time vector ghcjs-dom constraints timezone-series timezone-olson raw-strings-qq http-types ];
 }

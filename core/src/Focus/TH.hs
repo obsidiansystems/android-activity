@@ -1,7 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Focus.TH where
 
+import qualified Data.ByteString as B
 import Language.Haskell.TH
+import Language.Haskell.TH.Syntax
 import qualified Data.FileEmbed as FE
 import System.FilePath
 import qualified Data.Text as T
@@ -13,6 +15,13 @@ conName x = case x of
   RecC n _ -> n
   InfixC _ n _ -> n
   ForallC _ _ c -> conName c
+
+qReadFile :: FilePath -> Q B.ByteString
+qReadFile path = do
+  l <- location
+  let file = takeDirectory (loc_filename l) </> path
+  qAddDependentFile file
+  runIO $ B.readFile file
 
 embedFile :: FilePath -> Q Exp
 embedFile p = do
