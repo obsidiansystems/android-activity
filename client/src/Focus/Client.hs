@@ -86,9 +86,6 @@ listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
   (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
-  case ma of
-    WebSocketData_Listen _ -> liftIO $ print raw
-    _ -> return ()
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
       let applyPatch = _clientEnv_patchView env
