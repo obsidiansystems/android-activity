@@ -149,6 +149,11 @@ newtype RequestT t req m a =
   RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)) a } 
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument)
 
+instance MonadReader r m => MonadReader r (RequestT t req m) where
+  ask = lift ask
+  local f (RequestT a) = RequestT $ mapStateT (mapReaderT $ local f) a
+  reader = lift . reader
+
 runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON token, Ord token, Request req)
             => Event t (AppendMap token vs)
             -> RequestT t req m a
@@ -239,19 +244,12 @@ instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest
                                    Success a' -> Just a'
          else Nothing
 
+instance MonadRequest t req m => MonadRequest t req (ReaderT r m) where
+  requesting = lift . requesting
+
 -- TODO move these to reflex
 instance MonadSample t m => MonadSample t (StateT s m) where
   sample = lift . sample
 
 instance MonadHold t m => MonadHold t (StateT s m) where
   hold a = lift . hold a
-
-deriving instance MonadReader r m => MonadReader r (DynamicWriterT t w m)
-
-instance MonadState s m => MonadState s (DynamicWriterT t w m) where
-  get = lift get
-  put = lift . put
-
-instance HasJS x m => HasJS x (DynamicWriterT t w m) where
-  type JSM (DynamicWriterT t w m) = JSM m
-  liftJS = lift . liftJS
