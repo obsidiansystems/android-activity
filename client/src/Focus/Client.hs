@@ -43,7 +43,7 @@ requestEnv c = RequestEnv
             return (s, em)
           teardown s = atomically $ modifyTVar' pending $ Map.delete s
           run :: (RequestId, TBQueue (Either String Value)) -> IO (Async (Either String Value))
-          run (s,em) = 
+          run (s,em) =
             let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest pub priv))
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
             in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
@@ -64,14 +64,18 @@ requestEnv c = RequestEnv
   , _requestEnv_listen = \t s l -> do
       let onChange = _clientEnv_notifyViewChange c
       viewChange <- atomically $ dupTChan onChange
-      async $ fix $ \k -> do
-        mr <- atomically $ do
-          readTChan viewChange
-          mv <- fmap (_clientEnv_cropView c s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
-          return $ l =<< mv
-        case mr of
-          Nothing -> k
+      async $ do
+        v <- readTVarIO (_clientEnv_viewMap c)
+        case l . _clientEnv_cropView c s =<< Map.lookup t v of
           Just r -> return r
+          Nothing -> fix $ \k -> do
+            mr <- atomically $ do
+              readTChan viewChange
+              mv <- fmap (_clientEnv_cropView c s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
+              return $ l =<< mv
+            case mr of
+              Nothing -> k
+              Just r -> return r
   }
  where
   conn = _clientEnv_connection c
@@ -82,6 +86,9 @@ listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
   (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
+  case ma of
+    WebSocketData_Listen _ -> liftIO $ print raw
+    _ -> return ()
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
       let applyPatch = _clientEnv_patchView env
@@ -115,7 +122,7 @@ request req = do
     Right r -> r
  where
   timeout = \case
-    Nothing -> forever $ threadDelay 10000
+    Nothing -> forever $ threadDelay 10000000
     Just t -> threadDelay t
   processResult = \case
     Left e -> RequestResult_Failure (show e)
@@ -149,7 +156,7 @@ listen l = do
         Right r -> r
  where
    timeout = \case
-     Nothing -> forever $ threadDelay 10000
+     Nothing -> forever $ threadDelay 10000000
      Just t -> threadDelay t
    processListen = \case
      Left e -> ListenResult_Failure (show e)
@@ -159,9 +166,9 @@ setToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) ->
 setToken t = requestState_token <<.= t
 
 withToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) -> m a -> m a
-withToken mt a = 
+withToken mt a =
   bracket setup teardown run
- where 
+ where
   setup = setToken mt
   teardown t' = setToken t'
   run _ = a
@@ -186,7 +193,7 @@ withInterest s a = do
   sendInterest <- asks _requestEnv_sendInterestSet
   case mt of
     Nothing -> return Nothing
-    Just t -> 
+    Just t ->
       let setup = liftIO $ do
             unregister <- snd <$> registerInterest t s
             sendInterest
@@ -197,8 +204,8 @@ withInterest s a = do
 runClientApp :: (Request pub, Request priv, FromJSON patch, Monoid select, ToJSON select) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
-  handleConnectionException $ runClient (_clientConfig_host cfg) 
-                                        (_clientConfig_port cfg) 
+  handleConnectionException $ runClient (_clientConfig_host cfg)
+                                        (_clientConfig_port cfg)
                                         (_clientConfig_path cfg) $ \conn -> do
     cenv <- atomically $ do
       nextReq <- newTVar 1
@@ -222,7 +229,7 @@ runClientApp m cfg = withSocketsDo $ do
     listenDone <- newEmptyTMVarIO
     bracket
       (forkFinally (listener cenv) (\_ -> atomically (putTMVar listenDone ())))
-      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> handleConnectionException (sendClose conn ("Goodbye" :: Text) >> forever (receiveDataMessage conn))) $ 
+      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> handleConnectionException (sendClose conn ("Goodbye" :: Text) >> forever (receiveDataMessage conn))) $
       \_ -> do
         er <- try $ runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty)
         case er of
