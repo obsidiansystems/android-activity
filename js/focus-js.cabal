@@ -53,6 +53,8 @@ library
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
+    Focus.JS.EmojiOne
+    Focus.JS.EmojiOne.Internal
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen
