@@ -39,3 +39,6 @@
 [submodule "js/src/Focus/JS/emojione"]
 	path = js/src/Focus/JS/emojione
 	url = git@github.com:Ranks/emojione.git
+[submodule "emojione"]
+	path = emojione
+	url = git@gitlab.com:obsidian.systems/focus-emojione
