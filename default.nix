@@ -36,6 +36,7 @@ in rec {
              focus-serve = self.callPackage ./http/serve {};
              focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
              focus-client = self.callPackage ./client {};
+             focus-emojione = self.callPackage ./emojione {};
              reflex-dom = self.callPackage ./reflex-dom {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
