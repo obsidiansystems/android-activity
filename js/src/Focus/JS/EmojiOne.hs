@@ -45,11 +45,22 @@ emojiPicker assets = do
     e <- emojiEl path c
     return $ c <$ domEvent Click e
   selDyn <- holdDyn (head supportedCategories) selE
-  let emojiDyn = constDyn emojisBySupportedCategory
-  fmap (fmap snd) $ selectViewListWithKey selDyn emojiDyn $ \_ emojis' isSel' -> do
+  let submap k = flip imap emojisBySupportedCategory $ \k' m -> if k' == k
+        then Just m
+        else Nothing
+      selectList selection' mkChild = do
+        pb <- getPostBuild
+        selection <- mapDyn submap selection'
+        liftM switchPromptlyDyn $ widgetHold (return never) $ ffor (fmap (Map.mapMaybe id) $ tagDyn selection pb) $ \sel0 -> do
+          selectChild <- listHoldWithKey sel0 (updated selection) $ \k v -> do
+            selected <- mapDyn (==k) selection'
+            selectSelf <- mkChild k v selected
+            return $ fmap ((,) k) selectSelf
+          liftM switchPromptlyDyn $ mapDyn (leftmost . Map.elems) selectChild
+  fmap (fmap snd) $ selectList selDyn $ \_ emojis isSel' -> do
     pb <- getPostBuild
     fmap switchPromptlyDyn $ widgetHold (return never) $
-      ffor (attachDyn isSel' $ leftmost [tagDyn emojis' pb, updated emojis']) $ \(isSel, emojis) -> case isSel of
+      ffor (tagDyn isSel' pb) $ \case
         False -> return never
         True -> fmap leftmost $ forM (map snd $ Map.toAscList emojis) $ \sn -> do
           Just path <- return $ Map.lookup sn assets
@@ -63,4 +74,5 @@ emojiPicker assets = do
       , "type" =: "image/svg+xml"
       , "alt" =: alt
       ]) blank
+
 
