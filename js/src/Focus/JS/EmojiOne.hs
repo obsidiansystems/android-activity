@@ -17,7 +17,7 @@ emojiPicker = return never
 emojiAttrs :: EmojiData -> Map String String
 emojiAttrs ed = mconcat
   [ "class" =: ("emojione emojione-" <> _emojiData_unicode ed)
-  , "title" =: mconcat [":", _emojiData_shortname ed, ";"]
+  , "title" =: _emojiData_shortname ed
   ]
 
 emojiEl :: MonadWidget t m => EmojiData -> m ()
