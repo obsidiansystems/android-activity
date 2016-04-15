@@ -18,6 +18,7 @@ emojiAttrs :: EmojiData -> Map String String
 emojiAttrs ed = mconcat
   [ "class" =: ("emojione emojione-" <> _emojiData_unicode ed)
   , "title" =: _emojiData_shortname ed
+  , "style" =: "zoom: calc(1/3);"
   ]
 
 emojiEl :: MonadWidget t m => EmojiData -> m ()
