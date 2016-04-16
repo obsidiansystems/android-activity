@@ -63,14 +63,17 @@ supportedCategories =
 emojiPicker :: MonadWidget t m => m (Event t String)
 emojiPicker = do
   let emojisBySupportedCategory = Map.intersection emojisByCategory (Map.fromSet (\_ -> ()) $ Set.fromList supportedCategories)
-  rec selE <- el "div" $ fmap leftmost $ forM supportedCategories $ \c -> do
+  rec selE <- el "div" $ el "span" $ fmap leftmost $ forM supportedCategories $ \c -> do
         Just ed <- return $ do
           (sn,_) <- Map.minView =<< Map.lookup c emojisBySupportedCategory
           Map.lookup sn emojiData
         --TODO: style selected element
-        attr <- forDyn selDyn $ \c' -> if c == c'
-          then "style" =: "border: 1px solid #6688aa;"
-          else Map.empty
+        attr <- forDyn selDyn $ \c' -> "style" =: (mconcat
+          [ if c == c'
+              then "background-color: #aaccff; "
+              else ""
+          , "border: 1px solid #6688aa; "
+          ])
         e <- emojiElDynAttr ed attr
         return $ c <$ domEvent Click e
       selDyn <- holdDyn (head supportedCategories) selE
