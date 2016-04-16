@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase #-}
+{-# LANGUAGE TemplateHaskell, LambdaCase, RecursiveDo #-}
 module Focus.JS.EmojiOne ( module Focus.JS.EmojiOne
                          , module Focus.EmojiOne
                          ) where
@@ -15,27 +15,28 @@ import Reflex.Dom
 import Focus.AppendMap
 import Focus.EmojiOne
 
-emojiAttrs :: EmojiData -> Map String String
-emojiAttrs ed = mconcat
-  [ "class" =: ("emojione emojione-" <> _emojiData_unicode ed)
-  , "title" =: _emojiData_shortname ed
-  , "style" =: "zoom: calc(1/3);"
-  ]
+emojiAttrs :: EmojiData -> Map String String -> Map String String
+emojiAttrs ed attrs = attrs
+  & (at "class" %~ \x -> Just (maybe "" id x <> " emojione emojione-" <> _emojiData_unicode ed))
+  & (at "title" %~ \case
+      Nothing -> Just (_emojiData_shortname ed)
+      Just x -> Just x)
+  & (at "style" %~ \x -> Just (maybe "" id x <> " zoom: calc(1/3); "))
 
 emojiEl :: MonadWidget t m => EmojiData -> m (El t)
-emojiEl ed = fst <$> elAttr' "span" (emojiAttrs ed) blank
+emojiEl ed = fst <$> elAttr' "span" (emojiAttrs ed Map.empty) blank
 
 emojiElAttr :: MonadWidget t m => EmojiData -> Map String String -> m (El t)
-emojiElAttr ed attrs' = fst <$> elAttr' "span" (emojiAttrs ed <> attrs') blank
+emojiElAttr ed attrs' = fst <$> elAttr' "span" (emojiAttrs ed attrs') blank
 
 emojiElDynAttr :: MonadWidget t m => EmojiData -> Dynamic t (Map String String) -> m (El t)
 emojiElDynAttr ed attrs' = do
-  attrs <- mapDyn (emojiAttrs ed <>) attrs'
+  attrs <- mapDyn (emojiAttrs ed) attrs'
   fst <$> elDynAttr' "span" attrs blank
 
 emojiDynElAttrDyn :: MonadWidget t m => Dynamic t EmojiData -> Dynamic t (Map String String) -> m (El t)
 emojiDynElAttrDyn edyn attrs' = do
-  ad <- mapDyn emojiAttrs edyn
+  ad <- mapDyn (flip emojiAttrs Map.empty) edyn
   attrs <- combineDyn (<>) ad attrs'
   fst <$> elDynAttr' "span" attrs blank
 
@@ -59,23 +60,26 @@ supportedCategories =
   , "symbols"
   ]
 
-emojiPicker :: (MonadWidget t m) => m (Event t String)
+emojiPicker :: MonadWidget t m => m (Event t String)
 emojiPicker = do
   let emojisBySupportedCategory = Map.intersection emojisByCategory (Map.fromSet (\_ -> ()) $ Set.fromList supportedCategories)
-  selE <- el "div" $ fmap leftmost $ forM supportedCategories $ \c -> do
-    Just ed <- return $ do
-      (sn,_) <- Map.minView =<< Map.lookup c emojisBySupportedCategory
-      Map.lookup sn emojiData
-    --TODO: style selected element
-    e <- emojiEl ed
-    return $ c <$ domEvent Click e
-  selDyn <- holdDyn (head supportedCategories) selE
+  rec selE <- el "div" $ fmap leftmost $ forM supportedCategories $ \c -> do
+        Just ed <- return $ do
+          (sn,_) <- Map.minView =<< Map.lookup c emojisBySupportedCategory
+          Map.lookup sn emojiData
+        --TODO: style selected element
+        attr <- forDyn selDyn $ \c' -> if c == c'
+          then "style" =: "border: 1px solid #6688aa;"
+          else Map.empty
+        e <- emojiElDynAttr ed attr
+        return $ c <$ domEvent Click e
+      selDyn <- holdDyn (head supportedCategories) selE
   let submap k = flip imap emojisBySupportedCategory $ \k' m -> if k' == k
         then Just m
         else Nothing
       selectList selection' mkChild = do
         pb <- getPostBuild
-        selection <- mapDyn submap selection'
+        selection <- mapDyn submap (nubDyn selection')
         liftM switchPromptlyDyn $ widgetHold (return never) $ ffor (fmap (Map.mapMaybe id) $ tagDyn selection pb) $ \sel0 -> do
           selectChild <- listHoldWithKey sel0 (updated selection) $ \k v -> do
             selected <- mapDyn (==k) selection'
