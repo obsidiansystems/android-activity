@@ -63,6 +63,7 @@ library
     Focus.JS.Request
     Focus.JS.Route
     Focus.JS.SmoothieCharts
+    Focus.JS.TextArea
     Focus.JS.Time
     Focus.JS.Transition
     Focus.JS.WebSocket
