@@ -61,6 +61,9 @@ self: super: {
     groundhog-th = overrideCabal super.groundhog-th (drv: {
       src = ./groundhog/groundhog-th;
     });
+    groundhog-postgresql = overrideCabal super.groundhog-postgresql (drv: {
+      src = ./groundhog/groundhog-postgresql;
+    });
     snap-loader-static = overrideCabal super.snap-loader-static (drv: {
       jailbreak = true;
     });
