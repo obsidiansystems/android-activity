@@ -35,7 +35,6 @@ in rec {
              focus-js = self.callPackage ./js {};
              focus-serve = self.callPackage ./http/serve {};
              focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
-             focus-client = self.callPackage ./client {};
              focus-emojione = self.callPackage ./emojione {};
              reflex-dom = self.callPackage ./reflex-dom {};
            };
@@ -60,6 +59,8 @@ in rec {
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
           focus-backend = self.callPackage ./backend { inherit myPostgres; };
+          focus-client = self.callPackage ./client {};
+          focus-test = self.callPackage ./test {};
         };
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;

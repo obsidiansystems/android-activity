@@ -42,3 +42,6 @@
 [submodule "emojione"]
 	path = emojione
 	url = git@gitlab.com:obsidian.systems/focus-emojione
+[submodule "test"]
+	path = test
+	url = git@gitlab.com:obsidian.systems/focus-test.git

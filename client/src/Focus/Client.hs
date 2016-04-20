@@ -180,22 +180,25 @@ tellInterest s = do
       sendInterestSet <- asks _requestEnv_sendInterestSet
       (sid, unregister) <- liftIO $ registerInterest t s
       requestState_interests %= Map.insert sid (s, unregister)
-      liftIO $ sendInterestSet
+      liftIO sendInterestSet
       return (Just ())
 
 withInterest :: (MonadRequest pub priv select view m) => select -> m a -> m (Maybe a)
 withInterest s a = do
   mt <- gets _requestState_token
-  registerInterest <- asks _requestEnv_registerInterest
-  sendInterest <- asks _requestEnv_sendInterestSet
   case mt of
     Nothing -> return Nothing
     Just t ->
-      let setup = liftIO $ do
-            unregister <- snd <$> registerInterest t s
-            sendInterest
-            return unregister
-          teardown unregister = liftIO $ atomically unregister
+      let setup = do
+            registerInterest <- asks _requestEnv_registerInterest
+            sendInterestSet <- asks _requestEnv_sendInterestSet
+            (sid, unregister) <- liftIO $ registerInterest t s
+            requestState_interests %= Map.insert sid (s, unregister)
+            liftIO sendInterestSet
+            return (sid, unregister)
+          teardown (sid, unregister) = do
+            liftIO $ atomically unregister
+            requestState_interests %= Map.delete sid
       in Just <$> bracket setup teardown (\_ -> a)
 
 runClientApp :: (Request pub, Request priv, FromJSON patch, Monoid select, ToJSON select) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
