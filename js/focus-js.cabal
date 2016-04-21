@@ -38,6 +38,7 @@ library
     these,
     mtl,
     dependent-map,
+    dependent-sum,
     data-default,
     constraints,
     safe,
@@ -50,6 +51,7 @@ library
     filepath
 
   exposed-modules:
+    Focus.JS.AltInput
     Focus.JS.BaseJSInstances
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
