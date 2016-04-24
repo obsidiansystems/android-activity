@@ -67,6 +67,19 @@ data RequestResult rsp = RequestResult_Success rsp
                        | RequestResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
 
+instance Monad RequestResult where
+  return = RequestResult_Success
+  x >>= f = case x of
+    RequestResult_Success v -> f v
+    RequestResult_Failure s -> RequestResult_Failure s
+    RequestResult_DecodeError v s -> RequestResult_DecodeError v s
+    RequestResult_Timeout n -> RequestResult_Timeout n
+    RequestResult_RequiresAuthorization -> RequestResult_RequiresAuthorization
+
+instance Applicative RequestResult where
+  pure = return
+  (<*>) = ap
+
 data ListenResult a = ListenResult_Success a
                     | ListenResult_Failure String
                     | ListenResult_Timeout Int
