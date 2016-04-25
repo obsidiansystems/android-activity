@@ -81,6 +81,7 @@ library
     , Focus.Backend.DB.Temp
     , Focus.Backend.DB.Local
     , Focus.Backend.DB.Groundhog
+    , Focus.Backend.DB.PsqlSimple
     , Focus.Backend.Snap
     , Focus.Backend.Route
     , Focus.Backend.Brand
