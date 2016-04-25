@@ -19,8 +19,8 @@ import qualified Database.PostgreSQL.Simple as Sql
 class PostgresRaw m where
   execute :: ToRow q => Query -> q -> m Int64
   execute_ :: Query -> m Int64
-  query :: (ToRow q, FromRow r) => Query -> q -> DbPersist Postgresql m [r]
-  query_ :: FromRow r => Query -> DbPersist Postgresql m [r]
+  query :: (ToRow q, FromRow r) => Query -> q -> m [r]
+  query_ :: FromRow r => Query -> m [r]
   formatQuery :: ToRow q => Query -> q -> m ByteString
 
 instance MonadIO m => PostgresRaw (DbPersist Postgresql m) where
