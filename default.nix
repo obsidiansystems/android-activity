@@ -8,7 +8,7 @@ in rec {
   inherit (nixpkgs) stdenv;
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
-  myPostgres = nixpkgs.postgresql94; #TODO: shouldn't be exposed
+  myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
   mkDerivation =
     { name
     , version
