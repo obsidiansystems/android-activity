@@ -2,6 +2,8 @@
 module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , In (..), Only (..), Values (..)
                                    , Binary (..), (:.)(..), PGArray (..)
+                                   , ToRow (..), FromRow (..)
+                                   , ToField (..), FromField (..)
                                    , sql
                                    ) where
 
@@ -12,6 +14,10 @@ import Data.Int
 import Database.Groundhog.Core
 import Database.Groundhog.Postgresql
 import Database.PostgreSQL.Simple hiding (query, query_, execute, execute_, executeMany, formatQuery)
+import Database.PostgreSQL.Simple.FromField
+import Database.PostgreSQL.Simple.FromRow
+import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToRow
 import Database.PostgreSQL.Simple.Types
 import Database.PostgreSQL.Simple.SqlQQ
 import qualified Database.PostgreSQL.Simple as Sql
