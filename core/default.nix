@@ -1,9 +1,9 @@
 { mkDerivation, aeson, async, attoparsec, base, base64-bytestring
 , bytestring, constraints, containers, data-default, dependent-map
-, dependent-sum, file-embed, filepath, haskell-src-exts, HList
-, lens, loch-th, mtl, network-uri, old-locale, reflex, semigroups
-, stdenv, stripe, template-haskell, text, time, timezone-series
-, transformers, vector
+, dependent-sum, haskell-src-exts, HList, lens, loch-th, mtl
+, network-uri, old-locale, reflex, semigroups, stdenv, stripe
+, template-haskell, text, time, timezone-series, transformers
+, vector
 }:
 mkDerivation {
   pname = "focus-core";
@@ -12,9 +12,9 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson async attoparsec base base64-bytestring bytestring
     constraints containers data-default dependent-map dependent-sum
-    file-embed filepath haskell-src-exts HList lens loch-th mtl
-    network-uri old-locale reflex semigroups stripe template-haskell
-    text time timezone-series transformers vector
+    haskell-src-exts HList lens loch-th mtl network-uri old-locale
+    reflex semigroups stripe template-haskell text time timezone-series
+    transformers vector
   ];
   description = "Project Synopsis Here";
   license = stdenv.lib.licenses.unfree;

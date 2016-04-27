@@ -24,8 +24,6 @@ library
                , data-default
                , dependent-map
                , dependent-sum
-               , file-embed
-               , filepath
                , haskell-src-exts
                , HList
                , lens
@@ -57,7 +55,6 @@ library
     , Focus.Time
     , Focus.Sign
     , Focus.Concurrent
-    , Focus.TH
     , Focus.WebSocket
     , Control.Monad.TypedUnique
     , Data.Indexed
