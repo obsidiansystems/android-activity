@@ -5,6 +5,7 @@ import Control.Monad
 import Data.Aeson
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Semigroup
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics
@@ -19,7 +20,7 @@ patchMapWith i f = Map.mergeWithKey (\_ p v -> maybe (\_ -> Nothing) ((Just.) . 
 
  -- TODO: Use a version of makeJson that can handle instance heads instead of aeson's generic deriving
 newtype SetPatch a = SetPatch (Map a Bool)
-  deriving (Show, Read, Eq, Ord, Generic, Monoid)
+  deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup)
 
 instance (Ord a, ToJSON a) => ToJSON (SetPatch a)
 instance (Ord a, FromJSON a) => FromJSON (SetPatch a)
