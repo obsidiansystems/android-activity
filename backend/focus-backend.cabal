@@ -15,7 +15,6 @@ library
 
   build-depends:
     focus-core,
-    focus-th,
     focus-serve,
     aeson,
     base,
