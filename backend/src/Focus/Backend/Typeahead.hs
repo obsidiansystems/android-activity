@@ -57,10 +57,10 @@ isPrefix nt q aid acc f = case fmap (q `T.isPrefixOf`) (f acc) of
 
 ntPatch :: NotificationType -> a -> Maybe a
 ntPatch nt' = case nt' of
-  Delete -> const Nothing
+  NotificationType_Delete -> const Nothing
   _ -> Just
 
 ntSetPatch :: Ord a => NotificationType -> a -> (Set a, Set a)
 ntSetPatch nt' = case nt' of
-  Delete -> \x -> (mempty, Set.singleton x)
+  NotificationType_Delete -> \x -> (mempty, Set.singleton x)
   _ -> \x -> (Set.singleton x, mempty)

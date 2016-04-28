@@ -37,8 +37,10 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
-data NotificationType = Insert | Update | Delete
+data NotificationType = NotificationType_Insert | NotificationType_Update | NotificationType_Delete
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
+
+makeJson ''NotificationType
 
 withNotifications :: FromJSON a => Pool Postgresql -> (TChan a -> IO r) -> IO r
 withNotifications db k = bracket (listenDB $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
@@ -49,7 +51,7 @@ updateChannel = "updates"
 insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
   tid <- liftM toId $ insert t
-  notifyEntity Insert tid t
+  notifyEntity NotificationType_Insert tid t
   return tid
 
 insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
@@ -57,14 +59,14 @@ insertByAllAndNotify t = do
   etid <- liftM (fmap toId) $ insertByAll t
   case etid of
     Left _ -> return Nothing
-    Right tid -> notifyEntity Insert tid t >> return (Just tid)
+    Right tid -> notifyEntity NotificationType_Insert tid t >> return (Just tid)
 
 insertByAllAndNotifyWithBody :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
 insertByAllAndNotifyWithBody t = do
   etid <- liftM (fmap toId) $ insertByAll t
   case etid of
     Left _ -> return Nothing
-    Right tid -> notifyEntityWithBody Insert tid t >> return (Just tid)
+    Right tid -> notifyEntityWithBody NotificationType_Insert tid t >> return (Just tid)
 
 --TODO: remove type hole from signature; may need to modify groundhog to make that possible
 updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionHolder v c) (DefaultKey a), PersistEntity v, PersistEntity a, PersistBackend m, GH.Unifiable (AutoKeyField v c) (DefaultKey a), DefaultKeyId a, _) 
@@ -73,7 +75,7 @@ updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionH
                 -> m ()
 updateAndNotify tid dt = do
   update dt (AutoKeyField ==. fromId tid)
-  notifyEntityId Update tid
+  notifyEntityId NotificationType_Update tid
 
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
 notifyEntity nt aid _ = notifyEntityId nt aid
@@ -82,14 +84,14 @@ notifyEntityWithBody :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (
 notifyEntityWithBody nt aid a = do
   let proxy = undefined :: proxy (PhantomDb m)
       cmd = "NOTIFY " <> updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: a), (aid, a))]
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, a))]
   return ()
 
 notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> m ()
 notifyEntityId nt aid = do
   let proxy = undefined :: proxy (PhantomDb m)
   let cmd = "NOTIFY " <> updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (show nt, entityName $ entityDef proxy (undefined :: a), aid)]
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
 handleListen :: forall m m' rsp rq notification vs vp token.
