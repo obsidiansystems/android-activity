@@ -1,44 +1,30 @@
-{mkDerivation, loch-th, groundhog, groundhog-th, mtl, focus-core, focus-serve, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-lib, diagrams-svg, raw-strings-qq, attoparsec, myPostgres}: 
-
+{ mkDerivation, aeson, attoparsec, base, blaze-html, bytestring
+, clientsession, containers, data-default, diagrams, diagrams-lib
+, diagrams-svg, directory, file-embed, filepath, focus-core
+, focus-serve, focus-th, groundhog, groundhog-postgresql
+, groundhog-th, lens, loch-th, lucid, mime-mail, monad-control
+, monad-logger, monad-loops, mtl, network, postgresql-simple
+, process, pwstore-fast, raw-strings-qq, resource-pool, semigroups
+, shelly, smtp-mail, snap, snap-core, stdenv, stm, stringsearch
+, stripe, tar, template-haskell, temporary, text, these, time
+, transformers, transformers-base, unix, websockets
+, websockets-snap
+}:
 mkDerivation {
   pname = "focus-backend";
-  license = null;
   version = "0.1";
   src = ./.;
-  buildDepends = [
-    groundhog
-    groundhog-th
-    mtl
-    focus-core
-    focus-serve
-    lens
-    aeson
-    snap
-    resource-pool
-    text
-    network
-    stm
-    postgresql-simple
-    groundhog-postgresql
-    websockets-snap
-    websockets
-    stripe
-    smtp-mail
-    temporary
-    stringsearch
-    shelly
-    tar
-    file-embed
-    binary
-    lucid
-    diagrams
-    diagrams-lib
-    diagrams-svg
-    raw-strings-qq
-    attoparsec
-    loch-th
+  libraryHaskellDepends = [
+    aeson attoparsec base blaze-html bytestring clientsession
+    containers data-default diagrams diagrams-lib diagrams-svg
+    directory file-embed filepath focus-core focus-serve focus-th
+    groundhog groundhog-postgresql groundhog-th lens loch-th lucid
+    mime-mail monad-control monad-logger monad-loops mtl network
+    postgresql-simple process pwstore-fast raw-strings-qq resource-pool
+    semigroups shelly smtp-mail snap snap-core stm stringsearch stripe
+    tar template-haskell temporary text these time transformers
+    transformers-base unix websockets websockets-snap
   ];
-  pkgconfigDepends = [
-    myPostgres
-  ];
+  description = "Project Synopsis Here";
+  license = stdenv.lib.licenses.unfree;
 }
