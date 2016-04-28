@@ -45,3 +45,6 @@
 [submodule "test"]
 	path = test
 	url = git@gitlab.com:obsidian.systems/focus-test.git
+[submodule "th"]
+	path = th
+	url = git@gitlab.com:obsidian.systems/focus-th.git
