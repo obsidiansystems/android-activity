@@ -15,14 +15,24 @@ library
 
   build-depends: base
                , aeson
+               , async
                , attoparsec
                , base64-bytestring
                , bytestring
+               , constraints
                , containers
+               , data-default
+               , dependent-map
+               , dependent-sum
+               , haskell-src-exts
+               , HList
                , lens
+               , loch-th
                , mtl
                , network-uri
                , old-locale
+               , reflex
+               , semigroups
                , stripe
                , template-haskell
                , text
@@ -30,17 +40,6 @@ library
                , timezone-series
                , transformers
                , vector
-               , constraints
-               , dependent-map
-               , dependent-sum
-               , reflex
-               , async
-               , HList
-               , file-embed
-               , filepath
-               , data-default
-               , loch-th
-               , haskell-src-exts
 
   exposed-modules:
       Focus.Account
@@ -56,7 +55,6 @@ library
     , Focus.Time
     , Focus.Sign
     , Focus.Concurrent
-    , Focus.TH
     , Focus.WebSocket
     , Control.Monad.TypedUnique
     , Data.Indexed

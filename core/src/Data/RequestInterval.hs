@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Data.RequestInterval where
 import Data.Min
-import Data.Monoid
+import Data.Semigroup hiding (Min)
 import Data.Time
 import Focus.Request
 import Control.Lens (makeLenses)
@@ -11,9 +11,12 @@ data RequestInterval = RequestInterval { _requestInterval_point :: Min UTCTime
                                        }
   deriving (Show, Read, Eq, Ord)
 
+instance Semigroup RequestInterval where
+  (RequestInterval p c) <> (RequestInterval p' c') = RequestInterval (p <> p') (c + c')
+
 instance Monoid RequestInterval where
   mempty = RequestInterval Infinity 0
-  mappend (RequestInterval p c) (RequestInterval p' c') = RequestInterval (p <> p') (c + c')
+  mappend = (<>)
 
 makeJson ''RequestInterval
 makeLenses ''RequestInterval

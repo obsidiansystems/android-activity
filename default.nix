@@ -32,10 +32,11 @@ in rec {
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
         // { focus-core = self.callPackage ./core {};
+             focus-emojione = self.callPackage ./emojione {};
+             focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
              focus-js = self.callPackage ./js {};
              focus-serve = self.callPackage ./http/serve {};
-             focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
-             focus-emojione = self.callPackage ./emojione {};
+             focus-th = self.callPackage ./th {};
              reflex-dom = self.callPackage ./reflex-dom {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
