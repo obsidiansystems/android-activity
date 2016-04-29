@@ -116,6 +116,28 @@ makeRequest n = do
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
     |]
 
+makeRequestForDataInstance :: Name -> Name -> DecsQ
+makeRequestForDataInstance n n' = do
+  x <- reify n
+  let base = nameBase n
+      toBeStripped = base <> "_"
+      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
+      cons = case x of
+                  (FamilyI _ dataInstances) -> do
+                    (DataInstD _ _ (ConT m:_) xs _) <- dataInstances
+                    guard $ m == n'
+                    xs
+                  _ -> $undef
+  let wild = match wildP (normalB [|fail "invalid message"|]) []
+  [d|
+    instance Request $(appT (conT n) (conT n')) where
+      requestToJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
+      requestParseJSON v = do
+        (tag', v') <- parseJSON v
+        $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
+    |]
+
+
 -- | Extracts the name from a type variable binder.
 tvbName :: TyVarBndr -> Name
 tvbName (PlainTV  name  ) = name
@@ -140,6 +162,31 @@ makeJson n = do
     instance ToJSON $(foldl appT (conT n) $ map varT typeNames)   where
       toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
     instance FromJSON $(foldl appT (conT n) $ map varT typeNames) where
+      parseJSON v = do
+        (tag', v') <- parseJSON v
+        $(caseE [|tag' :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
+    |]
+
+makeJsonForDataInstance :: Name -> Name -> DecsQ
+makeJsonForDataInstance n n' = do
+  x <- reify n
+  let base = nameBase n
+      toBeStripped = base <> "_"
+      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
+      cons = case x of
+       (FamilyI _ dataInstances) -> do
+         (DataInstD _ _ [ConT m] xs _) <- dataInstances
+         guard $ m == n'
+         xs
+       _ -> $undef
+      typeNames = case x of
+       (FamilyI _ _) -> [conT n']
+       _ -> $undef
+  let wild = match wildP (normalB [|fail "invalid message"|]) []
+  [d|
+    instance ToJSON $(foldl appT (conT n) typeNames)   where
+      toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
+    instance FromJSON $(foldl appT (conT n) typeNames) where
       parseJSON v = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])

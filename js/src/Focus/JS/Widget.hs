@@ -1,25 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns #-}
 module Focus.JS.Widget where
 
 import Reflex.Dom
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad
-
--- TODO: This definitely belongs in reflex-dom
-selectViewListWithKey :: forall t m k v a. (MonadWidget t m, Ord k)
-                      => Dynamic t (Maybe k) -- ^ Current selection
-                      -> Dynamic t (Map k v) -- ^ Map of entries
-                      -> (k -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -- ^ How to build the widget for a single entry, given the key, value, and whether it is currently selected
-                      -> m (Event t (Maybe (k,a)))
-selectViewListWithKey selection vals mkChild = do
-  let selectionDemux = demux selection -- For good performance, this value must be shared across all children
-  selectChild <- listWithKey vals $ \k v -> do
-    selected <- getDemuxed selectionDemux (Just k)
-    selectSelf <- mkChild k v selected
-    let selection' = fmap (\case False -> Just k; True -> Nothing) (current selected) -- the delay here is important!
-    return $ attach selection' selectSelf
-  liftM (fmap (\case (Nothing, _) -> Nothing; (Just k, v) -> Just (k,v)) . switchPromptlyDyn) $ mapDyn (leftmost . Map.elems) selectChild
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
@@ -31,7 +16,7 @@ data SpinnerParts m a b = SpinnerParts { _spinnerParts_pre  :: m ()
                                        , _spinnerParts_post :: b -> m () }
 
 spinner :: (MonadWidget t m) => SpinnerParts m a b -> Event t a -> Event t b -> m ()
-spinner (SpinnerParts pre wait post) request response = fmap (const ()) $ widgetHold pre (leftmost [fmap post response, fmap wait request])
+spinner (SpinnerParts pre' wait post) request response = fmap (const ()) $ widgetHold pre' (leftmost [fmap post response, fmap wait request])
 
 withSpinner :: MonadWidget t m => SpinnerParts m a b -> (Event t a -> m (Event t b)) -> (Event t a -> m (Event t b))
 withSpinner sp asyncW request = do response <- asyncW request
