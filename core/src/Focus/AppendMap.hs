@@ -14,6 +14,9 @@ import Data.Indexed
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable)
 
+empty :: AppendMap k m
+empty = AppendMap Map.empty
+
 type instance (Index (AppendMap k m)) = k
 type instance (IxValue (AppendMap k m)) = m
 
