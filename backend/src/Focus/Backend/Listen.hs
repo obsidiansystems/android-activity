@@ -2,10 +2,13 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Focus.Backend.Listen where
 
+import Focus.Account
+import Focus.Api
 import Focus.AppendMap
 import Focus.Backend.Schema.TH
 import Focus.Schema
 import Focus.Request
+import Focus.Sign
 import Focus.WebSocket
 
 import Control.Concurrent
@@ -172,3 +175,17 @@ listenDB withConn' = do
             _ -> putStrLn $ "listenDB: Could not parse message on updates channel: " <> show message
         _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel 
   return (nChan, killThread daemonThread)
+
+handleRequests :: forall f m pub priv. (MonadIO m)
+                => (forall x. ToJSON x => f x -> m Value) -- Runs request and turns response into JSON
+                -> (forall x. pub x -> f x) -- Public request handler 
+                -> (forall x. Signed AuthToken -> priv x -> f x) -- Private request handler
+                -> SomeRequest (ApiRequest pub priv) -- Api Request
+                -> m Value -- JSON response
+handleRequests runRequest fpub fpriv = \case
+  SomeRequest req -> do
+    rsp <- case req of
+      ApiRequest_Public r -> runRequest (fpub r)
+      ApiRequest_Private token r -> runRequest (fpriv token r)
+    return rsp
+
