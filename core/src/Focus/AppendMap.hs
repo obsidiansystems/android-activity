@@ -34,9 +34,12 @@ instance TraversableWithIndex k (AppendMap k) where
   itraverse = itraverseOf itraversed
   itraversed = _Wrapped . itraversed
 
+instance (Ord k, Semigroup m) => Semigroup (AppendMap k m) where
+  (AppendMap m0) <> (AppendMap m1) = AppendMap $ Map.unionWith (<>) m0 m1
+
 instance (Ord k, Semigroup m) => Monoid (AppendMap k m) where
   mempty = AppendMap Map.empty
-  mappend (AppendMap m0) (AppendMap m1) = AppendMap $ Map.unionWith (<>) m0 m1
+  mappend = (<>)
 
 instance (ToJSON k, ToJSON m) => ToJSON (AppendMap k m) where
   toJSON = toJSON . Map.toList . _unAppendMap
