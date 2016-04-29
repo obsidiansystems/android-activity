@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FunctionalDependencies #-}
 module Focus.Patch where
 
+import Control.Lens
 import Control.Monad
 import Data.Aeson
 import Data.Map (Map)
@@ -25,8 +26,10 @@ newtype SetPatch a = SetPatch (Map a Bool)
 instance (Ord a, ToJSON a) => ToJSON (SetPatch a)
 instance (Ord a, FromJSON a) => FromJSON (SetPatch a)
 
+makeWrapped ''SetPatch
+
 applySetPatch :: Ord a => SetPatch a -> Set a -> Set a
-applySetPatch (SetPatch sp) set = Map.keysSet (Map.filter id (Map.union sp (Map.fromSet (\_ -> True) set)))
+applySetPatch (SetPatch sp) s = Map.keysSet (Map.filter id (Map.union sp (Map.fromSet (\_ -> True) s)))
 
 mapIntersectionWithKeysSet :: Ord k => Map k v -> Set k -> Map k v
 mapIntersectionWithKeysSet m s = Map.intersection m $ Map.fromSet (const ()) s
@@ -34,12 +37,8 @@ mapIntersectionWithKeysSet m s = Map.intersection m $ Map.fromSet (const ()) s
 mapIntersectionWithSetMap :: (Ord k, Ord k') => Map k v -> Map k' (Set k) -> Map k v
 mapIntersectionWithSetMap m sm = mapIntersectionWithKeysSet m $ Set.unions $ Map.elems sm
 
-applyTypeaheadPatch :: (Ord k, Ord a) => Map k (Maybe (Set a, Set a)) -> Map k (Set a) -> Map k (Set a)
-applyTypeaheadPatch resultsPatch results = Map.mergeWithKey (\_ p v -> mergeTypeaheadResults p v) (Map.map fst . Map.mapMaybe id) id resultsPatch results
-  where
-    mergeTypeaheadResults p v = case p of
-      Nothing -> Nothing
-      Just (adds, removes) -> Just $ Set.union adds $ Set.difference v removes
+applyTypeaheadPatch :: (Ord k, Ord a) => Map k (Maybe (SetPatch a)) -> Map k (Set a) -> Map k (Set a)
+applyTypeaheadPatch = patchMapWith (\x -> Just (applySetPatch x Set.empty)) applySetPatch
 
 intersectTypeaheadResults :: (Ord k, Ord k')
                           => Map k v -- All values

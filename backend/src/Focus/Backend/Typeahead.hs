@@ -1,66 +1,51 @@
 module Focus.Backend.Typeahead where
 
 import Control.Lens
+import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Monoid
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as T
 
 import Focus.Backend.Listen
+import Focus.Patch
 
-typeaheadPatch :: (Ord k, Monoid a1)
-               => NotificationType
-               -> k -- Account Id
-               -> t -- Account
-               -> Set T.Text -- Queries
-               -> ASetter a1 a a2 (Map T.Text (Maybe (Set k, Set k))) -- results lens
-               -> ASetter a b a3 (Map k (Maybe t)) -- view lens
-               -> (t -> Maybe T.Text) -- to text
-               -> b -- patch
-typeaheadPatch nt aid acc qs rlens vlens toText = 
-  let results = Map.mapMaybe id $ Map.fromSet (\q -> isPrefix nt q aid acc toText) qs 
-  in mempty & rlens .~ results
-            & vlens .~ mapIntersectionWithSetPatchMap (Map.singleton aid (ntPatch nt acc)) results
-  where
-    mapIntersectionWithSetPatchMap :: (Ord k, Ord k') => Map k v -> Map k' (Maybe (Set k, Set k)) -> Map k v
-    mapIntersectionWithSetPatchMap m spm = Map.intersection m $ Map.foldl (\xs mSetPatch ->
-        case mSetPatch of
-             Just (a, r) -> Map.fromSet (const ()) a <> Map.fromSet (const ()) r <> xs
-             _ -> xs) Map.empty spm
+notificationToTypeaheadPatch :: (Ord k, Monoid s)
+                             => NotificationType
+                             -> k -- key
+                             -> t -- value
+                             -> (t -> Maybe Text)
+                             -> Set Text -- Queries
+                             -> ASetter' s (Map Text (Maybe (SetPatch k))) -- typeahead results
+                             -> ASetter' s (Map k (Maybe t)) -- fetch results
+                             -> s -- patch
+notificationToTypeaheadPatch nt k x toText qs rlens vlens =
+  mempty & rlens .~ typeaheadPatch
+         & vlens .~ fetchPatch
+ where
+  typeaheadPatch = Map.mapMaybe id $ Map.fromSet (\q -> isPrefix nt q k x toText) qs
+  relevantFetches = fold $ fmap (Map.keysSet . Map.filter id . view _Wrapped) $ Map.mapMaybe id $ typeaheadPatch
+  fetchPatch = Map.intersection (Map.singleton k (ntPatch nt x)) (Map.fromSet (\_ -> ()) relevantFetches)
 
-typeaheadPatch' :: (Ord a, Monoid a2)
-                => NotificationType
-                -> a -- Account Id
-                -> t -- Account
-                -> Set T.Text -- Queries
-                -> ASetter a2 a1 a3 (Map T.Text (Maybe (Set a, Set a))) -- Results lens
-                -> ASetter a1 b a4 b1 -- view lens
-                -> (t -> Maybe T.Text) -- to text
-                -> (Map T.Text (Maybe (Set a, Set a)) -> b1) -- to view
-                -> b -- patch
-typeaheadPatch' nt aid acc qs rlens vlens toText f = let results = Map.mapMaybe id $ Map.fromSet (\q -> isPrefix nt q aid acc toText) qs in mempty
-            & rlens .~ results
-            & vlens .~ f results
-
+--TODO: This produces patches that are larger than necessary when `NotificationType_Update`ing because we do not have access to the old version
 isPrefix :: Ord a
          => NotificationType
-         -> T.Text
+         -> Text
          -> a
          -> t
-         -> (t -> Maybe T.Text)
-         -> Maybe (Maybe (Set a, Set a))
-isPrefix nt q aid acc f = case fmap (q `T.isPrefixOf`) (f acc) of
-  Just True -> Just $ Just $ ntSetPatch nt aid
+         -> (t -> Maybe Text)
+         -> Maybe (Maybe (SetPatch a))
+isPrefix nt q k x f = case fmap (q `T.isPrefixOf`) (f x) of
+  Just True -> Just $ Just $ SetPatch $ Map.singleton k $ case nt of
+    NotificationType_Delete -> False
+    _ -> True
+  Just False -> case nt of
+    NotificationType_Update -> Just $ Just $ SetPatch $ Map.singleton k False
+    _ -> Nothing
   _ -> Nothing
 
 ntPatch :: NotificationType -> a -> Maybe a
-ntPatch nt' = case nt' of
+ntPatch nt = case nt of
   NotificationType_Delete -> const Nothing
   _ -> Just
-
-ntSetPatch :: Ord a => NotificationType -> a -> (Set a, Set a)
-ntSetPatch nt' = case nt' of
-  NotificationType_Delete -> \x -> (mempty, Set.singleton x)
-  _ -> \x -> (Set.singleton x, mempty)
