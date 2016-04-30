@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 module Focus.Backend.Typeahead where
 
 import Control.Lens
@@ -11,18 +12,18 @@ import qualified Data.Text as T
 import Focus.Backend.Listen
 import Focus.Patch
 
-notificationToTypeaheadPatch :: (Ord k, Monoid s)
+notificationToTypeaheadPatch :: (Ord k, Monoid s, Patchable t)
                              => NotificationType
                              -> k -- key
-                             -> t -- value
-                             -> (t -> Maybe Text)
+                             -> Patch t -- value patch
+                             -> (Patch t -> Maybe Text)
                              -> Set Text -- Queries
-                             -> ASetter' s (Map Text (Maybe (SetPatch k))) -- typeahead results
-                             -> ASetter' s (Map k (Maybe t)) -- fetch results
+                             -> ASetter' s (Patch (Map Text (Set k))) -- typeahead results
+                             -> ASetter' s (Patch (Map k t)) -- fetch results
                              -> s -- patch
 notificationToTypeaheadPatch nt k x toText qs rlens vlens =
-  mempty & rlens .~ typeaheadPatch
-         & vlens .~ fetchPatch
+  mempty & rlens .~ MapPatch typeaheadPatch
+         & vlens .~ MapPatch fetchPatch
  where
   typeaheadPatch = Map.mapMaybe id $ Map.fromSet (\q -> isPrefix nt q k x toText) qs
   relevantFetches = fold $ fmap (Map.keysSet . Map.filter id . view _Wrapped) $ Map.mapMaybe id $ typeaheadPatch
