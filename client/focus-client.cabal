@@ -1,7 +1,7 @@
 Name: focus-client
 Version: 0.1
 Synopsis: client API for interacting with focus projects
-Description: 
+Description:
 License: AllRightsReserved
 Author: Author
 Maintainer: maintainer@example.com
@@ -25,6 +25,7 @@ library
                , loch-th
                , mtl
                , network
+               , semigroups
                , stm
                , text
                , time

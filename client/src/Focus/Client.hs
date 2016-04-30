@@ -10,9 +10,10 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.RWS.Strict
+import Control.Monad.RWS.Strict hiding ((<>))
 import Control.Monad.Trans.Maybe
 import Data.Aeson
+import Data.Semigroup
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Text (Text)
@@ -30,7 +31,9 @@ import Focus.WebSocket
 
 import Focus.Client.Types
 
-requestEnv :: forall pub priv select view patch. (Request pub, Request priv) => ClientEnv select view patch -> RequestEnv pub priv select view
+requestEnv :: forall pub priv select view patch. (Request pub, Request priv, Semigroup select)
+           => ClientEnv select view patch
+           -> RequestEnv pub priv select view
 requestEnv c = RequestEnv
   { _requestEnv_sendRequest = \req ->
       let sr = _clientEnv_nextRequestId c
@@ -138,7 +141,9 @@ private req = do
 public :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => pub rsp -> m (RequestResult rsp)
 public req = request (ApiRequest_Public req)
 
-listen :: (MonadRequest pub priv select view m, Monoid select) => (view -> Maybe a) -> m (ListenResult a)
+listen :: MonadRequest pub priv select view m
+       => (view -> Maybe a)
+       -> m (ListenResult a)
 listen l = do
   mtoken <- gets _requestState_token
   case mtoken of
@@ -201,7 +206,10 @@ withInterest s a = do
             requestState_interests %= Map.delete sid
       in Just <$> bracket setup teardown (\_ -> a)
 
-runClientApp :: (Request pub, Request priv, FromJSON patch, Monoid select, ToJSON select) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
+runClientApp :: (Request pub, Request priv, FromJSON patch, Semigroup select, Monoid select, ToJSON select)
+             => RequestM pub priv select view a
+             -> ClientConfig select view patch
+             -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
   handleConnectionException $ runClient (_clientConfig_host cfg)

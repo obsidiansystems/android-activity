@@ -9,6 +9,7 @@ import Control.Monad.RWS.Strict
 import Data.Aeson
 import Data.Int
 import Data.Map (Map)
+import Data.Semigroup
 import Network.WebSockets
 
 import Focus.Account
@@ -86,7 +87,7 @@ data ListenResult a = ListenResult_Success a
                     | ListenResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
 
-type MonadRequest pub priv select view m = (MonadIO m, MonadReader (RequestEnv pub priv select view) m, MonadState (RequestState select) m, MonadMask m, Monoid select, ToJSON select)
+type MonadRequest pub priv select view m = (MonadIO m, MonadReader (RequestEnv pub priv select view) m, MonadState (RequestState select) m, MonadMask m, Semigroup select, Monoid select, ToJSON select)
 
 makeWrapped ''RequestId
 makeWrapped ''InterestId
