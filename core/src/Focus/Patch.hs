@@ -62,6 +62,12 @@ newtype MapPatch k a = MapPatch
           }
   deriving (Generic, Typeable)
 
+emptyMapPatch :: MapPatch k a
+emptyMapPatch = MapPatch Map.empty
+
+unionMapPatch :: Ord k => MapPatch k a -> MapPatch k a -> MapPatch k a
+unionMapPatch (MapPatch x) (MapPatch y) = MapPatch (Map.union x y)
+
 deriving instance (Ord k, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show (Patch a)) => Show (MapPatch k a)
