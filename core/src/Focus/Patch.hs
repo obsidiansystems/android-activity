@@ -52,6 +52,7 @@ instance (Ord k, Patchable v, Semigroup (Patch v)) => Patchable (AppendMap k v) 
   patchToValue p = Just (patch p AppendMap.empty)
 
  -- TODO: Use a version of makeJson that can handle instance heads instead of aeson's generic deriving
+ -- NB: Monoid instance of Map that takes the left element is the correct monoid instance for SetPatch
 newtype SetPatch a = SetPatch
           { unSetPatch :: Map a Bool }
   deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup, Typeable, ToJSON, FromJSON)
@@ -65,10 +66,18 @@ deriving instance (Ord k, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show (Patch a)) => Show (MapPatch k a)
 deriving instance (Ord k, Read k, Read (Patch a)) => Read (MapPatch k a)
-deriving instance (Ord k) => Semigroup (MapPatch k a)
-deriving instance (Ord k) => Monoid (MapPatch k a)
 deriving instance (ToJSON k, ToJSON (Patch a)) => ToJSON (MapPatch k a)
 deriving instance (Ord k, FromJSON k, FromJSON (Patch a)) => FromJSON (MapPatch k a)
+
+instance (Ord k, Semigroup (Patch a)) => Semigroup (MapPatch k a) where
+  (MapPatch mp) <> (MapPatch mq) = MapPatch $ Map.unionWith aux mp mq
+    where aux mx my = case (mx, my) of
+            (Just px, Just py) -> Just $ px <> py
+            _ -> mx
+
+instance (Ord k, Semigroup (Patch a)) => Monoid (MapPatch k a) where
+  mempty = MapPatch Map.empty
+  mappend = (<>)
 
 newtype AppendMapPatch k a = AppendMapPatch
           { unAppendMapPatch :: AppendMap k (Maybe (Patch a))
