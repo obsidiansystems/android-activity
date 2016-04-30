@@ -3,12 +3,16 @@ module Focus.App where
 
 import Data.Aeson
 import Data.Semigroup
+
+import Focus.Patch
 import Focus.Request
 
 class ( Monoid (ViewSelector app), Semigroup (ViewSelector app)
       , ToJSON (ViewSelector app), FromJSON (ViewSelector app)
       , Monoid (ViewPatch app), Semigroup (ViewPatch app)
-      , ToJSON (ViewPatch app), FromJSON (ViewPatch app)) => HasView app where
+      , ToJSON (ViewPatch app), FromJSON (ViewPatch app)
+      , Patchable (View app), Patch (View app) ~ ViewPatch app
+      ) => HasView app where
   data View app
   data ViewPatch app
   data ViewSelector app

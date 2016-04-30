@@ -2,15 +2,18 @@
 
 module Data.Indexed where
 
+import Control.Applicative
 import Control.Lens.At
-import Control.Lens (ifoldl, FoldableWithIndex(..), (.~), (&), itoList)
+import Control.Lens (ifoldl, FoldableWithIndex(..), (.~), (%~), (&), itoList)
+import Control.Monad.Writer
+import Data.Maybe
+import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Monad.Writer
-import Data.Maybe
-import Data.Proxy
+
+import Focus.Patch
 
 data WithIndex p f v = WithIndex { _withIndex_index :: Map (Projected p (IxValue (f v))) (Set (Index (f v)))
                                  , _withIndex_data :: f v
@@ -18,9 +21,14 @@ data WithIndex p f v = WithIndex { _withIndex_index :: Map (Projected p (IxValue
 
 deriving instance (Show (f v), Show (Projected p (IxValue (f v))), Show (Index (f v))) => Show (WithIndex p f v)
 
+{-
+merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a
+merge patch wi = ifoldl (\i b a -> b & at i .~ a) wi patch
+-}
+
 instance Foldable f => Foldable (WithIndex p f) where
   foldMap f = foldMap f . _withIndex_data
-  
+
 instance (Foldable (WithIndex p f), FoldableWithIndex i f) => FoldableWithIndex i (WithIndex p f) where
   ifoldMap f = ifoldMap f . _withIndex_data
 
@@ -116,7 +124,14 @@ class Projection a v where
   project :: proxy a -> v -> Projected a v
 
 merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a
-merge patch wi = ifoldl (\i b a -> b & at i .~ a) wi patch
+merge ps wi = ifoldl (\i b a -> b & at i .~ a) wi ps
+
+merge' :: (At a, FoldableWithIndex (Index a) f, Patchable (IxValue a)) => f (ElemPatch (IxValue a)) -> a -> a
+merge' ps wi = ifoldl (\i b a -> b & at i %~ aux a) wi ps
+ where aux p mx = case p of
+         ElemPatch_Remove -> Nothing
+         ElemPatch_Insert v -> Just v
+         ElemPatch_Upsert p' mv -> fmap (patch p') mx <|> mv
 
 differenceByKey :: (Foldable t, At a) => t (Index a) -> a -> a
 differenceByKey ks wi = foldl (\b a -> b & at a .~ Nothing) wi ks
