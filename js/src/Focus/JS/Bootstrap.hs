@@ -352,7 +352,9 @@ withLoginWorkflow'
   => Bool -- ^ Whether to display sign-up form first
   -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
       m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
+  -- ^ wrapper widget
   -> Maybe loginInfo
+  -- ^ initial login information
   -> m (Event t newUser, Event t ())
   -- ^ New Account (New User, return to signin)
   -> m (Event t (), Event t ())
@@ -360,7 +362,7 @@ withLoginWorkflow'
   -> m (Event t loginInfo, Event t ())
   -- ^ Login (Successful login request, return to signup)
   -> (loginInfo -> m (Event t ()))
-  -- ^ Post-login
+  -- ^ Post-login, returns a logout event
   -> Workflow t m (Event t (Maybe loginInfo))
 withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f =
   let loginWorkflow' = Workflow . wrapper $ do

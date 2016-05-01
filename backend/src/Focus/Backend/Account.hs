@@ -58,17 +58,19 @@ ensureAccountExists email = do
       notifyEntityId NotificationType_Insert aid'
       return (Just aid')
 
+-- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
   :: (PersistBackend m, MonadSign m, MonadBrand m, MonadRoute r m, Default r, MonadEmail m)
-  => (Signed PasswordResetToken -> Email -> m ())
+  => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
-  -> m ()
+  -> m (Maybe (Id Account))
 ensureAccountExistsEmail pwEmail email = do
   maid <- ensureAccountExists email
   forM_ maid $ \aid -> do
     mNonce <- generateAndSendPasswordResetEmail pwEmail aid
     forM_ mNonce $ \nonce -> do
       update [Account_passwordResetNonceField =. Just nonce] (Account_emailField ==. email)
+  return maid
 
 generatePasswordResetToken :: (PersistBackend m, MonadSign m) => Id Account -> m (Signed PasswordResetToken)
 generatePasswordResetToken aid = do
@@ -124,7 +126,11 @@ newAccountEmail f token = do
                 (H.a H.! A.href (fromString $ show passwordResetLink) $ H.text "Click here to verify your email")
                 (H.p $ H.text $ _brand_description b)
 
-sendNewAccountEmail :: (MonadRoute r m, Default r, MonadBrand m, MonadEmail m) => (AccountRoute -> r) -> Signed PasswordResetToken -> Email -> m ()
+sendNewAccountEmail :: (MonadRoute r m, Default r, MonadBrand m, MonadEmail m)
+                    => (AccountRoute -> r) -- How to turn AccountRoute into a route for a specific app
+                    -> Signed PasswordResetToken
+                    -> Email
+                    -> m ()
 sendNewAccountEmail f prt email = do
   pn <- liftM T.pack getProductName
   body <- newAccountEmail f prt

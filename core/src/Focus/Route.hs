@@ -15,7 +15,7 @@ import Network.URI
 class Monad m => MonadRoute r m | m -> r where
   routeToUrl :: r -> m URI
 
-type RouteEnv = (String, String, String)
+type RouteEnv = (String, String, String) -- (protocol, hostname, anything after hostname (e.g., port))
 
 newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand, MonadTrans)
 

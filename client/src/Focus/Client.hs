@@ -10,9 +10,10 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.RWS.Strict
+import Control.Monad.RWS.Strict hiding ((<>))
 import Control.Monad.Trans.Maybe
 import Data.Aeson
+import Data.Semigroup
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Text (Text)
@@ -23,6 +24,7 @@ import Network.WebSockets hiding (ClientApp, Request)
 
 import Focus.Account
 import Focus.Api
+import Focus.App
 import Focus.AppendMap
 import Focus.Request
 import Focus.Sign
@@ -30,7 +32,9 @@ import Focus.WebSocket
 
 import Focus.Client.Types
 
-requestEnv :: forall pub priv select view patch. (Request pub, Request priv) => ClientEnv select view patch -> RequestEnv pub priv select view
+requestEnv :: forall app. (HasView app, HasRequest app)
+           => ClientEnv app
+           -> RequestEnv app
 requestEnv c = RequestEnv
   { _requestEnv_sendRequest = \req ->
       let sr = _clientEnv_nextRequestId c
@@ -44,7 +48,7 @@ requestEnv c = RequestEnv
           teardown s = atomically $ modifyTVar' pending $ Map.delete s
           run :: (RequestId, TBQueue (Either String Value)) -> IO (Async (Either String Value))
           run (s,em) =
-            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest pub priv))
+            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest (PublicRequest app) (PrivateRequest app)))
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
             in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
       in setup >>= run
@@ -58,7 +62,7 @@ requestEnv c = RequestEnv
         return $ (s, modifyTVar' interests $ Map.delete s)
   , _requestEnv_sendInterestSet = do
       is <- Map.foldr (<>) mempty . fmap (AppendMap . uncurry Map.singleton) <$> readTVarIO (_clientEnv_interests c)
-      let payload :: WebSocketData (Signed AuthToken) select Value
+      let payload :: WebSocketData (Signed AuthToken) (ViewSelector app) Value
           payload = WebSocketData_Listen is
       sendTextData conn $ encode payload
   , _requestEnv_listen = \t s l -> do
@@ -66,12 +70,12 @@ requestEnv c = RequestEnv
       viewChange <- atomically $ dupTChan onChange
       async $ do
         v <- readTVarIO (_clientEnv_viewMap c)
-        case l . _clientEnv_cropView c s =<< Map.lookup t v of
+        case l . cropView s =<< Map.lookup t v of
           Just r -> return r
           Nothing -> fix $ \k -> do
             mr <- atomically $ do
               readTChan viewChange
-              mv <- fmap (_clientEnv_cropView c s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
+              mv <- fmap (cropView s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
               return $ l =<< mv
             case mr of
               Nothing -> k
@@ -81,17 +85,16 @@ requestEnv c = RequestEnv
   conn = _clientEnv_connection c
 
 --TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
-listener :: FromJSON patch => ClientEnv select view patch -> IO ()
+listener :: HasView app => ClientEnv app -> IO ()
 listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
-  (mma :: Either String (WebSocketData (Signed AuthToken) patch (Either String Value))) <- MaybeT . return $ decodeValue' raw
+  (mma :: Either String (WebSocketData (Signed AuthToken) (ViewPatch app) (Either String Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
-      let applyPatch = _clientEnv_patchView env
       lift $ modifyTVar' (_clientEnv_viewMap env) $ Map.mergeWithKey
-        (\_ x y -> Just (applyPatch x y))
-        (fmap (\p -> applyPatch p (_clientEnv_emptyView env)))
+        (\_ x y -> Just (patchView x y))
+        (fmap (\p -> patchView p emptyView))
         (const Map.empty)
         pmap
       lift (writeTChan (_clientEnv_notifyViewChange env) ())
@@ -109,7 +112,9 @@ listener env = handleConnectionException $ forever $ runMaybeT $ do
     ConnectionClosed -> return ()
     _ -> print e
 
-request :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => ApiRequest pub priv rsp -> m (RequestResult rsp)
+request :: (MonadRequest app m, ToJSON rsp, FromJSON rsp)
+        => ApiRequest (PublicRequest app) (PrivateRequest app) rsp
+        -> m (RequestResult rsp)
 request req = do
   reqP <- asks _requestEnv_sendRequest >>= \sendReq -> liftIO (sendReq req)
   mt <- gets _requestState_timeout
@@ -128,17 +133,19 @@ request req = do
       Error e -> RequestResult_DecodeError r e
       Success r' -> RequestResult_Success r'
 
-private :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => priv rsp -> m (RequestResult rsp)
+private :: (MonadRequest app m, ToJSON rsp, FromJSON rsp) => PrivateRequest app rsp -> m (RequestResult rsp)
 private req = do
   mtoken <- gets _requestState_token
   case mtoken of
     Nothing -> return RequestResult_RequiresAuthorization
     Just token -> request (ApiRequest_Private token req)
 
-public :: (MonadRequest pub priv select view m, ToJSON rsp, FromJSON rsp) => pub rsp -> m (RequestResult rsp)
+public :: (MonadRequest app m, ToJSON rsp, FromJSON rsp) => PublicRequest app rsp -> m (RequestResult rsp)
 public req = request (ApiRequest_Public req)
 
-listen :: (MonadRequest pub priv select view m, Monoid select) => (view -> Maybe a) -> m (ListenResult a)
+listen :: MonadRequest app m
+       => (View app -> Maybe a)
+       -> m (ListenResult a)
 listen l = do
   mtoken <- gets _requestState_token
   case mtoken of
@@ -159,10 +166,10 @@ listen l = do
      Left e -> ListenResult_Failure (show e)
      Right r -> ListenResult_Success r
 
-setToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
+setToken :: (MonadRequest app m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
 setToken t = requestState_token <<.= t
 
-withToken :: (MonadRequest pub priv select view m) => Maybe (Signed AuthToken) -> m a -> m a
+withToken :: (MonadRequest app m) => Maybe (Signed AuthToken) -> m a -> m a
 withToken mt a =
   bracket setup teardown run
  where
@@ -170,7 +177,7 @@ withToken mt a =
   teardown t' = setToken t'
   run _ = a
 
-tellInterest :: (MonadRequest pub priv select view m) => select -> m (Maybe ())
+tellInterest :: (MonadRequest app m) => ViewSelector app -> m (Maybe ())
 tellInterest s = do
   mt <- gets _requestState_token
   case mt of
@@ -183,7 +190,7 @@ tellInterest s = do
       liftIO sendInterestSet
       return (Just ())
 
-withInterest :: (MonadRequest pub priv select view m) => select -> m a -> m (Maybe a)
+withInterest :: (MonadRequest app m) => ViewSelector app -> m a -> m (Maybe a)
 withInterest s a = do
   mt <- gets _requestState_token
   case mt of
@@ -201,7 +208,10 @@ withInterest s a = do
             requestState_interests %= Map.delete sid
       in Just <$> bracket setup teardown (\_ -> a)
 
-runClientApp :: (Request pub, Request priv, FromJSON patch, Monoid select, ToJSON select) => RequestM pub priv select view a -> ClientConfig select view patch -> IO a
+runClientApp :: (HasView app, HasRequest app)
+             => RequestM app a
+             -> ClientConfig
+             -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
   handleConnectionException $ runClient (_clientConfig_host cfg)
@@ -217,10 +227,7 @@ runClientApp m cfg = withSocketsDo $ do
       return $ ClientEnv { _clientEnv_connection = conn
                          , _clientEnv_nextRequestId = nextReq
                          , _clientEnv_pendingRequests = pending
-                         , _clientEnv_emptyView = _clientConfig_emptyView cfg
                          , _clientEnv_viewMap = views'
-                         , _clientEnv_patchView = _clientConfig_patchView cfg
-                         , _clientEnv_cropView = _clientConfig_cropView cfg
                          , _clientEnv_notifyViewChange = notify
                          , _clientEnv_nextInterestId = nextInterest
                          , _clientEnv_interests = interests
