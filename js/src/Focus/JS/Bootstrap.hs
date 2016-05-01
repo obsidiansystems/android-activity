@@ -389,6 +389,7 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
 recoveryForm
   :: forall t m. (MonadWidget t m)
   => (Event t Email -> m (Event t ()))
+  -- ^ Recover password request
   -> m (Event t (), Event t ())
 recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
@@ -403,6 +404,7 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
 loginForm
   :: forall t m loginInfo. (MonadWidget t m)
   => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
+  -- ^ Login request
   -> m (Event t loginInfo, Event t ())
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
@@ -428,7 +430,9 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
 newAccountForm
   :: MonadWidget t m
   => m (Behavior t newUser)
+  -- ^ New Account form
   -> (Event t newUser -> m (Event t newUserId))
+  -- ^ New Account Request
   -> m (Event t newUserId, Event t ())
 newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
