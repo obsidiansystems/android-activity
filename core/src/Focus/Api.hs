@@ -3,6 +3,7 @@ module Focus.Api where
 
 import Data.Aeson
 import Focus.Account
+import Focus.App
 import Focus.Request
 import Focus.Sign
 import Data.HList
@@ -29,4 +30,9 @@ instance (Request private, Request public) => Request (ApiRequest public private
         return $ SomeRequest $ ApiRequest_Private token p
       e -> $failure $ "Could not parse tag: " ++ e
 
+public :: PublicRequest app t -> ApiRequest (PublicRequest app) (PrivateRequest app) t
+public = ApiRequest_Public
+
+private :: Signed AuthToken -> PrivateRequest app t -> ApiRequest (PublicRequest app) (PrivateRequest app) t
+private = ApiRequest_Private
 

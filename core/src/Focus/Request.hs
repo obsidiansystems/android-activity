@@ -18,7 +18,8 @@ import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import Data.HList
 import Data.List (isPrefixOf)
-import Data.Monoid
+import Data.Monoid hiding (First)
+import Data.Semigroup hiding ((<>))
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -440,3 +441,6 @@ sendApi = undefined
 
 encodeURIComponent :: String -> String
 encodeURIComponent = escapeURIString (`elem` ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_.!~*'()")
+
+deriving instance FromJSON a => FromJSON (First a)
+deriving instance ToJSON a => ToJSON (First a)
