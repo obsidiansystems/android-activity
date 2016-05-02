@@ -1,10 +1,18 @@
 {-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns #-}
 module Focus.JS.Widget where
 
-import Reflex.Dom
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Control.Lens hiding (ix)
 import Control.Monad
+import Data.Map (Map)
+import Data.Monoid
+import Data.Set (Set)
+import Data.Text (Text)
+import Focus.App
+import Focus.JS.App
+import Reflex.Dom
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as T
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
@@ -72,4 +80,52 @@ extensibleListWidget n x0 xs0 itemWidget =
             valuesMapD <- fmap joinDynThroughMap . mapDyn (fmap snd) $ resultMapD
             valuesD <- mapDyn Map.elems valuesMapD
         return valuesD
+
+typeaheadSearch :: (MonadFocusWidget app t m, Monoid a)
+                => String
+                -- ^ text input placeholder
+                -> ASetter a (ViewSelector app) b (Set Text)
+                -- ^ setter for query field of view selector
+                -> (View app -> s)
+                -- ^ extractor for relevant things from the view
+                -> m (Dynamic t s)
+typeaheadSearch placeholder vsQuery extractor = do
+  search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: placeholder)
+  aspenView <- watchViewSelectorLensSet vsQuery =<< mapDyn T.pack (value search)
+  mapDyn extractor aspenView
+
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Read k, Show k, Monoid a)
+                        => String
+                        -- ^ text input placeholder
+                        -> ASetter a (ViewSelector app) b (Set Text)
+                        -- ^ setter for query field of view selector
+                        -> (View app -> s)
+                        -- ^ extractor for relevant things from the view
+                        -> (s -> Map k String)
+                        -- ^ convert relevant things into a Map for dropdown
+                        -> m (Dynamic t (Maybe k))
+typeaheadSearchDropdown placeholder vsQuery extractor toStringMap = do
+  xs <- typeaheadSearch placeholder vsQuery extractor
+  options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
+  fmap value $ dropdown Nothing options def
+
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Read k, Show k, Monoid a)
+                           => String
+                           -- ^ text input placeholder
+                           -> ASetter a (ViewSelector app) b (Set Text)
+                           -- ^ setter for query field of view selector
+                           -> (View app -> s)
+                           -- ^ extractor for relevant things from the view
+                           -> (s -> Map k (m ()))
+                           -- ^ convert relevant things into a Map for listing
+                           -> Set k
+                           -> m (Dynamic t (Set k))
+typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
+  xs <- typeaheadSearch ph vsQuery extractor
+  options <- mapDyn toWidgetMap xs
+  selections <- fmap joinDynThroughMap $ el "ul" $ listWithKey options $ \k w -> el "li" $ do
+    cb <- checkbox (Set.member k selections0) def
+    dyn w
+    return $ value cb
+  mapDyn (Map.keysSet . Map.filter id) selections
 
