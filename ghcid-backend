@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepend this.backend this.backend.haskellPackages.ghcid).env' --command "ghcid -c'ghci -ibackend/src Main -hide-package cryptonite'" "$@"
+nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepend this.backend this.backend.haskellPackages.ghcid).env' --command "ghcid -c'ghci -Wall -icommon/src -ibackend/src Main -hide-package cryptonite'" "$@"
