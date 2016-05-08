@@ -3,16 +3,18 @@ module Focus.JS.Widget where
 
 import Control.Lens hiding (ix)
 import Control.Monad
+import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Monoid
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as T
+import Reflex.Dom
+
 import Focus.App
 import Focus.JS.App
-import Reflex.Dom
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import Focus.Patch
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
@@ -32,7 +34,7 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    return response
 
 enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
-enumDropdown = enumDropdown' minBound 
+enumDropdown = enumDropdown' minBound
 
 enumDropdown' :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => k -> (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
@@ -118,14 +120,23 @@ typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Read k, Show k, 
                            -- ^ extractor for relevant things from the view
                            -> (s -> Map k (m ()))
                            -- ^ convert relevant things into a Map for listing
-                           -> Set k
-                           -> m (Dynamic t (Set k))
+                           -> Dynamic t (Set k)
+                           -- ^ values that are already selected
+                           -> m (Dynamic t (SetPatch k))
 typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
   xs <- typeaheadSearch ph vsQuery extractor
   options <- mapDyn toWidgetMap xs
-  selections <- fmap joinDynThroughMap $ el "ul" $ listWithKey options $ \k w -> el "li" $ do
-    cb <- checkbox (Set.member k selections0) def
-    dyn w
-    return $ value cb
-  mapDyn (Map.keysSet . Map.filter id) selections
+  diffListWithKey options selections0
 
+diffListWithKey :: (Ord k, MonadWidget t m)
+                => Dynamic t (Map k (m ()))
+                -> Dynamic t (Set k)
+                -> m (Dynamic t (SetPatch k))
+diffListWithKey ms selDyn = do
+  selects <- fmap joinDynThroughMap . el "ul" . listWithKey ms $ \k w -> el "li" $ do
+    pb <- getPostBuild -- awful hack? These widgets are all rebuilt when I save the bundle, unexpectedly.
+    include <- checkbox False $ def & attributes .~ (constDyn mempty)
+                                    & setValue .~ fmap (Set.member k) (leftmost [updated selDyn, tagDyn selDyn pb])
+    void $ dyn w
+    return $ value include
+  mapDyn SetPatch selects
