@@ -9,11 +9,12 @@ import Focus.Backend.Schema.TH
 --import Database.Groundhog.TH
 import Database.Groundhog.Core
 import Database.Groundhog.Expression
---import Database.Groundhog.Generic
+import Database.Groundhog.Generic.Sql
 --import Database.Groundhog.Instances
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.String (IsString)
 import Control.Monad
 import Data.Time
 import Control.Arrow
@@ -67,4 +68,7 @@ runDb :: ( MonadIO m
       -> Pool cm
       -> m b
 runDb a dbConns = withResource dbConns $ runDbConn a
+
+ilike :: (SqlDb db, ExpressionOf db r a a', IsString a') => a -> String -> Cond db r
+ilike a b = CondRaw $ operator 40 " ILIKE " a b
 
