@@ -63,7 +63,7 @@ supportedCategories =
 emojiPicker :: MonadWidget t m => m (Event t String)
 emojiPicker = do
   let emojisBySupportedCategory = Map.intersection emojisByCategory (Map.fromSet (\_ -> ()) $ Set.fromList supportedCategories)
-  rec selE <- el "div" $ el "span" $ fmap leftmost $ forM supportedCategories $ \c -> do
+  rec selE <- divClass "emoji-picker-categories" $ el "span" $ fmap leftmost $ forM supportedCategories $ \c -> do
         Just ed <- return $ do
           (sn,_) <- Map.minView =<< Map.lookup c emojisBySupportedCategory
           Map.lookup sn emojiData
@@ -89,7 +89,7 @@ emojiPicker = do
             selectSelf <- mkChild k v selected
             return $ fmap ((,) k) selectSelf
           liftM switchPromptlyDyn $ mapDyn (leftmost . Map.elems) selectChild
-  fmap (fmap snd) $ selectList selDyn $ \_ emojis isSel' -> do
+  fmap (fmap snd) $ divClass "emoji-picker-options" $ selectList selDyn $ \_ emojis isSel' -> do
     pb <- getPostBuild
     fmap switchPromptlyDyn $ widgetHold (return never) $
       ffor (tagDyn isSel' pb) $ \case
