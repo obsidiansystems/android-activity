@@ -32,9 +32,9 @@ instance (Request private, Request public) => Request (ApiRequest public private
         return $ SomeRequest $ ApiRequest_Private token p
       e -> $failure $ "Could not parse tag: " ++ e
 
-public :: PublicRequest app t -> ApiRequest (PublicRequest app) (PrivateRequest app) t
+public :: PublicRequest app t -> AppRequest app t
 public = ApiRequest_Public
 
-private :: Signed AuthToken -> PrivateRequest app t -> ApiRequest (PublicRequest app) (PrivateRequest app) t
+private :: Signed AuthToken -> PrivateRequest app t -> AppRequest app t
 private = ApiRequest_Private
 

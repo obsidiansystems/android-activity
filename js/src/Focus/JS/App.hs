@@ -20,12 +20,12 @@ import Reflex.Host.Class
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type FocusWidgetInternal app t m = RequestT t (ApiRequest (PublicRequest app) (PrivateRequest app)) (DynamicWriterT t (AppendMap (Signed AuthToken) (ViewSelector app)) (ReaderT (Env app t) m))
+type FocusWidgetInternal app t m = RequestT t (AppRequest app) (DynamicWriterT t (AppendMap (Signed AuthToken) (ViewSelector app)) (ReaderT (Env app t) m))
 
 newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException, MonadAsyncException)
 
-deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (ApiRequest (PublicRequest app) (PrivateRequest app)) (FocusWidget app t m)
+deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
 
 instance (HasEnv app, MonadWidget t m, Semigroup (ViewSelector app)) => MonadWidget t (FocusWidget app t m) where
   type WidgetHost (FocusWidget app t m) = WidgetHost (FocusWidgetInternal app t m)
@@ -73,7 +73,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget
 class ( MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) m
       , MonadWidget t m
       , MonadFix (WidgetHost m)
-      , MonadRequest t (ApiRequest (PublicRequest app) (PrivateRequest app)) m
+      , MonadRequest t (AppRequest app) m
       , HasFocus app
       ) => MonadFocusWidget app t m | m -> app where
   askEnv :: m (Env app t)
