@@ -44,7 +44,7 @@ data ClientEnv app = ClientEnv
 
 data RequestEnv app = RequestEnv
        { _requestEnv_sendRequest :: forall rsp. (ToJSON rsp, FromJSON rsp)
-                                 => (ApiRequest (PublicRequest app) (PrivateRequest app) rsp)
+                                 => AppRequest app rsp
                                  -> IO (Async (Either String Value))
        , _requestEnv_registerInterest :: Signed AuthToken
                                       -> ViewSelector app

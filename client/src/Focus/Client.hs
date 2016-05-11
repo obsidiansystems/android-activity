@@ -48,7 +48,7 @@ requestEnv c = RequestEnv
           teardown s = atomically $ modifyTVar' pending $ Map.delete s
           run :: (RequestId, TBQueue (Either String Value)) -> IO (Async (Either String Value))
           run (s,em) =
-            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (ApiRequest (PublicRequest app) (PrivateRequest app)))
+            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (AppRequest app))
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
             in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
       in setup >>= run
@@ -113,7 +113,7 @@ listener env = handleConnectionException $ forever $ runMaybeT $ do
     _ -> print e
 
 request :: (MonadRequest app m, ToJSON rsp, FromJSON rsp)
-        => ApiRequest (PublicRequest app) (PrivateRequest app) rsp
+        => AppRequest app rsp
         -> m (RequestResult rsp)
 request req = do
   reqP <- asks _requestEnv_sendRequest >>= \sendReq -> liftIO (sendReq req)

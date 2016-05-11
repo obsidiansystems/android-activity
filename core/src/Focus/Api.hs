@@ -15,6 +15,8 @@ data ApiRequest :: (k -> *) -> (k -> *) -> k -> * where
   ApiRequest_Private :: Signed AuthToken -> private a -> ApiRequest public private a
   deriving (Show)
 
+type AppRequest app = ApiRequest (PublicRequest app) (PrivateRequest app)
+
 instance (Request private, Request public) => Request (ApiRequest public private) where
   requestToJSON r = case r of
     ApiRequest_Public p -> toJSON ("Public"::String, SomeRequest p `HCons` HNil)
