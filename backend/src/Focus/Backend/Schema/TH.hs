@@ -67,7 +67,7 @@ fromId = fromIdData (Proxy :: Proxy a) . unId
 deriving instance NeverNull (IdData a) => NeverNull (Id a)
 
 instance (PersistField (DefaultKey a), DefaultKeyId a) => PersistField (Id a) where
-  persistName = persistName 
+  persistName = persistName
   toPersistValues = toPersistValues . fromId
   fromPersistValues vs = do
     (a, vs') <- fromPersistValues vs
