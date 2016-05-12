@@ -84,6 +84,9 @@ emptyMapPatch = MapPatch Map.empty
 unionMapPatch :: (Ord k, Patchable a) => MapPatch k a -> MapPatch k a -> MapPatch k a
 unionMapPatch (MapPatch x) (MapPatch y) = MapPatch (Map.unionWith (<>) x y)
 
+mapPatchInsert :: Map k a -> MapPatch k a
+mapPatchInsert m = MapPatch (fmap ElemPatch_Insert m)
+
 deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (MapPatch k a)
