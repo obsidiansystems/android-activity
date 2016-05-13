@@ -4,6 +4,7 @@ module Focus.Highlight where
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Char
 
 type HighlightedText = [Highlight]
 
@@ -17,7 +18,7 @@ unHighlight = \case
   Highlight_Off t -> t
 
 toText :: HighlightedText -> Text
-toText = T.unlines . map unHighlight
+toText = foldl (<>) T.empty . map unHighlight
 
 isHighlighted :: Highlight -> Bool
 isHighlighted = \case
@@ -26,6 +27,9 @@ isHighlighted = \case
 
 nonEmpty :: Text -> Maybe Text
 nonEmpty = (\x -> if T.null x then Nothing else Just x) . T.strip
+
+nonNull :: T.Text -> Maybe Text
+nonNull x = if T.null x then Nothing else Just x
 
 highlight :: (Text -> Text) -- ^ Text transform for query and text, e.g. case fold
           -> Text -- ^ Query text
@@ -36,10 +40,10 @@ highlight transform query t = case fmap transform $ nonEmpty query of
   Just q -> case T.breakOnAll q (transform t) of
     [] -> [Highlight_Off t]
     ms -> let l = T.length q
-          in (\(x, _, r) -> x <> maybe [] ((:[]) . Highlight_Off) (nonEmpty r)) $ foldl (\(hs, cursor, t') (prefix, _) -> 
+          in (\(x, _, r) -> x <> maybe [] ((:[]) . Highlight_Off) (nonNull r)) $ foldl (\(hs, cursor, t') (prefix, _) -> 
               let (off, match') = T.splitAt (T.length (T.drop cursor prefix)) t'
                   (h, rest) = T.splitAt l match'
-                  newHighlights = maybe [Highlight_On h] (\x -> [Highlight_Off x, Highlight_On h]) (nonEmpty off)
+                  newHighlights = maybe [Highlight_On h] (\x -> [Highlight_Off x, Highlight_On h]) (nonNull off)
               in (hs <> newHighlights , cursor + (T.length off + l), rest)) ([], 0, t) ms
 
 highlightCaseSensitive :: Text -> Text -> HighlightedText
@@ -54,8 +58,16 @@ highlightPrefix :: (Text -> Text)
                 -> HighlightedText
 highlightPrefix transform query t = case fmap transform $ nonEmpty query of
   Nothing -> [Highlight_Off t]
-  Just q -> flip concatMap (T.words t) $ \w ->
+  Just q -> flip concatMap (wordsWithWhitespace t) $ \w ->
     if T.isPrefixOf q (transform w)
        then let (match, rest) = T.splitAt (T.length q) w
             in [Highlight_On match, Highlight_Off rest]
        else [Highlight_Off w]
+
+-- Like T.words, but doesn't delete the whitespaces (they count as separate words)
+wordsWithWhitespace :: Text -> [Text]
+wordsWithWhitespace t =
+  let (pre, rest) = T.break isSpace t
+      ws = T.takeWhile isSpace rest
+      rest' = T.drop (T.length ws) rest
+  in (pre : if T.null ws then [] else [ws]) ++ if T.null rest' then [] else wordsWithWhitespace rest'
