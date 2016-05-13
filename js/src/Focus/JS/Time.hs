@@ -18,7 +18,7 @@ import qualified Data.ByteString.Lazy as LBS
 getTimeZoneSeries :: (MonadIO m, HasJS x m, HasJS x (WidgetHost m)) => String -> m (Maybe TimeZoneSeries)
 getTimeZoneSeries path = do
   dVar <- liftIO newEmptyMVar
-  liftJS . mkBinaryGet ("zoneinfo/" ++ path) $ putMVar dVar
+  _ <- liftJS . mkBinaryGet ("zoneinfo/" ++ path) $ putMVar dVar
   d <- liftIO $ takeMVar dVar
   liftIO . return . olsonToTimeZoneSeries . runGet (getOlson noLimits) $ LBS.fromStrict d
 
