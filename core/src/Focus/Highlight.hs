@@ -48,3 +48,14 @@ highlightCaseSensitive = highlight id
 highlightCaseInsensitive :: Text -> Text -> HighlightedText
 highlightCaseInsensitive = highlight T.toCaseFold
 
+highlightPrefix :: (Text -> Text)
+                -> Text
+                -> Text
+                -> HighlightedText
+highlightPrefix transform query t = case fmap transform $ nonEmpty query of
+  Nothing -> [Highlight_Off t]
+  Just q -> flip concatMap (T.words t) $ \w ->
+    if T.isPrefixOf q (transform w)
+       then let (match, rest) = T.splitAt (T.length q) w
+            in [Highlight_On match, Highlight_Off rest]
+       else [Highlight_Off w]
