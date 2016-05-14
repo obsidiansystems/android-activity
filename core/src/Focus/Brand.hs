@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, TemplateHaskell, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances, UndecidableInstances, TemplateHaskell, GeneralizedNewtypeDeriving, GADTs #-}
 module Focus.Brand where
 
 import Focus.Request

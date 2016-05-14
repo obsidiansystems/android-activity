@@ -34,7 +34,7 @@ instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> WebSocketConfig t -> m (WebSocket t)
+webSocket :: forall x t m. (HasJS x m, MonadWidget t m) => String -> WebSocketConfig t -> m (WebSocket t)
 webSocket path config = do
   pageHost <- liftIO . getLocationHost =<< askWebView
   pageProtocol <- liftIO . getLocationProtocol =<< askWebView

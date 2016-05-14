@@ -1,5 +1,7 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances #-}
+{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, OverloadedStrings #-}
 module Focus.JS.GoogleMap where
+
+{-
 
 import Control.Lens hiding (zoom)
 import Control.Monad.IO.Class
@@ -18,14 +20,15 @@ import Data.Traversable
 import Data.These
 import Data.Typeable
 import Data.Maybe
+import Data.Text (Text)
 
 import Focus.JS.FontAwesome (icon)
 import Reflex
 import Reflex.Dom
 #ifdef ghcjs_HOST_OS
-import GHCJS.DOM.Types hiding (Event, fromJSString)
+import GHCJS.DOM.Types hiding (Event, fromJSString, Text)
 #else
-import GHCJS.DOM.Types hiding (Event)
+import GHCJS.DOM.Types hiding (Event, Text)
 #endif
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
@@ -38,8 +41,8 @@ instance FromJS x (GeolocationPosition x) where
 
 data MapMarkerInfo
   = MapMarkerInfo { _mapMarkerInfo_coord :: (Double, Double)
-                  , _mapMarkerInfo_title :: String
-                  , _mapMarkerInfo_icon :: String
+                  , _mapMarkerInfo_title :: Text
+                  , _mapMarkerInfo_icon :: Text
                   , _mapMarkerInfo_zIndex :: Double
                   }
     deriving (Typeable, Show, Read, Eq, Ord)
@@ -103,16 +106,16 @@ importJS Unsafe "this[0]['setCenter'](new google['maps']['LatLng'](this[1], this
 
 importJS Unsafe "this[0]['setZoom'](this[1])" "googleMapSetZoom" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> m () |]
 
-importJS Unsafe "new google['maps']['Marker']({position: new google['maps']['LatLng'](this[1], this[2]), map: this[0], title: this[3], icon: this[4], zIndex: this[5]})" "googleMapAddMarker_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> String -> String -> Double -> m (GoogleMapMarker x) |]
+importJS Unsafe "new google['maps']['Marker']({position: new google['maps']['LatLng'](this[1], this[2]), map: this[0], title: this[3], icon: this[4], zIndex: this[5]})" "googleMapAddMarker_" [t| forall x m. MonadJS x m => GoogleMap x -> Double -> Double -> Text -> Text -> Double -> m (GoogleMapMarker x) |]
 
-googleMapAddMarker :: MonadJS x m => GoogleMap x -> (Double, Double) -> String -> String -> Double -> m (GoogleMapMarker x)
+googleMapAddMarker :: MonadJS x m => GoogleMap x -> (Double, Double) -> Text -> Text -> Double -> m (GoogleMapMarker x)
 googleMapAddMarker g c = googleMapAddMarker_ g (fst c) (snd c)
 
 importJS Unsafe "this[0]['setZIndex'](this[1])" "googleMapMarkerSetZIndex" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> m () |]
 
-importJS Unsafe "this[0]['setTitle'](this[1])" "googleMapMarkerSetTitle" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
+importJS Unsafe "this[0]['setTitle'](this[1])" "googleMapMarkerSetTitle" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Text -> m () |]
 
-importJS Unsafe "this[0]['setIcon'](this[1])" "googleMapMarkerSetIcon" [t| forall x m. MonadJS x m => GoogleMapMarker x -> String -> m () |]
+importJS Unsafe "this[0]['setIcon'](this[1])" "googleMapMarkerSetIcon" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Text -> m () |]
 
 importJS Unsafe "this[0]['setPosition'](new google['maps']['LatLng'](this[1], this[2]))" "googleMapMarkerSetCoord_" [t| forall x m. MonadJS x m => GoogleMapMarker x -> Double -> Double -> m () |]
 
@@ -121,15 +124,15 @@ googleMapMarkerSetCoord g c = googleMapMarkerSetCoord_ g (fst c) (snd c)
 
 importJS Unsafe "this[0]['setMap'](null)" "googleMapMarkerRemove" [t| forall x m. MonadJS x m => GoogleMapMarker x -> m () |]
 
-importJS Unsafe "(function(that) { var pid = {}; pid['placeId'] = that[0]; new google['maps']['places']['PlacesService'](document['createElement']('div'))['getDetails'](pid, that[1]) })(this)" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef String -> IO ()) -> m () |]
+importJS Unsafe "(function(that) { var pid = {}; pid['placeId'] = that[0]; new google['maps']['places']['PlacesService'](document['createElement']('div'))['getDetails'](pid, that[1]) })(this)" "googleMapsPlacesServiceGetDetails_" [t| forall x m. MonadJS x m => PlacesAutocompletePredictionReference x -> JSFun x -> m () |] --(JSRef PlaceDetails -> JSRef Text -> IO ()) -> m () |]
 
 importJS Unsafe "this[0]['lat']()" "placeDetailsLat_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
 importJS Unsafe "this[0]['lng']()" "placeDetailsLng_" [t| forall x m. MonadJS x m => PlaceDetails x -> m Double |]
 
 importJS Unsafe "new google['maps']['places']['AutocompleteService'](null, {})" "googleMapsPlacesAutocompleteService_" [t| forall x m. MonadJS x m => m (PlacesAutocompleteService x) |]
 
-importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> String -> JSFun x -> m () |]
--- (JSArray PlacesAutocompletePrediction -> JSRef String -> IO ()) -> IO ())
+importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> Text -> JSFun x -> m () |]
+-- (JSArray PlacesAutocompletePrediction -> JSRef Text -> IO ()) -> IO ())
 
 -- TODO: figure out if this can be done without the extra performEvent -- I don't really understand the full manner in which liftJS operates well enough to determine if this is possible.
 geolocating :: (MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m))
@@ -169,7 +172,7 @@ coordsToBounds coords = case nonEmpty coords of
 data WebMapConfig t
    = WebMapConfig { _webMapConfig_initialCenter :: (Double, Double)
                   , _webMapConfig_initialZoom :: Double
-                  , _webMapConfig_attributes :: Dynamic t (Map String String)
+                  , _webMapConfig_attributes :: Dynamic t (Map Text Text)
                   , _webMapConfig_triggerResize :: Event t ()
                   , _webMapConfig_fitToCoords :: Event t [(Double, Double)]
                   , _webMapConfig_setCenter :: Event t (Double, Double)
@@ -219,16 +222,16 @@ googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoor
   performEvent_ $ fmap (\_ -> liftJS $ googleMapTriggerResize m) resize
   return $ WebMap m e
 
-searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (String, a) -> m (Event t (String, a))
+searchInputResult :: forall t m a. MonadWidget t m => Dynamic t (Text, a) -> m (Event t (Text, a))
 searchInputResult r = el "li" $ do
   (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
   return $ tag (current r) (domEvent Click li)
 
 -- TODO: A lot of this stuff seems like it belongs either in Focus.JS.Bootstrap or Focus.JS.Widget as it has little to do with Google Maps
-searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map String String) -> Event t (Map k (String, a)) -> m (Event t String, Event t (String, a))
+searchInput :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> m (Event t Text, Event t (Text, a))
 searchInput attrs results = searchInput' "" never attrs results searchInputResultsList
 
-searchInput' :: forall t m a k. (MonadWidget t m, Ord k) => String -> Event t String -> Dynamic t (Map String String) -> Event t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Event t (String, a))) -> m (Event t String, Event t (String, a))
+searchInput' :: forall t m a k. (MonadWidget t m, Ord k) => Text -> Event t Text -> Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> (Dynamic t (Map k (Text, a)) -> m (Event t (Text, a))) -> m (Event t Text, Event t (Text, a))
 searchInput' v0 setV attrs results listBuilder = do
   rec input <- textInput $ def & textInputConfig_setValue .~ eSetValue
                                & attributes .~ attrs
@@ -243,10 +246,10 @@ searchInput' v0 setV attrs results listBuilder = do
           eClearResults = leftmost [eInputEmpty, fmap (const Map.empty) eMadeChoice]
   return (eInputChanged, eMadeChoice)
 
-searchInputResultsList :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (String, a)) -> m (Event t (String, a))
+searchInputResultsList :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (Text, a)) -> m (Event t (Text, a))
 searchInputResultsList results = searchInputResultsList' results (flip list searchInputResult)
 
-searchInputResultsList' :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (String, a)) -> (Dynamic t (Map k (String, a)) -> m (Dynamic t (Map k (Event t (String, a))))) -> m (Event t (String, a))
+searchInputResultsList' :: forall t m a k. (MonadWidget t m, Ord k) => Dynamic t (Map k (Text, a)) -> (Dynamic t (Map k (Text, a)) -> m (Dynamic t (Map k (Event t (Text, a))))) -> m (Event t (Text, a))
 searchInputResultsList' results builder = do
   let hideDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: none;")]
       showDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: block;")]
@@ -256,11 +259,11 @@ searchInputResultsList' results builder = do
 
 twoSourceSearch
     :: forall t x m a b. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
-    => String
-    -> String
-    -> String
-    -> (Event t (Int, String) -> m (Event t (Int, [(String, a)])))
-    -> (Event t (Int, String) -> m (Event t (Int, [(String, b)])))
+    => Text
+    -> Text
+    -> Text
+    -> (Event t (Int, Text) -> m (Event t (Int, [(Text, a)])))
+    -> (Event t (Int, Text) -> m (Event t (Int, [(Text, b)])))
     -> m (Dynamic t (Maybe (Either a b)))
 twoSourceSearch placeholder al bl searchAs searchBs = do
   rec (queryChange, selection) <- divClass "input-group" $ do
@@ -268,15 +271,15 @@ twoSourceSearch placeholder al bl searchAs searchBs = do
         searchInput' "" never (constDyn $ "class" =: "form-control" <> "placeholder" =: placeholder) results (resultsList al bl)
       counter :: Dynamic t Int <- foldDyn (+) 0 $ fmap (const 1) queryChange
       let taggedQuery = attachWith (,) (current counter) queryChange
-      aResults' :: Event t (Int, [(String, a)]) <- searchAs taggedQuery
-      bResults' :: Event t (Int, [(String, b)]) <- searchBs taggedQuery
+      aResults' :: Event t (Int, [(Text, a)]) <- searchAs taggedQuery
+      bResults' :: Event t (Int, [(Text, b)]) <- searchBs taggedQuery
       as <- holdDyn (0, []) aResults'
       bs <- holdDyn (0, []) bResults'
       resultsReady <- combineDyn (\(t1, a) (t2, b) -> if t1 == t2 then Just (alignResults (These a b)) else Nothing) as bs
       let results = fmapMaybe id $ updated resultsReady
   holdDyn Nothing $ fmap (Just . snd) selection
   where
-    alignResults :: These [(String, a)] [(String, b)] -> (Map Int (String, Either a b))
+    alignResults :: These [(Text, a)] [(Text, b)] -> (Map Int (Text, Either a b))
     alignResults results' =
       let toMap c xs = Map.fromList $ map (\(k, (s, v)) -> (k, (s, c v))) $ zip [1::Int ..] xs
       in case results' of
@@ -322,8 +325,8 @@ googleMapsAutocompletePlaceDetails ref cb = do
   googleMapsPlacesServiceGetDetails_ ref jsCb
 
 data AddressComponentValue
-   = AddressComponentValue { _addressComponentValue_longName :: String
-                           , _addressComponentValue_shortName :: String
+   = AddressComponentValue { _addressComponentValue_longName :: Text
+                           , _addressComponentValue_shortName :: Text
                            }
                            deriving (Show, Read, Eq, Ord)
 
@@ -343,7 +346,7 @@ data AddressComponent = AddressComponent_StreetNumber
                       | AddressComponent_Country
                       deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-toAddressComponents :: [(String, String, [String])] -> Map AddressComponent AddressComponentValue
+toAddressComponents :: [(Text, Text, [Text])] -> Map AddressComponent AddressComponentValue
 toAddressComponents acs = Map.fromList $ catMaybes $ concatMap (\(long, short, ts) -> map (f long short) ts) acs
   where
     toAc t = case t of
@@ -360,7 +363,7 @@ toAddressComponents acs = Map.fromList $ catMaybes $ concatMap (\(long, short, t
     f l s t = fmap (\ac' -> (ac', AddressComponentValue l s)) $ toAc t
 
 
-googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadIO m) => String -> ([(String, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
+googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadIO m) => Text -> ([(Text, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
 googleMapsAutocompletePlace' s cb =  do
   rec jsCb <- mkJSFun $ \(result:_) -> do
         a <- fromJSArray result
@@ -375,23 +378,23 @@ googleMapsAutocompletePlace' s cb =  do
   googleMapsPlacesGetPlacePredictions_ g s jsCb
 
 googleMapsAutocompletePlace :: forall x m t. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
-                            => Event t (Int, String)                                                  -- ^ Queries tagged with index number
-                            -> m (Event t (Int, [(String, PlacesAutocompletePredictionReference x)])) -- ^ Responses tagged with matching index number
+                            => Event t (Int, Text)                                                  -- ^ Queries tagged with index number
+                            -> m (Event t (Int, [(Text, PlacesAutocompletePredictionReference x)])) -- ^ Responses tagged with matching index number
 googleMapsAutocompletePlace queryE = performEventAsync . fmap (\(n,s) -> performer n s) . ffilter (\(_,s) -> dropWhile isSpace s /= "") $ queryE
     where performer n s yield = liftJS . googleMapsAutocompletePlace' s $ \results -> yield (n, results)
 
 geocodeSearch :: forall t m x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m)
-              => String
+              => Text
               -- ^ Path to Google logo
-              -> String
+              -> Text
               -- ^ CSS class of Google logo
-              -> Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue))
+              -> Maybe (Text, ((Double, Double), Map AddressComponent AddressComponentValue))
               -- ^ Initial resulting location
-              -> Event t (Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
+              -> Event t (Maybe (Text, ((Double, Double), Map AddressComponent AddressComponentValue)))
               -- ^ Event which causes the selected location to be set
-              -> Dynamic t (Map String String)
+              -> Dynamic t (Map Text Text)
               -- ^ HTML attributes of input control
-              -> m (Dynamic t (Maybe (String, ((Double, Double), Map AddressComponent AddressComponentValue))))
+              -> m (Dynamic t (Maybe (Text, ((Double, Double), Map AddressComponent AddressComponentValue))))
               -- ^ Name and location selected
 geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
   --TODO: Rate limiting
@@ -401,7 +404,7 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
         elAttr "img" (Map.fromList [("src", googleLogoPath), ("class", googleLogoClass)]) $ return () --https://developers.google.com/places/policies#logo_requirements
         return l
   rec (eInputChanged, eChoice) <- searchInput' (maybe "" fst l0) (fmap (maybe "" $ fst) setL) inputAttrs eResults geoResults
-      eResults :: Event t (Map Integer (String, PlacesAutocompletePredictionReference x)) <-
+      eResults :: Event t (Map Integer (Text, PlacesAutocompletePredictionReference x)) <-
         liftM (fmap (Map.fromList . zip [(1::Integer)..]))
           . performEventAsync
           . fmap (\s -> liftJS . googleMapsAutocompletePlace' s)
@@ -410,7 +413,7 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
       eLocation <- getPlaceDetails eChoice
   holdDyn l0 $ leftmost [fmap Just eLocation, setL]
 
-getPlaceDetails :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (String, PlacesAutocompletePredictionReference x) -> m (Event t (String, ((Double, Double), Map AddressComponent AddressComponentValue)))
+getPlaceDetails :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Event t (Text, PlacesAutocompletePredictionReference x) -> m (Event t (Text, ((Double, Double), Map AddressComponent AddressComponentValue)))
 getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS $ googleMapsAutocompletePlaceDetails ref $ \result -> cb (address, result)) eChoice
 
 -- newtype GoogleMapLatLng = GoogleMapLatLng { unGoogleMapLatLng :: JSRef GoogleMapLatLng }
@@ -444,9 +447,9 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --   googleMapPolylineSetPath_ (unGoogleMapPolyline p) a b c d
 -- 
 -- newtype GeocoderPlace = GeocoderPlace { unGeocoderPlace :: JSRef GeocoderPlace } deriving (Typeable)
--- JS(googleMapsGeocoderPlace_, "new google.maps.Geocoder().geocode({ address: $1 }, $2)", JSRef String -> JSFun (JSArray GeocoderPlace -> JSRef () -> IO ()) -> IO ())
+-- JS(googleMapsGeocoderPlace_, "new google.maps.Geocoder().geocode({ address: $1 }, $2)", JSRef Text -> JSFun (JSArray GeocoderPlace -> JSRef () -> IO ()) -> IO ())
 -- 
--- googleMapsGeocoderPlace :: String -> ([(String, (Double, Double))] -> IO ()) -> IO ()
+-- googleMapsGeocoderPlace :: Text -> ([(Text, (Double, Double))] -> IO ()) -> IO ()
 -- googleMapsGeocoderPlace s f =  do
 --   rec cb <- syncCallback2 AlwaysRetain True $ \result status -> if isNull result then return () else do
 --         a <- fromArray result
@@ -460,3 +463,5 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --         release cb
 --   s' <- toJSRef s
 --   googleMapsGeocoderPlace_ s' cb
+
+-}

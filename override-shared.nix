@@ -11,6 +11,12 @@ self: super: {
     heist = overrideCabal super.heist (drv: {
       jailbreak = true;
     });
+    snap = overrideCabal super.snap (drv: {
+      preConfigure = ''
+        sed -i 's/\(lens.*<.*4\)\.14$/\1.15/' *.cabal
+      '';
+      jailbreak = true;
+    });
     snap-core = overrideCabal super.snap-core (drv: {
       jailbreak = true;
     });
@@ -19,6 +25,7 @@ self: super: {
       sha256 = "18ryin6f315picrs2159sn2668266l3xchs7jb8isw0gp52273xg";
       revision = "1";
       editedCabalFile = "0p5apya7gd8kbkknpzamvnc902jdlp8kdmwrqzrj6gvxkr9ss2br";
+      jailbreak = true;
     });
     timezone-series = overrideCabal super.timezone-series (drv: {
       jailbreak = true; # To allow time >= 1.5
@@ -26,29 +33,12 @@ self: super: {
     timezone-olson = overrideCabal super.timezone-olson (drv: {
       jailbreak = true; # To allow time >= 1.5
     });
-    HList = self.callPackage
-      ({ mkDerivation, base, cmdargs, diffutils, directory, doctest
-       , filepath, ghc-prim, hspec, lens, mtl, process, syb, tagged
-       , template-haskell, profunctors
-       }:
-       mkDerivation {
-         pname = "HList";
-         version = "0.4.0.0";
-         sha256 = "0f6d97vfxlml4dp6zfk95kk4la8xr5m91hiw4zj98kvwvvhb99mz";
-         buildDepends = [ base ghc-prim mtl tagged template-haskell profunctors ];
-         doCheck = false;
-         testDepends = [
-           base cmdargs directory doctest filepath hspec lens mtl process syb
-         ];
-         buildTools = [ diffutils ];
-         jailbreak = true;
-         description = "Heterogeneous lists";
-         license = stdenv.lib.licenses.mit;
-       }) { inherit (nixpkgs) diffutils;};
     groundhog = self.mkDerivation ({
       pname = "groundhog";
       version = "0.7.0.3";
       src = ./groundhog/groundhog;
+      jailbreak = true;
+      configureFlags = [ "--ghc-option=-XUndecidableSuperClasses" ];
       buildDepends = with self; [
         aeson attoparsec base64-bytestring blaze-builder monad-control
         monad-logger mtl scientific text time transformers transformers-base
@@ -60,9 +50,15 @@ self: super: {
     });
     groundhog-th = overrideCabal super.groundhog-th (drv: {
       src = ./groundhog/groundhog-th;
+      sha256 = null;
+      revision = null;
+      editedCabalFile = null;
     });
     groundhog-postgresql = overrideCabal super.groundhog-postgresql (drv: {
       src = ./groundhog/groundhog-postgresql;
+      sha256 = null;
+      revision = null;
+      editedCabalFile = null;
     });
     snap-loader-static = overrideCabal super.snap-loader-static (drv: {
       jailbreak = true;
@@ -103,14 +99,6 @@ self: super: {
       jailbreak = true;
       doCheck = false;
       doHaddock = false;
-    });
-    dependent-sum-template = overrideCabal super.dependent-sum-template (drv: {
-      version = "0.0.0.4";
-      src = nixpkgs.fetchgit {
-        url = git://github.com/ryantrinkle/dependent-sum-template;
-        rev = "abcd0f01a3e264e5bc1f3b00f3d03082f091ec49";
-        sha256 = "16f95348c559394a39848394a9e1aa8318c79bfc62bc6946edad9aabd20a8e2d";
-      };
     });
     amazonka = overrideCabal super.amazonka (drv: {
       version = "0.3.4";
@@ -166,4 +154,7 @@ self: super: {
         sha256 = "9cd3d6b3c27f9a0ae5c02769001d56f773efab9657d50b948d4355397950f28c";
       };
     });
+    map-syntax = doJailbreak super.map-syntax;
+    websockets = doJailbreak super.websockets;
+    zlib-enum = doJailbreak super.zlib-enum;
   }

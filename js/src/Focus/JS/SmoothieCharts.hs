@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell, RankNTypes, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings, TemplateHaskell, RankNTypes, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies #-}
 module Focus.JS.SmoothieCharts where
 --http://smoothiecharts.org/
 
@@ -12,7 +12,6 @@ import Data.Aeson.Types
 import Data.Aeson.TH
 import Data.Char
 import Data.Default
-import Data.Map (Map)
 import qualified Data.Text as T
 import Data.Text.Encoding
 import GHCJS.DOM.Types hiding (Event, Text)
@@ -157,8 +156,8 @@ importJS Unsafe "(function(that){for (var key in that[0]) { that[0][key] = JSON[
 smoothieChartNew :: MonadJS x m => SmoothieChartConfig -> m (SmoothieChart x)
 smoothieChartNew = smoothieChartNew_ . encodeToJsonString
 
-smoothieStreamTo :: MonadJS x m => (SmoothieChart x) -> El t -> Double -> m ()
-smoothieStreamTo s e lag = smoothieStreamTo_ s (toNode $ _el_element e) lag
+--smoothieStreamTo :: MonadJS x m => (SmoothieChart x) -> El t -> Double -> m ()
+--smoothieStreamTo s e lag = smoothieStreamTo_ s (toNode $ _el_element e) lag
 
 smoothieTimeSeriesNew :: MonadJS x m => SmoothieTimeSeriesConfig -> m (TimeSeries x)
 smoothieTimeSeriesNew = smoothieTimeSeriesNew_ . encodeToJsonString
@@ -174,6 +173,7 @@ smoothieTimeSeriesAppendWithCurrentTime ts x = do
   t <- smoothieTimestamp_
   smoothieTimeSeriesAppend ts t x
 
+{-
 smoothieChart :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => Map String String -> Double -> [(Event t Double, SmoothieTimeSeriesConfig, SmoothieTimeSeriesStyle)] -> SmoothieChartConfig -> m (SmoothieChart x, [TimeSeries x])
 smoothieChart attrs lag es cfg = do
   (canvas, _) <- elAttr' "canvas" attrs $ return ()
@@ -187,6 +187,7 @@ smoothieChart attrs lag es cfg = do
     return (ets, s)
   forM_ ets $ \(e, ts) -> performEvent_ $ fmap (\c -> liftJS $ smoothieTimeSeriesAppendWithCurrentTime ts c) e
   return $ (s, map snd ets)
+-}
 
 smoothieChartSetTimeSeriesStyle :: MonadJS x m => SmoothieChart x -> TimeSeries x -> SmoothieTimeSeriesStyle -> m ()
 smoothieChartSetTimeSeriesStyle sc t cfg = do
@@ -200,7 +201,7 @@ smoothieChartSetTimeSeriesStyle sc t cfg = do
   withJS (_smoothieTimeSeriesStyle_strokeStyle cfg) $ \ss -> setJSProp "strokeStyle" ss $ unTimeSeriesOptions tso
   withJS (_smoothieTimeSeriesStyle_lineWidth cfg) $ \lw -> setJSProp "lineWidth" lw $ unTimeSeriesOptions tso
 
-updateTimeSeriesStyle :: (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => SmoothieChart x -> TimeSeries x -> Event t SmoothieTimeSeriesStyle -> m ()
+updateTimeSeriesStyle :: (HasJS x (WidgetHost m), MonadWidget t m) => SmoothieChart x -> TimeSeries x -> Event t SmoothieTimeSeriesStyle -> m ()
 updateTimeSeriesStyle sc ts e = performEvent_ $ fmap (liftJS . smoothieChartSetTimeSeriesStyle sc ts) e
 
 encodeToJsonString :: ToJSON a => a -> String

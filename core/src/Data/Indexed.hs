@@ -14,6 +14,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Focus.Patch
+import Focus.AppendMap
 
 data WithIndex p f v = WithIndex { _withIndex_index :: Map (Projected p (IxValue (f v))) (Set (Index (f v)))
                                  , _withIndex_data :: f v
@@ -61,7 +62,7 @@ class HasIndex p f where
        -> f v
        -> Set (Index (f v))
   find p k f = keysByIndex p (Set.singleton k) f
-  findValues :: (Ord (Projected p (IxValue (f b))), Ord (Index (f b)), FoldableWithIndex (Index (f b)) f, At (f b), HasIndex p f)
+  findValues :: (Ord (Projected p (IxValue (f b))), Ord (Index (f b)), FoldableWithIndex (Index (f b)) f, At (f b))
              => proxy p
              -> Projected p (IxValue (f b))
              -> f b
@@ -69,7 +70,6 @@ class HasIndex p f where
   findValues p k f = intersectionByKey (find p k f) f
 
 valuesByIndex :: ( Ord (Index (f' b))
-                 , Ord (Index (f b))
                  , Ord (Projected p (IxValue (f b)))
                  , At (f' b)
                  , FoldableWithIndex (Index (f' b)) f'
@@ -168,3 +168,4 @@ lensIntoWithIndexChanges op toList a f (WithIndex index' m) = (\(m', (olds, news
   where
     foldIndex f' idx xs = foldl (\i x -> f' (project (Proxy :: Proxy p) x) a i) idx xs
 
+instance HasValues (AppendMap k) (AppendMap k)

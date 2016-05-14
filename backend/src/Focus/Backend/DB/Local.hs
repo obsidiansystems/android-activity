@@ -158,7 +158,7 @@ withLocalPostgres dbDir a = do
     a dbUri
             
 
-withIoProc :: (Show a, Read a) => Name -> a -> (CreateProcess -> IO b) -> IO b --TODO: Check that the thing referred to by the Name takes an argument of type a
+withIoProc :: Show a => Name -> a -> (CreateProcess -> IO b) -> IO b --TODO: Check that the thing referred to by the Name takes an argument of type a
 withIoProc = $(do
   ghcPath <- runIO getExecutablePath
   args <- runIO getArgs

@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, FlexibleContexts, TemplateHaskell, RankNTypes #-}
 module Focus.JS.LocalStorage where
 
+{-
 import Foreign.JavaScript.TH
 import GHCJS.DOM.Window (getLocalStorage)
 import GHCJS.DOM
@@ -62,3 +63,4 @@ storageRemoveAll e = do
   dw <- askDomWindow
   s <- liftIO $ getLocalStorage dw
   performEvent_ $ fmap (const $ maybe (return ()) (liftIO . clear) s) e
+-}

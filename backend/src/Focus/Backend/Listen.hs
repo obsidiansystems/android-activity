@@ -51,13 +51,13 @@ withNotifications db k = bracket (listenDB $ \f -> withResource db $ \(Postgresq
 updateChannel :: String
 updateChannel = "updates"
 
-insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Id a)
+insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
   tid <- liftM toId $ insert t
   notifyEntity NotificationType_Insert tid t
   return tid
 
-insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
+insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
 insertByAllAndNotify t = do
   etid <- liftM (fmap toId) $ insertByAll t
   case etid of
@@ -80,7 +80,7 @@ updateAndNotify tid dt = do
   update dt (AutoKeyField ==. fromId tid)
   notifyEntityId NotificationType_Update tid
 
-notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
+notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> a -> m ()
 notifyEntity nt aid _ = notifyEntityId nt aid
 
 notifyEntityWithBody :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
@@ -98,7 +98,7 @@ notifyEntityId nt aid = do
   return ()
 
 handleListen :: forall m m' rsp rq notification vs vp token.
-                (MonadSnap m, MonadIO m, MonadListenDb m', ToJSON rsp, FromJSON rq, FromJSON notification,
+                (MonadSnap m, MonadListenDb m', ToJSON rsp, FromJSON rq,
                  FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON token, Ord token, Monoid vs)
              => (forall x. m' x -> IO x) -- runGroundhog
              -> TChan notification -- chan

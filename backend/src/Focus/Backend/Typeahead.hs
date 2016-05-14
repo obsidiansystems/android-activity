@@ -14,7 +14,7 @@ import qualified Data.Text as T
 import Focus.Backend.Listen
 import Focus.Patch
 
-notificationToTypeaheadPatch :: (Ord k, Monoid s, Patchable t)
+notificationToTypeaheadPatch :: (Ord k, Monoid s)
                              => NotificationType
                              -> k -- key
                              -> ElemPatch t -- value patch
@@ -55,7 +55,7 @@ isPrefix nt q k x f = case fmap (q `T.isPrefixOf`) (f x) of
     _ -> Nothing
   _ -> Nothing
 
-ntPatch :: Patchable a => NotificationType -> a -> ElemPatch a
+ntPatch :: NotificationType -> a -> ElemPatch a
 ntPatch nt v = case nt of
   NotificationType_Delete -> ElemPatch_Remove
   _ -> ElemPatch_Insert v

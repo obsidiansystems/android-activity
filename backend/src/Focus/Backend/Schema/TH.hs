@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, UndecidableInstances, ConstraintKinds #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-redundant-constraints #-}
 module Focus.Backend.Schema.TH where
 
 import Focus.Schema
@@ -64,7 +64,7 @@ toId = Id . toIdData (Proxy :: Proxy a)
 fromId :: forall a. DefaultKeyId a => Id a -> DefaultKey a
 fromId = fromIdData (Proxy :: Proxy a) . unId
 
-deriving instance NeverNull (IdData a) => NeverNull (Id a)
+deriving instance NeverNull (IdData a) => NeverNull (Id a) -- A redundant constraint warning is expected here
 
 instance (PersistField (DefaultKey a), DefaultKeyId a) => PersistField (Id a) where
   persistName = persistName

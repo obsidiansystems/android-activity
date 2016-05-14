@@ -12,7 +12,7 @@ import Data.Text (Text)
 import Data.Typeable
 import GHC.Generics
 
-import Focus.Schema ()
+import Focus.Schema
 
 class Semigroup (Patch v) => Patchable v where
   type Patch v :: *
@@ -47,7 +47,13 @@ instance (Ord k, Patchable v) => Patchable (Map k v) where
  -- NB: Monoid instance of Map that takes the left element is the correct monoid instance for SetPatch
 newtype SetPatch a = SetPatch
           { unSetPatch :: Map a Bool }
-  deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup, Typeable, ToJSON, FromJSON)
+  deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup, Typeable)
+
+instance (Ord a, FromJSON a) => FromJSON (SetPatch a) where
+  parseJSON v = SetPatch <$> parseJSONMap v
+
+instance ToJSON a => ToJSON (SetPatch a) where
+  toJSON = toJSONMap . unSetPatch
 
 data ElemPatch a = ElemPatch_Remove
                  | ElemPatch_Insert a
@@ -101,7 +107,7 @@ instance (Ord k, Patchable a) => Monoid (MapPatch k a) where
 mapIntersectionWithKeysSet :: Ord k => Map k v -> Set k -> Map k v
 mapIntersectionWithKeysSet m s = Map.intersection m $ Map.fromSet (const ()) s
 
-mapIntersectionWithSetMap :: (Ord k, Ord k') => Map k v -> Map k' (Set k) -> Map k v
+mapIntersectionWithSetMap :: (Ord k) => Map k v -> Map k' (Set k) -> Map k v
 mapIntersectionWithSetMap m sm = mapIntersectionWithKeysSet m $ Set.unions $ Map.elems sm
 
 intersectTypeaheadResults :: (Ord k, Ord k')
@@ -114,7 +120,7 @@ intersectTypeaheadResults vall vsq vqr = Map.intersection vall . Map.fromSet (co
 elemUpsert :: Patchable a => Patch a -> a -> ElemPatch a
 elemUpsert p v = ElemPatch_Upsert p (Just (patch p v))
 
-elemUpdate :: Patchable a => Patch a -> ElemPatch a
+elemUpdate :: Patch a -> ElemPatch a
 elemUpdate p = ElemPatch_Upsert p Nothing
 
 makeWrapped ''SetPatch

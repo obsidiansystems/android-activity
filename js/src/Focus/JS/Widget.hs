@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, TypeFamilies, FlexibleContexts, OverloadedStrings, TypeFamilies #-}
 module Focus.JS.Widget where
 
 import Control.Lens hiding (ix)
@@ -9,7 +9,6 @@ import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as T
 import Reflex.Dom
 
 import Focus.App
@@ -33,10 +32,10 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    spinner sp request response
                                    return response
 
-enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Ord k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown = enumDropdown' minBound
 
-enumDropdown' :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Show k, Read k, Ord k) => k -> (k -> String) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Ord k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
@@ -84,35 +83,35 @@ extensibleListWidget n x0 xs0 itemWidget =
         return valuesD
 
 typeaheadSearch :: (MonadFocusWidget app t m, Monoid a)
-                => String
+                => Text
                 -- ^ text input placeholder
                 -> ASetter a (ViewSelector app) b (Set Text)
                 -- ^ setter for query field of view selector
                 -> (View app -> s)
                 -- ^ extractor for relevant things from the view
                 -> m (Dynamic t s)
-typeaheadSearch placeholder vsQuery extractor = do
-  search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: placeholder)
-  aspenView <- watchViewSelectorLensSet vsQuery =<< mapDyn T.pack (value search)
+typeaheadSearch ph vsQuery extractor = do
+  search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
+  aspenView <- watchViewSelectorLensSet vsQuery $ value search
   mapDyn extractor aspenView
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Read k, Show k, Monoid a)
-                        => String
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a)
+                        => Text
                         -- ^ text input placeholder
                         -> ASetter a (ViewSelector app) b (Set Text)
                         -- ^ setter for query field of view selector
                         -> (View app -> s)
                         -- ^ extractor for relevant things from the view
-                        -> (s -> Map k String)
+                        -> (s -> Map k Text)
                         -- ^ convert relevant things into a Map for dropdown
                         -> m (Dynamic t (Maybe k))
-typeaheadSearchDropdown placeholder vsQuery extractor toStringMap = do
-  xs <- typeaheadSearch placeholder vsQuery extractor
+typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
+  xs <- typeaheadSearch ph vsQuery extractor
   options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Read k, Show k, Monoid a)
-                           => String
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Monoid a)
+                           => Text
                            -- ^ text input placeholder
                            -> ASetter a (ViewSelector app) b (Set Text)
                            -- ^ setter for query field of view selector

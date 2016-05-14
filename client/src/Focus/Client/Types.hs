@@ -88,7 +88,14 @@ data ListenResult a = ListenResult_Success a
                     | ListenResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
 
-type MonadRequest app m = (MonadIO m, HasView app, HasRequest app, MonadReader (RequestEnv app) m, MonadState (RequestState app) m, MonadMask m)
+type MonadRequest app m =
+  ( MonadIO m
+  , HasView app
+  , HasRequest app
+  , MonadReader (RequestEnv app) m
+  , MonadState (RequestState app) m
+  , MonadMask m
+  )
 
 makeWrapped ''RequestId
 makeWrapped ''InterestId

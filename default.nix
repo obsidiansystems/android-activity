@@ -37,7 +37,6 @@ in rec {
              focus-js = self.callPackage ./js {};
              focus-serve = self.callPackage ./http/serve {};
              focus-th = self.callPackage ./th {};
-             reflex-dom = self.callPackage ./reflex-dom {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {

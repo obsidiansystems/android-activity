@@ -48,11 +48,11 @@ library
     raw-strings-qq,
     http-types,
     exception-transformers,
-    filepath
+    filepath,
+    monad-control
 
   exposed-modules:
     Focus.JS.AltInput
-    Focus.JS.BaseJSInstances
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env

@@ -1,11 +1,11 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, GADTs, ScopedTypeVariables, FunctionalDependencies, RecursiveDo, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving, EmptyDataDecls, NoMonomorphismRestriction, TemplateHaskell, PolyKinds, TypeOperators, DeriveFunctor, LambdaCase, CPP, ForeignFunctionInterface, JavaScriptFFI, DeriveDataTypeable, ConstraintKinds #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, GADTs, ScopedTypeVariables, FunctionalDependencies, RecursiveDo, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving, EmptyDataDecls, NoMonomorphismRestriction, TemplateHaskell, PolyKinds, TypeOperators, DeriveFunctor, LambdaCase, CPP, ForeignFunctionInterface, JavaScriptFFI, DeriveDataTypeable, ConstraintKinds, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Focus.JS.Request where
 
 import Data.Bitraversable
 import Data.Monoid
 import Data.Time.Clock
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.ByteString (ByteString)
@@ -14,6 +14,7 @@ import Data.Aeson
 import Data.Int
 import Control.Concurrent
 import Control.Monad
+import Control.Monad.Trans.Control
 import Foreign.JavaScript.TH
 import Focus.AppendMap
 import Focus.JS.Env
@@ -24,8 +25,7 @@ import Control.Monad.Reader
 import Control.Monad.Ref
 import Control.Monad.State
 import Reflex
-import Reflex.Dom.DynamicWriter
-import Reflex.Dom.Class
+import Reflex.Dom hiding (Error, Value)
 import Reflex.Host.Class
 
 importJS Unsafe "console['log'](this[0])" "consoleLog" [t| forall x m. MonadJS x m => JSRef x -> m () |]
@@ -36,19 +36,19 @@ validJSRef r = do
   n <- isJSNull r
   return $ if u || n then Nothing else Just r
 
-timeFrom :: UTCTime -> UTCTime -> String
+timeFrom :: UTCTime -> UTCTime -> Text
 timeFrom t ct =
   let d = round $ diffUTCTime ct t
   in describe d
   where
-    describeAbs :: Integer -> String
+    describeAbs :: Integer -> Text
     describeAbs n
-      | n >= 86400 = let days = n `Prelude.div` 86400 in show days <> if days == 1 then " day " else " days "
-      | n >= 3600 = let hrs = n `Prelude.div` 3600 in show hrs <> if hrs == 1 then " hour " else " hours "
-      | n >= 60 = let mins = n `Prelude.div` 60 in show mins <> if mins == 1 then " minute " else " minutes "
-      | n > 0 = show n <> if n == 1 then " second " else " seconds "
+      | n >= 86400 = let days = n `Prelude.div` 86400 in T.pack (show days) <> if days == 1 then " day " else " days "
+      | n >= 3600 = let hrs = n `Prelude.div` 3600 in T.pack (show hrs) <> if hrs == 1 then " hour " else " hours "
+      | n >= 60 = let mins = n `Prelude.div` 60 in T.pack (show mins) <> if mins == 1 then " minute " else " minutes "
+      | n > 0 = T.pack (show n) <> if n == 1 then " second " else " seconds "
       | otherwise = ""
-    describe :: Integer -> String
+    describe :: Integer -> Text
     describe n = case n `compare` 0 of
       GT -> describeAbs n <> "ago"
       EQ -> "now"
@@ -62,21 +62,21 @@ instance FromJS x (RawXHR x) where
   fromJS = return . RawXHR
 
 importJS Unsafe "new XMLHttpRequest()" "newXhr" [t| forall x m. MonadJS x m => m (RawXHR x) |]
-importJS Unsafe "this[0]['open'](this[1], this[2], this[3])" "xhrOpen" [t| forall x m. MonadJS x m => RawXHR x -> String -> String -> Bool -> m () |]
+importJS Unsafe "this[0]['open'](this[1], this[2], this[3])" "xhrOpen" [t| forall x m. MonadJS x m => RawXHR x -> Text -> Text -> Bool -> m () |]
 importJS Unsafe "this[0]['send']()" "xhrSend" [t| forall x m. MonadJS x m => RawXHR x -> m () |]
-importJS Unsafe "this[0]['send'](this[1])" "xhrSendWithData" [t| forall x m. MonadJS x m => RawXHR x -> String -> m () |]
+importJS Unsafe "this[0]['send'](this[1])" "xhrSendWithData" [t| forall x m. MonadJS x m => RawXHR x -> Text -> m () |]
 importJS Unsafe "this[0]['readyState']" "xhrGetReadyState" [t| forall x m. MonadJS x m => RawXHR x -> m Int |]
-importJS Unsafe "this[0]['responseText']" "xhrGetResponseText" [t| forall x m. MonadJS x m => RawXHR x -> m String |]
+importJS Unsafe "this[0]['responseText']" "xhrGetResponseText" [t| forall x m. MonadJS x m => RawXHR x -> m Text |]
 importJS Unsafe "this[0]['response']" "xhrGetResponse" [t| forall x m. MonadJS x m => RawXHR x -> m (JSRef x) |]
 
 xhrSetOnReadyStateChange :: MonadJS x m => RawXHR x -> JSFun x -> m ()
 xhrSetOnReadyStateChange xhr f = withJS xhr $ \x -> withJS f $ \f' -> setJSProp "onreadystatechange" f' x
 
-xhrSetResponseType :: MonadJS x m => RawXHR x -> String -> m ()
-xhrSetResponseType xhr rt = withJS xhr $ \x -> withJSString rt $ \s -> setJSProp "responseType" s x
+xhrSetResponseType :: MonadJS x m => RawXHR x -> Text -> m ()
+xhrSetResponseType xhr rt = withJS xhr $ \x -> withJS rt $ \s -> setJSProp "responseType" s x
 
 
-mkRequestGeneric :: (MonadJS x m, MonadIO m, MonadFix m) => Maybe String -> (RawXHR x -> m r) -> String -> (RawXHR x -> m ()) -> String -> (r -> IO a) -> m (RawXHR x)
+mkRequestGeneric :: (MonadJS x m, MonadIO m, MonadFix m) => Maybe Text -> (RawXHR x -> m r) -> Text -> (RawXHR x -> m ()) -> Text -> (r -> IO a) -> m (RawXHR x)
 mkRequestGeneric responseType convertResponse method send url cb = do
   xhr <- newXhr
   xhrOpen xhr method url True
@@ -94,19 +94,19 @@ mkRequestGeneric responseType convertResponse method send url cb = do
   _ <- send xhr
   return xhr
 
-mkBinaryRequest :: (MonadFix m, MonadJS x m, MonadIO m) => String -> (RawXHR x -> m ()) -> String -> (ByteString -> IO a) -> m (RawXHR x)
+mkBinaryRequest :: (MonadFix m, MonadJS x m, MonadIO m) => Text -> (RawXHR x -> m ()) -> Text -> (ByteString -> IO a) -> m (RawXHR x)
 mkBinaryRequest = mkRequestGeneric (Just "arraybuffer") $ fromJSUint8Array <=< fromJS <=< xhrGetResponse
 
-mkBinaryGet :: (MonadFix m, MonadJS x m, MonadIO m) => String -> (ByteString -> IO a) -> m (RawXHR x)
+mkBinaryGet :: (MonadFix m, MonadJS x m, MonadIO m) => Text -> (ByteString -> IO a) -> m (RawXHR x)
 mkBinaryGet = mkBinaryRequest "GET" xhrSend
 
-mkRequest :: (MonadJS x m, MonadIO m, MonadFix m) => String -> (RawXHR x -> m ()) -> String -> (String -> IO a) -> m (RawXHR x)
+mkRequest :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> (RawXHR x -> m ()) -> Text -> (Text -> IO a) -> m (RawXHR x)
 mkRequest = mkRequestGeneric Nothing xhrGetResponseText
 
-mkGet :: (MonadJS x m, MonadIO m, MonadFix m) => String -> (String -> IO a) -> m (RawXHR x)
+mkGet :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> (Text -> IO a) -> m (RawXHR x)
 mkGet = mkRequest "GET" xhrSend
 
-mkPost :: (MonadJS x m, MonadIO m, MonadFix m) => String -> String -> (String -> IO a) -> m (RawXHR x)
+mkPost :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> Text -> (Text -> IO a) -> m (RawXHR x)
 mkPost url d = mkRequest "POST" (flip xhrSendWithData d) url
 
 syncApi :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> m a
@@ -118,15 +118,15 @@ syncApi req = do
 asyncApi :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> (a -> IO b) -> m ()
 asyncApi r f = do
   let reqJson = encode $ SomeRequest r
-  _ <- mkPost "/api" (T.unpack $ decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
-    Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 $ T.pack rspJson
+  _ <- mkPost "/api" (decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
+    Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 rspJson
     liftIO $ f rsp
   return ()
 
-requestingXhr :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
+requestingXhr :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
 requestingXhr requestE = performEventAsync $ fmap (\r yield' -> liftJS $ asyncApi r yield') requestE
 
-requestingXhrMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, MonadFix (WidgetHost m), HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
+requestingXhrMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
 requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   resps <- forM rs $ \r -> do
     resp <- liftIO newEmptyMVar
@@ -135,19 +135,21 @@ requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   _ <- liftIO . forkIO $ cb =<< forM resps takeMVar
   return ()
 
-importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m String |]
+importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m Text |]
 
-data RequestEnv t m = RequestEnv { _requestEnv_response :: Event t ((Int64, Int64), Either String Value)
+data RequestEnv t m = RequestEnv { _requestEnv_response :: Event t ((Int64, Int64), Either Text Value)
                                  , _requestEnv_currentInvocation :: Int64
                                  , _requestEnv_nextInvocation :: Ref (WidgetHost m) Int64
                                  }
+
+type RequestOutput t req = Event t [((Int64, Int64), SomeRequest req)]
 
 minId :: Int64
 minId = 1
 
 newtype RequestT t req m a = 
-  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)) a } 
- deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException, HasDocument)
+  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a } 
+ deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException)
 
 instance MonadReader r m => MonadReader r (RequestT t req m) where
   ask = lift ask
@@ -181,8 +183,6 @@ instance MonadRef m => MonadRef (RequestT t req m) where
   readRef = lift . readRef
   writeRef r = lift . writeRef r
 
-deriving instance HasPostGui t h m => HasPostGui t h (RequestT t req m)
-
 instance HasWebView m => HasWebView (RequestT t req m) where
   type WebViewPhantom (RequestT t req m) = WebViewPhantom m
   askWebView = lift askWebView
@@ -191,6 +191,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t 
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
 
+{-
 instance MonadWidget t m => MonadWidget t (RequestT t req m) where
   type WidgetHost (RequestT t req m) = WidgetHost m
   type GuiAction (RequestT t req m) = GuiAction m
@@ -221,13 +222,54 @@ instance MonadWidget t m => MonadWidget t (RequestT t req m) where
       ((a, _), postBuild, voidActions) <- runWidget rootElement $ runReaderT (runStateT w minId) e'
       return (a, postBuild, voidActions)
   tellWidgetOutput = RequestT . lift . tellWidgetOutput
+-}
 
-class (Request req, MonadWidget t m) => MonadRequest t req m where
-  requesting :: (ToJSON a, FromJSON a, HasJS x (WidgetHost m)) => Event t (req a) -> m (Event t a)
+class (Request req, Monad m) => MonadRequest t req m | m -> t req where
+  requesting :: (ToJSON a, FromJSON a) => Event t (req a) -> m (Event t a)
   -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
 
-requesting_ :: (HasJS x (WidgetHost m), ToJSON a, FromJSON a, MonadRequest t req m) => Event t (req a) -> m ()
+requesting_ :: (ToJSON a, FromJSON a, MonadRequest t req m) => Event t (req a) -> m ()
 requesting_ a = requesting a >> return ()
+
+{-
+liftRequestTThroughSync :: Monad m => (m (a, Int64) -> DynamicWriterT t (RequestOutput t req) m (a, Int64)) -> _ -> RequestT t req m a -> RequestT t req m a
+liftRequestTThroughSync f g a = RequestT $ do
+    s <- get
+    env <- ask
+    (a, newS) <- lift $ lift $ f $ runReaderT (runStateT (g a) s) env
+    put newS
+    return a
+-}
+liftRequestTAsync :: (Ref (Performable m) ~ Ref m, MonadAtomicRef m) => ((forall b. RequestT t req m b -> DynamicWriterT t (RequestOutput t req) m b) -> DynamicWriterT t (RequestOutput t req) m a) -> RequestT t req m a
+liftRequestTAsync a = RequestT $ do
+  env <- ask
+  lift $ lift $ a $ \(RequestT x) -> do
+    s <- atomicModifyRef (_requestEnv_nextInvocation env) $ \s -> (succ s, s)
+    runReaderT (evalStateT x minId) $ env { _requestEnv_currentInvocation = s }
+
+--TODO: Synchronous versions of some of these things, so we can avoid screwing around with the IORef so much
+instance (DomBuilder t m, Ref (Performable m) ~ Ref m, MonadAtomicRef m, MonadFix m, MonadHold t m) => DomBuilder t (RequestT t req m) where
+  type DomBuilderSpace (RequestT t req m) = DomBuilderSpace m
+  textNode = liftTextNode
+  element elementTag cfg child = liftRequestTAsync $ \run -> element elementTag (fmap1 run cfg) $ run child
+  fragment cfg child = liftRequestTAsync $ \run -> fragment (fmap1 run cfg) $ run child
+  placeholder cfg = liftRequestTAsync $ \run -> placeholder $ fmap1 run cfg
+  inputElement cfg = liftRequestTAsync $ \run -> inputElement $ fmap1 run cfg
+  textAreaElement cfg = liftRequestTAsync $ \run -> textAreaElement $ fmap1 run cfg
+
+instance (Deletable t m, MonadHold t m) => Deletable t (RequestT t req m) where
+  deletable delete = RequestT . liftThrough (liftThrough (deletable delete)) . unRequestT
+
+instance PerformEvent t m => PerformEvent t (RequestT t req m) where
+  type Performable (RequestT t req m) = Performable m --TODO: Should we support 'requesting' in the Performable?
+  performEvent_ = lift . performEvent_
+  performEvent = lift . performEvent
+
+instance PostBuild t m => PostBuild t (RequestT t req m) where
+  getPostBuild = lift getPostBuild
+
+instance TriggerEvent t m => TriggerEvent t (RequestT t req m) where
+  newTriggerEvent = lift newTriggerEvent
 
 instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do
@@ -253,3 +295,5 @@ instance MonadSample t m => MonadSample t (StateT s m) where
 
 instance MonadHold t m => MonadHold t (StateT s m) where
   hold a = lift . hold a
+  holdDyn a = lift . holdDyn a
+  holdIncremental a = lift . holdIncremental a

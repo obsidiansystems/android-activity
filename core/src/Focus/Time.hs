@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 module Focus.Time where
 
 import Focus.Misc
@@ -7,23 +7,26 @@ import Data.Time
 import Data.Time.Calendar.WeekDate
 import Data.Time.LocalTime.TimeZone.Series
 import Data.Fixed
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Monoid
 
-formatTime' :: String -> TimeZoneSeries -> UTCTime -> String
-formatTime' s tz t = formatTime defaultTimeLocale s $ ZoneSeriesTime t tz
+formatTime' :: Text -> TimeZoneSeries -> UTCTime -> Text
+formatTime' s tz t = T.pack $ formatTime defaultTimeLocale (T.unpack s) $ ZoneSeriesTime t tz
 
-showTime' :: TimeZoneSeries -> UTCTime -> String
+showTime' :: TimeZoneSeries -> UTCTime -> Text
 showTime' = formatTime' "%l:%M%p %Z"
 
-showDateTime' :: TimeZoneSeries -> UTCTime -> String 
+showDateTime' :: TimeZoneSeries -> UTCTime -> Text 
 showDateTime' = formatTime' "%D %l:%M%p %Z"
 
-maybeShowTime' :: TimeZoneSeries -> String -> Maybe UTCTime -> String
+maybeShowTime' :: TimeZoneSeries -> Text -> Maybe UTCTime -> Text
 maybeShowTime' tz s = maybe s (\t -> showTime' tz t)
 
-dateTimeInputToUTCTime :: TimeZoneSeries -> String -> Maybe UTCTime
-dateTimeInputToUTCTime tz s = fmap (zoneSeriesTimeToUTC . localTimeToZoneSeriesTime tz) $ parseTimeM True defaultTimeLocale "%FT%k:%M" $ s
+dateTimeInputToUTCTime :: TimeZoneSeries -> Text -> Maybe UTCTime
+dateTimeInputToUTCTime tz s = fmap (zoneSeriesTimeToUTC . localTimeToZoneSeriesTime tz) $ parseTimeM True defaultTimeLocale "%FT%k:%M" $ T.unpack s
 
-utcTimeToDateTimeInputValue :: TimeZoneSeries -> UTCTime -> String
+utcTimeToDateTimeInputValue :: TimeZoneSeries -> UTCTime -> Text
 utcTimeToDateTimeInputValue tz t = formatTime' "%Y-%m-%dT%R" tz t
 
 data Month = January
@@ -40,15 +43,13 @@ data Month = January
            | December
            deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-instance ShowPretty Month where
-  showPretty = show
+instance ShowPretty Month
 
 data Meridian = AM
               | PM
               deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-instance ShowPretty Meridian where
-  showPretty = show
+instance ShowPretty Meridian
 
 data WeekDay = Sunday
              | Monday
@@ -59,8 +60,7 @@ data WeekDay = Sunday
              | Saturday
              deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-instance ShowPretty WeekDay where
-  showPretty = show
+instance ShowPretty WeekDay
 
 type Year = Integer
 
@@ -82,8 +82,8 @@ intToWeekDay :: Int -> WeekDay
 intToWeekDay i = if i < 1 || i > 7 then error "intToWeekDay: Int out of range"
                                    else if i == 7 then toEnum 0 else toEnum i
 
-paddingZero :: (Num a, Ord a, Show a) => a -> [Char]
-paddingZero n = if n >= 0 && n <10 then "0" ++ show n else show n
+paddingZero :: (Num a, Ord a, Show a) => a -> Text
+paddingZero n = if n >= 0 && n <10 then "0" <> T.pack (show n) else T.pack (show n)
 
 dayToMonth :: Day -> Month
 dayToMonth = intToMonth . snd3 . toGregorian

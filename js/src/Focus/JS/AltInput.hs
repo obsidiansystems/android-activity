@@ -1,7 +1,10 @@
-{-# LANGUAGE RecursiveDo, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE RecursiveDo, TemplateHaskell, TypeFamilies, FlexibleContexts #-}
 
-module Focus.JS.AltInput where
+module Focus.JS.AltInput (module Reflex.Dom.Widget.Input) where
 
+import Reflex.Dom.Widget.Input
+
+{-
 import Reflex.Host.Class
 import Reflex.Dom hiding (TextArea(..), textArea, TextAreaConfig(..),
                           TextInput(..), textInput, TextInputConfig(..), textInputGetEnter)
@@ -117,3 +120,4 @@ textArea (TextAreaConfig initial eSetValue dAttrs) = do
 
 textAreaGetEnter :: Reflex t => TextArea t -> Event t ()
 textAreaGetEnter i = fmapMaybe (\n -> if n == keycodeEnter then Just () else Nothing) $ _textArea_keypress i
+-}
