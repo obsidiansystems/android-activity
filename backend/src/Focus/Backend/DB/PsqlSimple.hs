@@ -4,7 +4,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , Binary (..), (:.)(..), PGArray (..)
                                    , ToRow (..), FromRow (..)
                                    , ToField (..), FromField (..)
-                                   , sql
+                                   , Query (..), sql
                                    ) where
 
 import Control.Monad.Reader.Class
