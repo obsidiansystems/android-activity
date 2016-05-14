@@ -24,7 +24,8 @@ import Database.PostgreSQL.Simple.SqlQQ
 import qualified Database.PostgreSQL.Simple as Sql
 
 data WrappedSqlError = WrappedSqlError
-       { _wrappedSqlError_query :: ByteString
+       { _wrappedSqlError_rawQuery :: ByteString
+       , _wrappedSqlError_formattedQuery :: ByteString
        , _wrappedSqlError_error :: SqlError
        }
   deriving Show
@@ -35,14 +36,16 @@ rethrowWithQuery :: ToRow q => Connection -> Query -> q -> SqlError -> IO a
 rethrowWithQuery conn psql qs err = do
   expr <- Sql.formatQuery conn psql qs
   throw $ WrappedSqlError
-    { _wrappedSqlError_query = expr
+    { _wrappedSqlError_rawQuery = fromQuery psql
+    , _wrappedSqlError_formattedQuery = expr
     , _wrappedSqlError_error = err
     }
 
 rethrowWithQuery_ :: Query -> SqlError -> IO a
 rethrowWithQuery_ psql err =
   throw $ WrappedSqlError
-    { _wrappedSqlError_query = fromQuery psql
+    { _wrappedSqlError_rawQuery = fromQuery psql
+    , _wrappedSqlError_formattedQuery = fromQuery psql
     , _wrappedSqlError_error = err
     }
 
