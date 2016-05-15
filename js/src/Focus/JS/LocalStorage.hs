@@ -4,7 +4,12 @@ module Focus.JS.LocalStorage where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Identity
+import Data.Aeson hiding (Value)
+import Data.ByteString.Lazy as LBS
+import Data.Text as T
+import Data.Text.Encoding as T
 import Focus.JS.Window
+import Focus.Request
 import Foreign.JavaScript.TH
 import GHCJS.DOM.Storage
 import GHCJS.DOM.Window (getLocalStorage)
@@ -53,3 +58,17 @@ storageRemoveAll e = do
   dw <- askDomWindow
   s <- liftIO $ getLocalStorage dw
   performEvent_ $ fmap (const $ maybe (return ()) (liftIO . clear) s) e
+
+storageSetJson :: (MonadWidget t m, ToJSON a) => Event t (String, Maybe a) -> m (Event t ())
+storageSetJson e = storageSet $ fmap (\(k, v) -> (k, fmap (T.unpack . T.decodeUtf8 . LBS.toStrict . encode) v)) e
+
+storageGetJson :: (MonadWidget t m, FromJSON a, HasJS x (WidgetHost m)) => Event t Key -> m (Event t (Maybe a))
+storageGetJson e = do
+  mv <- storageGet e
+  return $ fmap (join . fmap (decodeValue' . LBS.fromStrict . T.encodeUtf8 . T.pack)) mv
+
+storageGetJsonInitial :: (HasWebView m, HasJS x m, FromJSON a) => Key -> m (Maybe a)
+storageGetJsonInitial k = do
+  mv <- storageGetInitial k
+  return $ join $ fmap (decodeValue' . LBS.fromStrict . T.encodeUtf8 . T.pack) mv
+
