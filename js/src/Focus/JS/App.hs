@@ -151,5 +151,5 @@ runFocusWidget tokenDyn mkEnv child = do
     applyAndCrop :: Ord k => AppendMap k (ViewPatch app) -> AppendMap k (ViewSelector app) -> Map k (View app) -> Map k (View app)
     applyAndCrop p vs v = cropView' vs $ applyPatch' p v
     fromNotifications vs (ePatch :: Event t (AppendMap (Signed AuthToken) (ViewPatch app))) = do
-      views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attachDyn vs ePatch
+      views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attach (current vs) ePatch
       return $ mkEnv tokenDyn views
