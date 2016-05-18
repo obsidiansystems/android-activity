@@ -166,6 +166,17 @@ listen l = do
      Left e -> ListenResult_Failure (show e)
      Right r -> ListenResult_Success r
 
+-- | Listen for something appearing in the View unconditionally, failing with a message if the result is anything but success.
+listenOrBust :: (MonadRequest app m, Show a)
+             => String
+             -> (View app -> Maybe a)
+             -> m a
+listenOrBust s f = do
+  lr <- listen f
+  case lr of
+    ListenResult_Success r -> return r
+    e -> error (show e ++ " while listening for " ++ s) 
+
 setToken :: (MonadRequest app m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
 setToken t = requestState_token <<.= t
 
