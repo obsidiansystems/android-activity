@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu
+
+nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --command "ghcid -c'ghci -Wall -ifocus/core/src -ifocus/js/src -icommon/src -ifrontend/src Main'" "$@"
