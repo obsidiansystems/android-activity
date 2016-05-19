@@ -10,7 +10,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.RWS.Strict hiding ((<>))
+import Control.Monad.RWS.Strict hiding ((<>), listen)
 import Control.Monad.Trans.Maybe
 import Data.Aeson
 import Data.Semigroup
@@ -19,7 +19,7 @@ import Data.Maybe
 import Data.Text (Text)
 import Debug.Trace.LocationTH
 
-import Network.Socket
+import Network.Socket (withSocketsDo)
 import Network.WebSockets hiding (ClientApp, Request)
 
 import Focus.Account
@@ -175,7 +175,7 @@ listenOrBust s f = do
   lr <- listen f
   case lr of
     ListenResult_Success r -> return r
-    e -> error (show e ++ " while listening for " ++ s) 
+    e -> error (show e ++ " while listening for " ++ s)
 
 setToken :: (MonadRequest app m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
 setToken t = requestState_token <<.= t
