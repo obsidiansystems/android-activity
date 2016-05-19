@@ -70,8 +70,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
-class ( MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) m
-      , MonadWidget t m
+class ( MonadWidget t m
       , MonadFix (WidgetHost m)
       , MonadRequest t (AppRequest app) m
       , HasFocus app
@@ -87,7 +86,10 @@ class (HasView app) => HasEnv app where
 
 class (HasEnv app, HasRequest app, HasView app) => HasFocus app
 
-instance (HasFocus app, MonadFix (WidgetHost m), MonadWidget t m) => MonadFocusWidget app t (FocusWidget app t m) where
+instance ( HasFocus app
+         , MonadFix (WidgetHost m)
+         , MonadWidget t m
+         ) => MonadFocusWidget app t (FocusWidget app t m) where
   askEnv = FocusWidget $ lift ask
   tellInterest is = do
     token <- asksEnv getToken
@@ -152,3 +154,4 @@ runFocusWidget tokenDyn mkEnv child = do
     fromNotifications vs (ePatch :: Event t (AppendMap (Signed AuthToken) (ViewPatch app))) = do
       views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attachDyn vs ePatch
       return $ mkEnv tokenDyn views
+

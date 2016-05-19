@@ -48,7 +48,8 @@ library
     raw-strings-qq,
     http-types,
     exception-transformers,
-    filepath
+    filepath,
+    mmorph
 
   exposed-modules:
     Focus.JS.AltInput
