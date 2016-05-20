@@ -6,6 +6,7 @@ import Control.Applicative
 import Control.Lens.At
 import Control.Lens (ifoldl, FoldableWithIndex(..), (.~), (%~), (&), itoList)
 import Control.Monad.Writer
+import Data.Foldable hiding (find, toList)
 import Data.Maybe
 import Data.Proxy
 import Data.Set (Set)
@@ -68,6 +69,22 @@ class HasIndex p f where
              -> f b
              -> f b
   findValues p k f = intersectionByKey (find p k f) f
+
+-- | Filter for the entries whose corresponding index is greater than or equal to a specified value.
+findValuesGEq :: ( Ord (Projected p (IxValue (f b)))
+                 , Ord (Index (f b))
+                 , FoldableWithIndex (Index (f b)) f
+                 , At (f b)
+                 , HasIndex p f)
+              => proxy p
+              -> Projected p (IxValue (f b))
+              -> f b
+              -> f b
+findValuesGEq p i f =
+  let idx = index p f
+      (_, mx, greater) = Map.splitLookup i idx
+      withExactMatch = case mx of Nothing -> id; Just s -> Set.union s
+  in intersectionByKey (withExactMatch (fold greater)) f
 
 valuesByIndex :: ( Ord (Index (f' b))
                  , Ord (Projected p (IxValue (f b)))

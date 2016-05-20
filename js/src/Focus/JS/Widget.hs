@@ -89,11 +89,13 @@ typeaheadSearch :: (MonadFocusWidget app t m, Monoid a)
                 -- ^ setter for query field of view selector
                 -> (View app -> s)
                 -- ^ extractor for relevant things from the view
-                -> m (Dynamic t s)
+                -> m (Dynamic t s, Dynamic t Text)
+                -- ^ results and the search string
 typeaheadSearch ph vsQuery extractor = do
   search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
   aspenView <- watchViewSelectorLensSet vsQuery $ value search
-  mapDyn extractor aspenView
+  result <- mapDyn extractor aspenView
+  return (result, value search)
 
 typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a)
                         => Text
@@ -106,7 +108,7 @@ typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a)
                         -- ^ convert relevant things into a Map for dropdown
                         -> m (Dynamic t (Maybe k))
 typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
-  xs <- typeaheadSearch ph vsQuery extractor
+  (xs, _) <- typeaheadSearch ph vsQuery extractor
   options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
@@ -123,7 +125,7 @@ typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Monoid a)
                            -- ^ values that are already selected
                            -> m (Dynamic t (SetPatch k))
 typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
-  xs <- typeaheadSearch ph vsQuery extractor
+  (xs, _) <- typeaheadSearch ph vsQuery extractor
   options <- mapDyn toWidgetMap xs
   diffListWithKey options selections0
 

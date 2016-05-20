@@ -1,27 +1,22 @@
 {-# LANGUAGE GADTs, FlexibleContexts, TemplateHaskell, RankNTypes #-}
 module Focus.JS.LocalStorage where
 
-{-
-import Foreign.JavaScript.TH
-import GHCJS.DOM.Window (getLocalStorage)
-import GHCJS.DOM
-import GHCJS.DOM.Document
-import GHCJS.DOM.Storage
-import GHCJS.DOM.Types hiding (Event)
-import Reflex.Dom hiding (Value)
-import Control.Monad.IO.Class
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Identity
+import Data.Aeson hiding (Value)
+import Data.ByteString.Lazy as LBS
+import Data.Text as T
+import Data.Text.Encoding as T
+import Focus.JS.Window
+import Focus.Request
+import Foreign.JavaScript.TH
+import GHCJS.DOM.Storage
+import GHCJS.DOM.Window (getLocalStorage)
+import Reflex.Dom hiding (Value)
 
 --TODO: This should really take a Storage as an argument, but on webkitgtk, this requires converting the Storage object to its JS wrapper
 importJS Unsafe "localStorage['getItem'](this[0])" "localStorageGetItemMaybe" [t| forall x m. MonadJS x m => String -> m (Maybe String) |]
-
-askDomWindow :: (HasWebView m, MonadIO m) => m Window
-askDomWindow = do
-  wv <- askWebView
-  Just doc <- liftIO $ webViewGetDomDocument $ unWebViewSingleton wv
-  Just window <- liftIO $ getDefaultView doc
-  return window
 
 askLocalStorage :: (HasWebView m, MonadIO m) => m Storage
 askLocalStorage = do
@@ -36,7 +31,7 @@ type Value = String
 storageGetInitial :: (HasWebView m, HasJS x m) => Key -> m (Maybe Value)
 storageGetInitial = liftM runIdentity . storageGetManyInitial . Identity
 
-storageGetManyInitial :: (HasWebView m, HasJS x m, Traversable f) => f Key -> m (f (Maybe Value))
+storageGetManyInitial :: (HasJS x m, Traversable f) => f Key -> m (f (Maybe Value))
 storageGetManyInitial keys = do
   liftJS $ forM keys localStorageGetItemMaybe
 
@@ -63,4 +58,16 @@ storageRemoveAll e = do
   dw <- askDomWindow
   s <- liftIO $ getLocalStorage dw
   performEvent_ $ fmap (const $ maybe (return ()) (liftIO . clear) s) e
--}
+
+storageSetJson :: (MonadWidget t m, ToJSON a) => Event t (String, Maybe a) -> m (Event t ())
+storageSetJson e = storageSet $ fmap (\(k, v) -> (k, fmap (T.unpack . T.decodeUtf8 . LBS.toStrict . encode) v)) e
+
+storageGetJson :: (MonadWidget t m, FromJSON a, HasJS x (WidgetHost m)) => Event t Key -> m (Event t (Maybe a))
+storageGetJson e = do
+  mv <- storageGet e
+  return $ fmap (join . fmap (decodeValue' . LBS.fromStrict . T.encodeUtf8 . T.pack)) mv
+
+storageGetJsonInitial :: (HasWebView m, HasJS x m, FromJSON a) => Key -> m (Maybe a)
+storageGetJsonInitial k = do
+  mv <- storageGetInitial k
+  return $ join $ fmap (decodeValue' . LBS.fromStrict . T.encodeUtf8 . T.pack) mv

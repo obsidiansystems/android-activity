@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, RecursiveDo, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, RecursiveDo, FlexibleContexts, TypeFamilies, OverloadedStrings #-}
 module Focus.JS.Env where
 
 import Control.Lens

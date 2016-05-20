@@ -336,7 +336,7 @@ progressBar k w = divClass "progress" $ do
 
 maybeDisplay :: forall t m a b. MonadWidget t m => a -> (Dynamic t a -> m (Dynamic t (Maybe b))) -> (a -> b -> m ()) -> m ()
 maybeDisplay someId watcher child = do
-  dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
+  _ <- dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
   return ()
 
 jumbotron :: forall t m a. MonadWidget t m => Text -> Text -> m a -> m a
@@ -516,10 +516,10 @@ styleTagSignin = el "style" $ text [r|
 toggleButton :: MonadWidget t m => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
-        dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
+        _ <- dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
         text t1
       long <- buttonDynAttr selAttrB $ do
-        dyn =<< mapDyn (\sel' -> if not sel' then icon "check" else return ()) sel
+        _ <- dyn =<< mapDyn (\sel' -> if not sel' then icon "check" else return ()) sel
         text t2
       sel <- holdDyn b0 $ leftmost [fmap (const True) short, fmap (const False) long]
       let baseAttr :: Text -> Map Text Text

@@ -20,7 +20,7 @@ import Data.Monoid
 getTimeZoneSeries :: (MonadIO m, HasJS x m) => Text -> m (Maybe TimeZoneSeries)
 getTimeZoneSeries path = do
   dVar <- liftIO newEmptyMVar
-  liftJS . mkBinaryGet ("zoneinfo/" <> path) $ putMVar dVar
+  _ <- liftJS . mkBinaryGet ("zoneinfo/" <> path) $ putMVar dVar
   d <- liftIO $ takeMVar dVar
   liftIO . return . olsonToTimeZoneSeries . runGet (getOlson noLimits) $ LBS.fromStrict d
 

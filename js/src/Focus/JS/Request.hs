@@ -270,6 +270,8 @@ instance PostBuild t m => PostBuild t (RequestT t req m) where
 
 instance TriggerEvent t m => TriggerEvent t (RequestT t req m) where
   newTriggerEvent = lift newTriggerEvent
+  newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
+  newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
 instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do

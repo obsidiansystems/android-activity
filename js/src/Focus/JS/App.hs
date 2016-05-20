@@ -36,6 +36,8 @@ instance PerformEvent t m => PerformEvent t (FocusWidget app t m) where
 
 instance TriggerEvent t m => TriggerEvent t (FocusWidget app t m) where
   newTriggerEvent = lift newTriggerEvent
+  newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
+  newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
 instance (DomBuilder t m, Semigroup (ViewSelector app), MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, MonadAtomicRef m) => DomBuilder t (FocusWidget app t m) where
   type DomBuilderSpace (FocusWidget app t m) = DomBuilderSpace m
@@ -153,3 +155,4 @@ runFocusWidget tokenDyn mkEnv child = do
     fromNotifications vs (ePatch :: Event t (AppendMap (Signed AuthToken) (ViewPatch app))) = do
       views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attach (current vs) ePatch
       return $ mkEnv tokenDyn views
+
