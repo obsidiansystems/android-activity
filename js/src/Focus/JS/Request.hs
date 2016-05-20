@@ -21,9 +21,11 @@ import Focus.JS.Env
 import Focus.Request
 import Control.Arrow
 import Control.Monad.Exception
+import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.Ref
 import Control.Monad.State
+
 import Reflex
 import Reflex.Dom hiding (Error, Value)
 import Reflex.Host.Class
@@ -148,7 +150,7 @@ minId :: Int64
 minId = 1
 
 newtype RequestT t req m a = 
-  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a } 
+  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a }
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException)
 
 instance MonadReader r m => MonadReader r (RequestT t req m) where
@@ -173,6 +175,28 @@ runRequestT eViewSelectorWithAuth (RequestT m) = do
     valueToMaybe r = case fromJSON r of
       Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r
       Success a -> Just a
+
+withRequestT :: forall t m a (req :: * -> *) (req' :: * -> *).
+                (Reflex t, MonadHold t m)
+             => (forall x. req x -> req' x)
+             -> RequestT t req m a
+             -> RequestT t req' m a
+withRequestT f m = RequestT $ hoist (hoist (withDynamicWriterT f')) (unRequestT m)
+  where
+    f' :: Event t [(y, SomeRequest req)] -> Event t [(y, SomeRequest req')]
+    f' = fmap . fmap . fmap $ \(SomeRequest req) -> SomeRequest $ f req
+
+withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m)
+                   => (w -> w')
+                   -> DynamicWriterT t w m a
+                   -> DynamicWriterT t w' m a
+withDynamicWriterT f dw = do
+  (r, d) <- lift $ do
+    (r, d) <- runDynamicWriterT dw
+    d' <- mapDyn f d
+    return (r, d')
+  tellDyn d
+  return r
 
 instance MonadTrans (RequestT t req) where
   lift = RequestT . lift . lift . lift
@@ -224,7 +248,7 @@ instance MonadWidget t m => MonadWidget t (RequestT t req m) where
   tellWidgetOutput = RequestT . lift . tellWidgetOutput
 -}
 
-class (Request req, Monad m) => MonadRequest t req m | m -> t req where
+class Monad m => MonadRequest t req m where
   requesting :: (ToJSON a, FromJSON a) => Event t (req a) -> m (Event t a)
   -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
 

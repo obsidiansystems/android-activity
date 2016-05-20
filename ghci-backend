@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 echo -ne '\033]0;BACKEND\007'
-nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in this.backend.env' --command "ghci -icommon/src -ibackend/src Main -hide-package cryptonite" "$@"
+nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in this.backend.env' --command "ghci -Wall -icommon/src -ibackend/src Main -hide-package cryptonite" "$@"

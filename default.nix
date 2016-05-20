@@ -87,6 +87,8 @@ in rec {
           build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
           other-extensions: TemplateHaskell
           ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
+          if impl(ghcjs)
+            cpp-options: -DGHCJS_GC_INTERVAL=60000
         EOF
         fi
       '';

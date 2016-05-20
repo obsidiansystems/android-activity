@@ -10,16 +10,17 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.RWS.Strict hiding ((<>))
+import Control.Monad.RWS.Strict hiding ((<>), listen)
 import Control.Monad.Trans.Maybe
 import Data.Aeson
 import Data.Semigroup
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Text (Text)
+import qualified Data.Text as T
 import Debug.Trace.LocationTH
 
-import Network.Socket
+import Network.Socket (withSocketsDo)
 import Network.WebSockets hiding (ClientApp, Request)
 
 import Focus.Account
@@ -46,7 +47,7 @@ requestEnv c = RequestEnv
             modifyTVar' pending $ Map.insertWith ($failure "duplicate request id") s em
             return (s, em)
           teardown s = atomically $ modifyTVar' pending $ Map.delete s
-          run :: (RequestId, TBQueue (Either String Value)) -> IO (Async (Either String Value))
+          run :: (RequestId, TBQueue (Either Text Value)) -> IO (Async (Either Text Value))
           run (s,em) =
             let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (AppRequest app))
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
@@ -88,7 +89,7 @@ requestEnv c = RequestEnv
 listener :: HasView app => ClientEnv app -> IO ()
 listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
-  (mma :: Either String (WebSocketData (Signed AuthToken) (ViewPatch app) (Either String Value))) <- MaybeT . return $ decodeValue' raw
+  (mma :: Either Text (WebSocketData (Signed AuthToken) (ViewPatch app) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
@@ -127,10 +128,10 @@ request req = do
     Nothing -> forever $ threadDelay 10000000
     Just t -> threadDelay t
   processResult = \case
-    Left e -> RequestResult_Failure (show e)
+    Left e -> RequestResult_Failure $ T.pack $ show e
     Right (Left e) -> RequestResult_Failure e
     Right (Right r) -> case fromJSON r of
-      Error e -> RequestResult_DecodeError r e
+      Error e -> RequestResult_DecodeError r $ T.pack e
       Success r' -> RequestResult_Success r'
 
 private :: (MonadRequest app m, ToJSON rsp, FromJSON rsp) => PrivateRequest app rsp -> m (RequestResult rsp)
@@ -163,8 +164,19 @@ listen l = do
      Nothing -> forever $ threadDelay 10000000
      Just t -> threadDelay t
    processListen = \case
-     Left e -> ListenResult_Failure (show e)
+     Left e -> ListenResult_Failure $ T.pack $ show e
      Right r -> ListenResult_Success r
+
+-- | Listen for something appearing in the View unconditionally, failing with a message if the result is anything but success.
+listenOrBust :: (MonadRequest app m, Show a)
+             => Text
+             -> (View app -> Maybe a)
+             -> m a
+listenOrBust s f = do
+  lr <- listen f
+  case lr of
+    ListenResult_Success r -> return r
+    e -> error $ show e ++ " while listening for " ++ T.unpack s
 
 setToken :: (MonadRequest app m) => Maybe (Signed AuthToken) -> m (Maybe (Signed AuthToken))
 setToken t = requestState_token <<.= t
@@ -214,9 +226,9 @@ runClientApp :: (HasView app, HasRequest app)
              -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
-  handleConnectionException $ runClient (_clientConfig_host cfg)
+  handleConnectionException $ runClient (T.unpack $ _clientConfig_host cfg)
                                         (_clientConfig_port cfg)
-                                        (_clientConfig_path cfg) $ \conn -> do
+                                        (T.unpack $ _clientConfig_path cfg) $ \conn -> do
     cenv <- atomically $ do
       nextReq <- newTVar 1
       pending <- newTVar Map.empty
