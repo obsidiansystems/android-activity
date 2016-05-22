@@ -19,11 +19,19 @@ import Reflex.Dom
 import Reflex.Host.Class
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Focus.JS.BaseJSInstances ()
 
 type FocusWidgetInternal app t m = RequestT t (AppRequest app) (DynamicWriterT t (AppendMap (Signed AuthToken) (ViewSelector app)) (ReaderT (Env app t) m))
 
 newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException, MonadAsyncException)
+
+instance MonadTrans (FocusWidget  app t) where
+  lift = FocusWidget . lift . lift . lift
+
+instance HasJS x m => HasJS x (FocusWidget app t m) where
+  type JSM (FocusWidget app t m) = JSM m
+  liftJS = lift . liftJS
 
 deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
 
