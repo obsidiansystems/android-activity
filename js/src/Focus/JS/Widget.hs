@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Maybe
 import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -200,11 +201,14 @@ comboBoxList xs li query externalActions = do
       let actions = leftmost [ attachWith (\xs'' (k, a) -> ((k, xs''), a)) (current xs') focusE
                              , attach ((,) <$> current focus <*> current xs') externalActions
                              ]
-      focus <- foldDyn (\a _ -> a) Nothing $ fforMaybe actions $ \((k, vs), action) -> case action of
-        ComboBoxAction_Up -> fmap fst $ Map.lookupLT k vs
-        ComboBoxAction_Down -> fmap fst $ Map.lookupGT k vs
-        ComboBoxAction_Hover -> Just k
-        _ -> Nothing
+          actionToFocus = fforMaybe actions $ \((k, vs), action) -> case action of
+            ComboBoxAction_Up -> fmap fst $ Map.lookupLT k vs
+            ComboBoxAction_Down -> fmap fst $ Map.lookupGT k vs
+            ComboBoxAction_Hover -> Just k
+            _ -> Nothing
+          mapMin = listToMaybe . Map.keys
+          selectOnUpdate = attachWithMaybe (\f es -> if Map.member f es then Just f else mapMin es) (current focus) $ updated xs'
+      focus <- foldDyn (\a _ -> a) Nothing $ leftmost [ actionToFocus, selectOnUpdate ]
   return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
 
 comboBox :: (Ord k, MonadWidget t m)
