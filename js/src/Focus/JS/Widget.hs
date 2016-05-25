@@ -1,8 +1,9 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts #-}
 module Focus.JS.Widget where
 
 import Control.Lens hiding (ix)
 import Control.Monad
+import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Monoid
@@ -11,10 +12,15 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Reflex.Dom
+import qualified GHCJS.DOM.Element as E
+import qualified GHCJS.DOM.EventM as EM
 
 import Focus.App
+import Focus.Highlight
 import Focus.JS.App
+import Focus.JS.Highlight
 import Focus.Patch
+import Reflex.Host.Class (MonadReflexCreateTrigger)
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
@@ -142,3 +148,99 @@ diffListWithKey ms selDyn = do
     void $ dyn w
     return $ value include
   mapDyn SetPatch selects
+
+data ComboBoxAction = ComboBoxAction_Up
+                    | ComboBoxAction_Down
+                    | ComboBoxAction_Hover
+                    | ComboBoxAction_Select
+                    | ComboBoxAction_Dismiss
+  deriving (Show, Read, Eq, Ord)
+
+keycodeUp :: Int
+keycodeUp = 38
+
+keycodeDown :: Int
+keycodeDown = 40
+
+textInputGetKeycode :: Reflex t => TextInput t -> Int -> Event t Int
+textInputGetKeycode t keycode = ffilter (==keycode) $ _textInput_keydown t
+
+textInputGetKeycodeAbsorb :: (MonadIO m , Reflex t, MonadSample t m, MonadReflexCreateTrigger t m, HasPostGui t h m)
+                          => TextInput t
+                          -> Int
+                          -> m (Event t Int)
+textInputGetKeycodeAbsorb t keycode = fmap (fmapMaybe id) $ wrapDomEvent (_textInput_element t) (`EM.on` E.keyDown) $ do
+  e <- getKeyEvent
+  if e == keycode
+     then do
+       EM.preventDefault
+       return $ Just e
+     else return Nothing
+
+comboBoxInput :: MonadWidget t m
+              => TextInputConfig t
+              -> m (TextInput t, Event t ComboBoxAction)
+comboBoxInput cfg = do
+  t <- textInput cfg
+  let enter = ComboBoxAction_Select <$ textInputGetEnter t
+      esc = ComboBoxAction_Dismiss <$ textInputGetKeycode t keycodeEscape
+  up <- fmap (ComboBoxAction_Up <$) $ textInputGetKeycodeAbsorb t keycodeUp
+  down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t keycodeDown
+  return (t, leftmost [enter, up, down, esc])
+
+comboBoxList :: (Ord k, MonadWidget t m)
+             => Dynamic t (Map k v)
+             -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t String -> m (Event t ComboBoxAction)) -- ^ Returns child element hover event
+             -> Dynamic t String -- ^ Query
+             -> Event t ComboBoxAction
+             -> m (Event t k)
+comboBoxList xs li query externalActions = do
+  xs' <- mapDyn (Map.mapKeysMonotonic Just) xs
+  rec focusE <- selectViewListWithKey focus xs' (\k v isFocused -> maybe (return never) (\k' -> li k' v isFocused query) k)
+      let actions = leftmost [ attachWith (\xs'' (k, a) -> ((k, xs''), a)) (current xs') focusE
+                             , attach ((,) <$> current focus <*> current xs') externalActions
+                             ]
+      focus <- foldDyn (\a _ -> a) Nothing $ fforMaybe actions $ \((k, vs), action) -> case action of
+        ComboBoxAction_Up -> fmap fst $ Map.lookupLT k vs
+        ComboBoxAction_Down -> fmap fst $ Map.lookupGT k vs
+        ComboBoxAction_Hover -> Just k
+        _ -> Nothing
+  return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
+
+comboBox :: (Ord k, MonadWidget t m)
+         => TextInputConfig t
+         -> (Dynamic t String -> m (Dynamic t (Map k v)))
+         -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t String -> m (Event t ComboBoxAction))
+         -> (k -> v -> String)
+         -> (forall a. m a -> m a)
+         -> m (Event t k)
+comboBox cfg getOptions li toStr wrapper = do
+  rec (t, inputActions) <- comboBoxInput $ cfg & setValue .~ leftmost [ _textInputConfig_setValue cfg, selectionString ]
+      options <- getOptions $ value t
+      selectionE <- wrapper $ comboBoxList options li (value t) inputActions
+      let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
+  return selectionE
+
+simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k)
+               => (String -> ViewSelector app) -- ^ Convert query to ViewSelector
+               -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
+               -> (k -> v -> String) -- ^ Turn a result into a string for display
+               -> (Text -> Text -> HighlightedText) -- ^ Highlight results
+               -> m (Event t k) -- ^ Selection event
+simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combobox" $ do
+  rec let getOptions :: Dynamic t String -> m (Dynamic t (Map k v))
+          getOptions q = do
+            vs <- foldDyn (\a _ -> case a of Nothing -> mempty; Just a' -> toVS a') mempty $
+              leftmost [ Just <$> updated q, Nothing <$ selection ]
+            v <- watchViewSelector vs
+            mapDyn fromView v
+          li :: k -> Dynamic t v -> Dynamic t Bool -> Dynamic t String -> m (Event t ComboBoxAction)
+          li k v sel q = do
+            selAttr <- mapDyn (\x -> "class" =: if x then "simple-combobox-focus" else "simple-combobox-blur") sel
+            q' <- mapDyn T.pack q
+            (e, _) <- elDynAttr' "li" selAttr $ dynHighlightedTextQ highlighter q' =<< mapDyn (T.pack . toString k) v
+            return $ leftmost [ ComboBoxAction_Hover <$ domEvent Mouseover e
+                              , ComboBoxAction_Select <$ domEvent Click e
+                              ]
+      selection <- comboBox def getOptions li toString (el "ul")
+  return selection
