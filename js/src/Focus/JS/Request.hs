@@ -177,7 +177,7 @@ runRequestT eViewSelectorWithAuth (RequestT m) = do
       Success a -> Just a
 
 withRequestT :: forall t m a (req :: * -> *) (req' :: * -> *).
-                (Reflex t, MonadHold t m)
+                (Reflex t, MonadHold t m, MonadFix m)
              => (forall x. req x -> req' x)
              -> RequestT t req m a
              -> RequestT t req' m a
@@ -186,7 +186,7 @@ withRequestT f m = RequestT $ hoist (hoist (withDynamicWriterT f')) (unRequestT 
     f' :: Event t [(y, SomeRequest req)] -> Event t [(y, SomeRequest req')]
     f' = fmap . fmap . fmap $ \(SomeRequest req) -> SomeRequest $ f req
 
-withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m)
+withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m, MonadFix m)
                    => (w -> w')
                    -> DynamicWriterT t w m a
                    -> DynamicWriterT t w' m a
@@ -276,12 +276,11 @@ instance (DomBuilder t m, Ref (Performable m) ~ Ref m, MonadAtomicRef m, MonadFi
   type DomBuilderSpace (RequestT t req m) = DomBuilderSpace m
   textNode = liftTextNode
   element elementTag cfg child = liftRequestTAsync $ \run -> element elementTag (fmap1 run cfg) $ run child
-  fragment cfg child = liftRequestTAsync $ \run -> fragment (fmap1 run cfg) $ run child
   placeholder cfg = liftRequestTAsync $ \run -> placeholder $ fmap1 run cfg
   inputElement cfg = liftRequestTAsync $ \run -> inputElement $ fmap1 run cfg
   textAreaElement cfg = liftRequestTAsync $ \run -> textAreaElement $ fmap1 run cfg
 
-instance (Deletable t m, MonadHold t m) => Deletable t (RequestT t req m) where
+instance (Deletable t m, MonadHold t m, MonadFix m) => Deletable t (RequestT t req m) where
   deletable delete = RequestT . liftThrough (liftThrough (deletable delete)) . unRequestT
 
 instance PerformEvent t m => PerformEvent t (RequestT t req m) where

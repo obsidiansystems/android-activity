@@ -43,12 +43,11 @@ instance (DomBuilder t m, Semigroup (ViewSelector app), MonadHold t m, Ref (Perf
   type DomBuilderSpace (FocusWidget app t m) = DomBuilderSpace m
   textNode = liftTextNode
   element elementTag cfg (FocusWidget child) = FocusWidget $ element elementTag (fmap1 unFocusWidget cfg) child
-  fragment cfg (FocusWidget child) = FocusWidget $ fragment (fmap1 unFocusWidget cfg) child
   placeholder cfg = FocusWidget $ placeholder $ fmap1 unFocusWidget cfg
   inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
   textAreaElement cfg = FocusWidget $ textAreaElement $ fmap1 unFocusWidget cfg
 
-instance (Deletable t m, Semigroup (ViewSelector app), MonadHold t m) => Deletable t (FocusWidget app t m) where
+instance (Deletable t m, Semigroup (ViewSelector app), MonadHold t m, MonadFix m) => Deletable t (FocusWidget app t m) where
   deletable delete (FocusWidget child) = FocusWidget $ deletable delete child
 
 instance PostBuild t m => PostBuild t (FocusWidget app t m) where
@@ -106,7 +105,7 @@ instance ( HasFocus app
     views <- asksEnv getViews
     combineDyn (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
-instance (HasEnv app, Monad m) => MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) (FocusWidget app t m) where
+instance (Reflex t, HasEnv app, Monad m) => MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) (FocusWidget app t m) where
   tellDyn = FocusWidget . lift . tellDyn
 
 watchViewSelector :: MonadFocusWidget app t m => Dynamic t (ViewSelector app) -> m (Dynamic t (View app))
