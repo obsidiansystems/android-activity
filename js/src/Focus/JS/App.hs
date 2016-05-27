@@ -27,6 +27,10 @@ newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetIntern
 instance MonadTrans (FocusWidget app t) where
   lift = FocusWidget . lift . lift . lift
 
+instance HasJS x m => HasJS x (FocusWidget app t m) where
+  type JSM (FocusWidget app t m) = JSM m
+  liftJS = lift . liftJS
+
 deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
 
 instance PerformEvent t m => PerformEvent t (FocusWidget app t m) where

@@ -93,6 +93,12 @@ unionMapPatch (MapPatch x) (MapPatch y) = MapPatch (Map.unionWith (<>) x y)
 mapPatchInsert :: Map k a -> MapPatch k a
 mapPatchInsert m = MapPatch (fmap ElemPatch_Insert m)
 
+mapSetInsert :: k -> a -> MapPatch k (Set a)
+mapSetInsert k v = MapPatch (Map.singleton k (ElemPatch_Upsert (SetPatch (Map.singleton v True)) (Just (Set.singleton v))))
+
+mapSetDelete :: k -> a -> MapPatch k (Set a)
+mapSetDelete k v = MapPatch (Map.singleton k (ElemPatch_Upsert (SetPatch (Map.singleton v False)) (Just (Set.empty))))
+
 deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (MapPatch k a)

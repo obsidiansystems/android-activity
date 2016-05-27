@@ -74,6 +74,7 @@ library
     Focus.JS.App
     Focus.JS.Highlight
     Focus.JS.Window
+    Focus.JS.Hotkeys
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
