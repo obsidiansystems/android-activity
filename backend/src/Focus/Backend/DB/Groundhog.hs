@@ -70,7 +70,7 @@ getTransactionTime = do
 
 makePersistFieldNewtype :: Name -> Q [Dec]
 makePersistFieldNewtype t = do
-  TyConI (NewtypeD _ _ _ con _) <- reify t
+  TyConI (NewtypeD _ _ _ _ con _) <- reify t
   let c = conName con
   xName <- newName "x"
   [d| instance PersistField $(conT t) where

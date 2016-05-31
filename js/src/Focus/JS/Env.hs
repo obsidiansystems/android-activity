@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, RecursiveDo, FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, RecursiveDo, FlexibleContexts, TypeFamilies, OverloadedStrings #-}
 module Focus.JS.Env where
 
 import Control.Lens
@@ -12,15 +12,16 @@ import Focus.Request
 import Focus.Schema
 import Focus.WebSocket
 import Reflex.Dom hiding (webSocket, Value)
+import Data.Text (Text)
 
 import Focus.JS.WebSocket
 
-openAndListenWebsocket :: forall t m x token notification req rsp vs. (MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
+openAndListenWebsocket :: forall t m x token notification req rsp vs. (MonadWidget t m, HasJS x m, FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
                        => Event t [(Value, req)]
                        -> Event t (AppendMap token vs)
-                       -> m (Event t (AppendMap token notification), Event t (Value, Either String rsp))
+                       -> m (Event t (AppendMap token notification), Event t (Value, Either Text rsp))
 openAndListenWebsocket eReq eViewSelectorWithAuth = do
-  (eMessages :: Event t (Either String (WebSocketData token notification (Either String rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+  (eMessages :: Event t (Either Text (WebSocketData token notification (Either Text rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
     webSocket ("/listen")
       (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
                                                                       , fmap ((:[]) . WebSocketData_Listen) eViewSelectorWithAuth

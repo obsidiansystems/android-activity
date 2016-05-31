@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies, OverloadedStrings #-}
 module Focus.JS.Time where
 
 import Focus.JS.Request
@@ -13,12 +13,14 @@ import Data.Time
 import Data.Time.LocalTime.TimeZone.Olson
 import Data.Time.LocalTime.TimeZone.Series
 import qualified Data.ByteString.Lazy as LBS
+import Data.Text (Text)
+import Data.Monoid
 
 -- TODO: This just dies if the request fails, rather than resulting in Nothing.
-getTimeZoneSeries :: (MonadIO m, HasJS x m, HasJS x (WidgetHost m)) => String -> m (Maybe TimeZoneSeries)
+getTimeZoneSeries :: (MonadIO m, HasJS x m) => Text -> m (Maybe TimeZoneSeries)
 getTimeZoneSeries path = do
   dVar <- liftIO newEmptyMVar
-  _ <- liftJS . mkBinaryGet ("zoneinfo/" ++ path) $ putMVar dVar
+  _ <- liftJS . mkBinaryGet ("zoneinfo/" <> path) $ putMVar dVar
   d <- liftIO $ takeMVar dVar
   liftIO . return . olsonToTimeZoneSeries . runGet (getOlson noLimits) $ LBS.fromStrict d
 

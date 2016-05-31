@@ -1,11 +1,12 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes, OverloadedStrings #-}
 module Focus.JS.DesktopNotification where
 
 import Foreign.JavaScript.TH
+import Data.Text
 
 importJS Unsafe "Notification.requestPermission()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
-importJS Unsafe "Notification.permission" "notificationPermission" [t| forall x m. MonadJS x m => m String |]
-importJS Unsafe "new Notification(this[0], {body: this[1], icon: this[2]})" "newDesktopNotification" [t| forall x m. MonadJS x m => String -> String -> String -> m () |]
+importJS Unsafe "Notification.permission" "notificationPermission" [t| forall x m. MonadJS x m => m Text |]
+importJS Unsafe "new Notification(this[0], {body: this[1], icon: this[2]})" "newDesktopNotification" [t| forall x m. MonadJS x m => Text -> Text -> Text -> m () |]
 importJS Unsafe "window.Notification !== undefined" "notificationSupported" [t| forall x m. MonadJS x m => m Bool |]
 
 desktopNotificationEnabled :: MonadJS x m => m Bool
@@ -22,9 +23,9 @@ desktopNotificationEnabled = do
 
 JS(notificationRequestPermission_, "Notification.requestPermission()", IO ())
 JS(notificationPermission_, "Notification.permission", IO JSString)
-JS(newNotification_, "new Notification($1, {body: $2, icon: $3})", JSRef String -> JSRef String -> JSRef String -> IO ())
+JS(newNotification_, "new Notification($1, {body: $2, icon: $3})", JSRef Text -> JSRef Text -> JSRef Text -> IO ())
 
-newDesktopNotification :: String -> String -> String -> IO ()
+newDesktopNotification :: Text -> Text -> Text -> IO ()
 newDesktopNotification title body icon = do
   t <- toJSRef title
   b <- toJSRef body

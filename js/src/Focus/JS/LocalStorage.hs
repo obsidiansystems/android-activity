@@ -31,7 +31,7 @@ type Value = String
 storageGetInitial :: (HasWebView m, HasJS x m) => Key -> m (Maybe Value)
 storageGetInitial = liftM runIdentity . storageGetManyInitial . Identity
 
-storageGetManyInitial :: (HasWebView m, HasJS x m, Traversable f) => f Key -> m (f (Maybe Value))
+storageGetManyInitial :: (HasJS x m, Traversable f) => f Key -> m (f (Maybe Value))
 storageGetManyInitial keys = do
   liftJS $ forM keys localStorageGetItemMaybe
 
@@ -71,4 +71,3 @@ storageGetJsonInitial :: (HasWebView m, HasJS x m, FromJSON a) => Key -> m (Mayb
 storageGetJsonInitial k = do
   mv <- storageGetInitial k
   return $ join $ fmap (decodeValue' . LBS.fromStrict . T.encodeUtf8 . T.pack) mv
-

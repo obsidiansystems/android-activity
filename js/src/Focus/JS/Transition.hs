@@ -1,32 +1,33 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, TypeFamilies, FlexibleContexts, OverloadedStrings #-}
 module Focus.JS.Transition where
 
-import Data.List
-import qualified Data.Map as Map
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Monoid
 import Data.Time.Clock
+import Data.Text (Text)
+import qualified Data.Text as T
 
 import Reflex.Dom
 
-data Transition = Transition { transitionProperties :: Map String (String, String, NominalDiffTime), additionalProperties :: Map String String }
+data Transition = Transition { transitionProperties :: Map Text (Text, Text, NominalDiffTime), additionalProperties :: Map Text Text }
 
 transitionTime :: Transition -> NominalDiffTime 
 transitionTime = maximum . (0 :) . map (\(_,_,t) -> t) . Map.elems . transitionProperties   
 
-renderCSS :: Map String String -> String
-renderCSS m = concat [k ++ ":" ++ v ++ ";" | (k,v) <- Map.toList m]
+renderCSS :: Map Text Text -> Text
+renderCSS m = mconcat [k <> ":" <> v <> ";" | (k,v) <- Map.toList m]
 
-transitionProp :: Transition -> String
-transitionProp = ("transition:" ++) . (++ ";") . intercalate "," . map (\(k,(_,_,t)) -> unwords [k, show t]) . Map.toList . transitionProperties 
+transitionProp :: Transition -> Text
+transitionProp = ("transition:" <>) . (<> ";") . T.intercalate "," . map (\(k,(_,_,t)) -> T.unwords [k, T.pack $ show t]) . Map.toList . transitionProperties 
 
-transitionStyle' :: ((String,String,NominalDiffTime) -> String) -> Transition -> String
-transitionStyle' f tr = transitionProp tr ++ renderCSS (Map.map f (transitionProperties tr)) ++ renderCSS (additionalProperties tr)
+transitionStyle' :: ((Text,Text,NominalDiffTime) -> Text) -> Transition -> Text
+transitionStyle' f tr = transitionProp tr <> renderCSS (Map.map f (transitionProperties tr)) <> renderCSS (additionalProperties tr)
 
-transitionStyle0 :: Transition -> String
+transitionStyle0 :: Transition -> Text
 transitionStyle0 = transitionStyle' (\(v0,_,_) -> v0)
 
-transitionStyle1 :: Transition -> String
+transitionStyle1 :: Transition -> Text
 transitionStyle1 = transitionStyle' (\(_,v1,_) -> v1)
 
 fadeOutRight, fadeInLeft :: NominalDiffTime -> Transition

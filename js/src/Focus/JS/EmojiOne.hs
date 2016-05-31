@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, RecursiveDo #-}
+{-# LANGUAGE TemplateHaskell, LambdaCase, RecursiveDo, TypeFamilies, FlexibleContexts, OverloadedStrings #-}
 module Focus.JS.EmojiOne ( module Focus.JS.EmojiOne
                          , module Focus.EmojiOne
                          ) where
@@ -11,11 +11,12 @@ import Data.Monoid
 import qualified Data.Set as Set
 import Reflex
 import Reflex.Dom
+import Data.Text (Text)
 
 import Focus.AppendMap
 import Focus.EmojiOne
 
-emojiAttrs :: EmojiData -> Map String String -> Map String String
+emojiAttrs :: EmojiData -> Map Text Text -> Map Text Text
 emojiAttrs ed attrs = attrs
   & (at "class" %~ \x -> Just (maybe "" id x <> " emojione emojione-" <> _emojiData_unicode ed))
   & (at "title" %~ \case
@@ -26,29 +27,29 @@ emojiAttrs ed attrs = attrs
 emojiEl :: MonadWidget t m => EmojiData -> m (El t)
 emojiEl ed = fst <$> elAttr' "span" (emojiAttrs ed Map.empty) blank
 
-emojiElAttr :: MonadWidget t m => EmojiData -> Map String String -> m (El t)
+emojiElAttr :: MonadWidget t m => EmojiData -> Map Text Text -> m (El t)
 emojiElAttr ed attrs' = fst <$> elAttr' "span" (emojiAttrs ed attrs') blank
 
-emojiElDynAttr :: MonadWidget t m => EmojiData -> Dynamic t (Map String String) -> m (El t)
+emojiElDynAttr :: MonadWidget t m => EmojiData -> Dynamic t (Map Text Text) -> m (El t)
 emojiElDynAttr ed attrs' = do
   attrs <- mapDyn (emojiAttrs ed) attrs'
   fst <$> elDynAttr' "span" attrs blank
 
-emojiDynElAttrDyn :: MonadWidget t m => Dynamic t EmojiData -> Dynamic t (Map String String) -> m (El t)
+emojiDynElAttrDyn :: MonadWidget t m => Dynamic t EmojiData -> Dynamic t (Map Text Text) -> m (El t)
 emojiDynElAttrDyn edyn attrs' = do
   ad <- mapDyn (flip emojiAttrs Map.empty) edyn
   attrs <- combineDyn (<>) ad attrs'
   fst <$> elDynAttr' "span" attrs blank
 
-emojisByCategory :: Map String (Map Int String)
+emojisByCategory :: Map Text (Map Int Text)
 emojisByCategory = emojiData
         & ifoldMap (\sn ed -> AppendMap $ Map.singleton (ed ^. emojiData_category) (Map.singleton (ed ^. emojiData_emojiOrder) sn))
         & view _Wrapped
 
-emojiCategories :: [String]
+emojiCategories :: [Text]
 emojiCategories = Map.keys emojisByCategory
 
-supportedCategories :: [String]
+supportedCategories :: [Text]
 supportedCategories =
   [ "people"
   , "nature"
@@ -60,7 +61,7 @@ supportedCategories =
   , "symbols"
   ]
 
-emojiPicker :: MonadWidget t m => m (Event t String)
+emojiPicker :: MonadWidget t m => m (Event t Text)
 emojiPicker = do
   let emojisBySupportedCategory = Map.intersection emojisByCategory (Map.fromSet (\_ -> ()) $ Set.fromList supportedCategories)
   rec selE <- divClass "emoji-picker-categories" $ el "span" $ fmap leftmost $ forM supportedCategories $ \c -> do

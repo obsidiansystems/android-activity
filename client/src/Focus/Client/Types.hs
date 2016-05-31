@@ -9,6 +9,7 @@ import Control.Monad.RWS.Strict
 import Data.Aeson
 import Data.Int
 import Data.Map (Map)
+import Data.Text (Text)
 import Network.WebSockets
 
 import Focus.Account
@@ -26,16 +27,16 @@ newtype RequestM app a = RequestM { _runRequestM :: RWST (RequestEnv app) () (Re
   deriving (Functor, Applicative, Monad, MonadReader (RequestEnv app), MonadState (RequestState app), MonadIO, MonadMask, MonadCatch, MonadThrow)
 
 data ClientConfig = ClientConfig
-       { _clientConfig_host :: String
+       { _clientConfig_host :: Text
        , _clientConfig_port :: Int
-       , _clientConfig_path :: String
+       , _clientConfig_path :: Text
        , _clientConfig_timeout :: Maybe Int
        }
 
 data ClientEnv app = ClientEnv
        { _clientEnv_connection :: Connection
        , _clientEnv_nextRequestId :: TVar RequestId
-       , _clientEnv_pendingRequests :: TVar (Map RequestId (TBQueue (Either String Value)))
+       , _clientEnv_pendingRequests :: TVar (Map RequestId (TBQueue (Either Text Value)))
        , _clientEnv_viewMap :: TVar (Map (Signed AuthToken) (View app))
        , _clientEnv_notifyViewChange :: TChan ()
        , _clientEnv_nextInterestId :: TVar InterestId
@@ -45,7 +46,7 @@ data ClientEnv app = ClientEnv
 data RequestEnv app = RequestEnv
        { _requestEnv_sendRequest :: forall rsp. (ToJSON rsp, FromJSON rsp)
                                  => AppRequest app rsp
-                                 -> IO (Async (Either String Value))
+                                 -> IO (Async (Either Text Value))
        , _requestEnv_registerInterest :: Signed AuthToken
                                       -> ViewSelector app
                                       -> IO (InterestId, STM ()) -- returns unregister action
@@ -63,8 +64,8 @@ data RequestState app = RequestState
        }
 
 data RequestResult rsp = RequestResult_Success rsp
-                       | RequestResult_Failure String
-                       | RequestResult_DecodeError Value String
+                       | RequestResult_Failure Text
+                       | RequestResult_DecodeError Value Text
                        | RequestResult_Timeout Int
                        | RequestResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
@@ -83,12 +84,19 @@ instance Applicative RequestResult where
   (<*>) = ap
 
 data ListenResult a = ListenResult_Success a
-                    | ListenResult_Failure String
+                    | ListenResult_Failure Text
                     | ListenResult_Timeout Int
                     | ListenResult_RequiresAuthorization
   deriving (Show, Read, Eq, Functor, Foldable, Traversable)
 
-type MonadRequest app m = (MonadIO m, HasView app, HasRequest app, MonadReader (RequestEnv app) m, MonadState (RequestState app) m, MonadMask m)
+type MonadRequest app m =
+  ( MonadIO m
+  , HasView app
+  , HasRequest app
+  , MonadReader (RequestEnv app) m
+  , MonadState (RequestState app) m
+  , MonadMask m
+  )
 
 makeWrapped ''RequestId
 makeWrapped ''InterestId

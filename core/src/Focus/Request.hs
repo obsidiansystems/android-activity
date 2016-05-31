@@ -1,4 +1,7 @@
-{-# LANGUAGE GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving, DataKinds, TypeOperators, TypeFamilies, AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP, GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving, DataKinds, TypeOperators, TypeFamilies, AllowAmbiguousTypes, LambdaCase #-}
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 800
+{-# LANGUAGE UndecidableSuperClasses #-}
+#endif
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Request where
 
@@ -16,7 +19,6 @@ import qualified Data.ByteString.Base64 as B64
 import Data.Constraint
 import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
-import Data.HList
 import Data.List (isPrefixOf)
 import Data.Monoid hiding (First)
 import Data.Semigroup hiding ((<>))
@@ -26,6 +28,7 @@ import qualified Data.Vector as V
 import Language.Haskell.TH
 import Network.URI
 import Reflex hiding (HList (..))
+import Data.Proxy
 
 import Debug.Trace.LocationTH
 
@@ -41,21 +44,6 @@ instance Request r => FromJSON (SomeRequest r) where
 
 instance Request r => ToJSON (SomeRequest r) where
   toJSON (SomeRequest r) = requestToJSON r
-
-instance ToJSON Ordering where
-  toJSON o = String $ case o of
-    LT -> "LT"
-    EQ -> "EQ"
-    GT -> "GT"
-
-instance FromJSON Ordering where
-  parseJSON v = case v of
-    String s -> case s of
-      "LT" -> return LT
-      "EQ" -> return EQ
-      "GT" -> return GT
-      _ -> fail "Parsing Ordering value failed: expected \"LT\", \"EQ\", or \"GT\""
-    _ -> typeMismatch "Ordering" v
 
 decodeWith :: LA.Parser Value -> (Value -> Result a) -> LBS.ByteString -> Maybe a
 decodeWith p to s =
@@ -73,6 +61,22 @@ vectorView v =
   if V.length v > 0
   then Just (V.head v, V.tail v)
   else Nothing
+
+data family HList (l::[*])
+
+data instance HList '[] = HNil
+data instance HList (x ': xs) = x `HCons` HList xs
+
+infixr 2 `HCons`
+
+deriving instance Eq (HList '[])
+deriving instance (Eq x, Eq (HList xs)) => Eq (HList (x ': xs))
+
+deriving instance Ord (HList '[])
+deriving instance (Ord x, Ord (HList xs)) => Ord (HList (x ': xs))
+
+deriving instance Bounded (HList '[])
+deriving instance (Bounded x, Bounded (HList xs)) => Bounded (HList (x ': xs))
 
 instance (FromJSON h, FromJSON (HList t)) => FromJSON (HList (h ': t)) where
   parseJSON = withArray "HList (a ': t)" $ \v -> do
@@ -98,6 +102,28 @@ instance HListToJSON '[] where
 instance HListToJSON l => ToJSON (HList l) where
   toJSON = Array . V.fromList . hListToJSON
 
+decCons :: Dec -> [Con]
+decCons = \case
+#if MIN_VERSION_template_haskell(2,11,0)
+  DataD _ _ _ _ cs _ -> cs
+  NewtypeD _ _ _ _ c _ -> [c]
+#else
+  DataD _ _ _ cs _ -> cs
+  NewtypeD _ _ _ c _ -> [c]
+#endif
+  _ -> $undef
+
+decTvbs :: Dec -> [TyVarBndr]
+decTvbs = \case
+#if MIN_VERSION_template_haskell(2,11,0)
+  DataD _ _ tvbs _ _ _ -> tvbs
+  NewtypeD _ _ tvbs _ _ _ -> tvbs
+#else
+  DataD _ _ tvbs _ _ -> tvbs
+  NewtypeD _ _ tvbs _ _ -> tvbs
+#endif
+  _ -> $undef
+
 makeRequest :: Name -> DecsQ
 makeRequest n = do
   x <- reify n
@@ -105,8 +131,7 @@ makeRequest n = do
       toBeStripped = base <> "_"
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
-       (TyConI (DataD _ _ _ cs _)) -> cs
-       (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       TyConI d -> decCons d
        _ -> $undef
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
@@ -125,7 +150,11 @@ makeRequestForDataInstance n n' = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
                   (FamilyI _ dataInstances) -> do
+#if MIN_VERSION_template_haskell(2,11,0)
+                    (DataInstD _ _ (ConT m:_) _ xs _) <- dataInstances
+#else
                     (DataInstD _ _ (ConT m:_) xs _) <- dataInstances
+#endif
                     guard $ m == n'
                     xs
                   _ -> $undef
@@ -151,12 +180,10 @@ makeJson n = do
       toBeStripped = base <> "_"
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
-       (TyConI (DataD _ _ _ cs _)) -> cs
-       (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       TyConI d -> decCons d
        _ -> $undef
       typeNames = map tvbName $ case x of
-       (TyConI (DataD _ _ tvbs _ _)) -> tvbs
-       (TyConI (NewtypeD _ _ tvbs _ _)) -> tvbs
+       TyConI d -> decTvbs d
        _ -> $undef
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
@@ -176,7 +203,11 @@ makeJsonForDataInstance n n' = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
        (FamilyI _ dataInstances) -> do
+#if MIN_VERSION_template_haskell(2,11,0)
+         (DataInstD _ _ [ConT m] _ xs _) <- dataInstances
+#else
          (DataInstD _ _ [ConT m] xs _) <- dataInstances
+#endif
          guard $ m == n'
          xs
        _ -> $undef
@@ -220,6 +251,11 @@ conName c = case c of
   RecC n _ -> n
   InfixC _ n _ -> n
   ForallC _ _ c' -> conName c'
+#if MIN_VERSION_template_haskell(2,11,0)
+  GadtC [n] _ _ -> n
+  RecGadtC [n] _ _ -> n
+  _ -> error "conName: GADT constructors with multiple names not yet supported"
+#endif
 
 conArity :: Con -> Int
 conArity c = case c of
@@ -227,6 +263,10 @@ conArity c = case c of
   RecC _ ts -> length ts
   InfixC _ _ _ -> 2
   ForallC _ _ c' -> conArity c'
+#if MIN_VERSION_template_haskell(2,11,0)
+  GadtC _ ts _ -> length ts
+  RecGadtC _ ts _ -> length ts
+#endif
 
 instance ToJSON ByteString where
     toJSON = toJSON . decodeUtf8 . B64.encode
@@ -297,8 +337,7 @@ makeJson' :: Name -> DecsQ
 makeJson' n = do
   x <- reify n
   let cons = case x of
-       (TyConI (DataD _ _ _ cs _)) -> cs
-       (TyConI (NewtypeD _ _ _ c _)) -> [c]
+       TyConI d -> decCons d
        _ -> $undef
       base = nameBase n
       toBeStripped = base <> "_"
@@ -381,6 +420,10 @@ map'Singleton k v = Map' $ DMap.singleton k v
 
 map'Lookup :: GCompare k => k a -> Map' k v -> Maybe (v a)
 map'Lookup k (Map' dm) = DMap.lookup k dm
+
+type family HAppendListR (l1 :: [k]) (l2 :: [k]) :: [k]
+type instance HAppendListR '[] l = l
+type instance HAppendListR (e ': l) l' = e ': HAppendListR l l'
 
 fhAppend :: FHList f l1 -> FHList f l2 -> FHList f (HAppendListR l1 l2)
 fhAppend l1 l2 = case l1 of

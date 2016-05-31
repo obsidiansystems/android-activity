@@ -6,7 +6,6 @@ import Focus.Account
 import Focus.App
 import Focus.Request
 import Focus.Sign
-import Data.HList
 
 import Debug.Trace.LocationTH
 

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+FOCUS_ENVIRONMENT="$1"
+shift
+
+FOCUS_PACKAGE="$1"
+shift
+
+nix-shell -E 'let this = import ./.; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.'"$FOCUS_ENVIRONMENT"'.haskellPackages.'"$FOCUS_PACKAGE"' [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.cabal-install ]).env' "$@"

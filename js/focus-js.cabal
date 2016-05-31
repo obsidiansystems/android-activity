@@ -49,11 +49,11 @@ library
     http-types,
     exception-transformers,
     filepath,
+    monad-control,
     mmorph
 
   exposed-modules:
     Focus.JS.AltInput
-    Focus.JS.BaseJSInstances
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
@@ -74,6 +74,7 @@ library
     Focus.JS.App
     Focus.JS.Highlight
     Focus.JS.Window
+    Focus.JS.Hotkeys
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

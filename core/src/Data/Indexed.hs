@@ -15,6 +15,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Focus.Patch
+import Focus.AppendMap
 
 -- | This type adds a secondary index to a data structure. The first type parameter p is a phantom used to indicate the instance of 'Projection' to use
 -- in order to obtain keys for the additional index. The second type parameter f is intended to be some FoldableWithIndex data structure, such as some Map k or another
@@ -65,7 +66,7 @@ class HasIndex p f where
        -> f v
        -> Set (Index (f v))
   find p k f = keysByIndex p (Set.singleton k) f
-  findValues :: (Ord (Projected p (IxValue (f b))), Ord (Index (f b)), FoldableWithIndex (Index (f b)) f, At (f b), HasIndex p f)
+  findValues :: (Ord (Projected p (IxValue (f b))), Ord (Index (f b)), FoldableWithIndex (Index (f b)) f, At (f b))
              => proxy p
              -> Projected p (IxValue (f b))
              -> f b
@@ -89,7 +90,6 @@ findValuesGEq p i f =
   in intersectionByKey (withExactMatch (fold greater)) f
 
 valuesByIndex :: ( Ord (Index (f' b))
-                 , Ord (Index (f b))
                  , Ord (Projected p (IxValue (f b)))
                  , At (f' b)
                  , FoldableWithIndex (Index (f' b)) f'
@@ -188,3 +188,4 @@ lensIntoWithIndexChanges op toList a f (WithIndex index' m) = (\(m', (olds, news
   where
     foldIndex f' idx xs = foldl (\i x -> f' (project (Proxy :: Proxy p) x) a i) idx xs
 
+instance HasValues (AppendMap k) (AppendMap k)

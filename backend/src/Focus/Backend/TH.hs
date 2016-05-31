@@ -9,7 +9,7 @@ import Data.Monoid
 
 deriveNewtypePersistBackend :: (TypeQ -> TypeQ) -> (TypeQ -> TypeQ) -> Name -> Name -> DecsQ
 deriveNewtypePersistBackend toT fromT to from =
-  liftM (:[]) $ liftM3 InstanceD (cxt [appT (conT ''PersistBackend) (fromT m), appT (conT ''Monad) m]) (appT (conT ''PersistBackend) (toT m)) $ liftM2 (<>) typeInstance functions
+  liftM (:[]) $ liftM3 (InstanceD Nothing) (cxt [appT (conT ''PersistBackend) (fromT m), appT (conT ''Monad) m]) (appT (conT ''PersistBackend) (toT m)) $ liftM2 (<>) typeInstance functions
   where
     m = varT $ mkName "m"
     typeInstance = liftM (:[]) $ tySynInstD ''PhantomDb $ tySynEqn [toT m] $ appT (conT ''PhantomDb) (fromT m)

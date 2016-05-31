@@ -25,7 +25,6 @@ library
                , dependent-map
                , dependent-sum
                , haskell-src-exts
-               , HList
                , lens
                , loch-th
                , mtl
@@ -33,7 +32,6 @@ library
                , old-locale
                , reflex
                , semigroups
-               , stripe
                , template-haskell
                , text
                , time
@@ -51,7 +49,6 @@ library
     , Focus.Request
     , Focus.Route
     , Focus.Schema
-    , Focus.Subscription
     , Focus.Time
     , Focus.Sign
     , Focus.Concurrent

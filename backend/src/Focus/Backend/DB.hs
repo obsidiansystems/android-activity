@@ -14,7 +14,6 @@ import Database.Groundhog.Generic.Sql
 
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.String (IsString)
 import Control.Monad
 import Data.Time
 import Control.Arrow
@@ -31,10 +30,10 @@ import Data.ByteString (ByteString)
 selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
              (ProjectionDb t (PhantomDb m),
               ProjectionRestriction t (RestrictionHolder v c), DefaultKeyId v,
-              Projection t v, PersistField (DefaultKey v),
+              Projection t v,
               EntityConstr v c,
               HasSelectOptions a (PhantomDb m) (RestrictionHolder v c),
-              PersistBackend m, PersistEntity v, Ord (IdData v),
+              PersistBackend m, Ord (IdData v),
               AutoKey v ~ DefaultKey v) =>
              t -> a -> m (Map (Id v) v)
 --selectMap :: (PersistBackend m, PersistEntity v, EntityConstr v c, Constructor c, Projection (c (ConstructorMarker v)) (PhantomDb m) (RestrictionHolder v c) v, HasSelectOptions opts (PhantomDb m) (RestrictionHolder v c), AutoKey v ~ DefaultKey v, DefaultKeyId v, Ord (IdData v)) => c (ConstructorMarker v) -> opts -> m (Map (Id v) v)
@@ -69,6 +68,6 @@ runDb :: ( MonadIO m
       -> m b
 runDb a dbConns = withResource dbConns $ runDbConn a
 
-ilike :: (SqlDb db, ExpressionOf db r a a', IsString a') => a -> String -> Cond db r
+ilike :: (SqlDb db, ExpressionOf db r a a') => a -> String -> Cond db r
 ilike a b = CondRaw $ operator 40 " ILIKE " a b
 

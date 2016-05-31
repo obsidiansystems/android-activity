@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds, PartialTypeSignatures, AllowAmbiguousTypes #-}
+{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds, PartialTypeSignatures, AllowAmbiguousTypes, OverloadedStrings #-}
 
 module Focus.JS.WebSocket where
 
@@ -22,6 +22,8 @@ import qualified Data.Aeson as Aeson
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Constraint
+import Data.Text (Text)
+import qualified Data.Text as T
 
 import Debug.Trace.LocationTH
 
@@ -34,7 +36,7 @@ instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m) => String -> WebSocketConfig t -> m (WebSocket t)
+webSocket :: forall x t m. (HasJS x m, MonadWidget t m) => Text -> WebSocketConfig t -> m (WebSocket t)
 webSocket path config = do
   pageHost <- liftIO . getLocationHost =<< askWebView
   pageProtocol <- liftIO . getLocationProtocol =<< askWebView
@@ -42,7 +44,7 @@ webSocket path config = do
         "http:" -> "ws:"
         "https:" -> "wss:"
         "file:" -> "ws:"
-        s -> $failure ("unrecognized wsProtocol: " <> s)
+        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
       wsHost = case pageProtocol of
         "file:" -> "localhost:8000"
         _ -> pageHost
@@ -65,7 +67,7 @@ apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req ::
              , ToJSON' req
              , AllArgsHave (ComposeConstraint FromJSON rsp) req
              )
-          => String
+          => Text
           -> Event t [f req]
           -> m (Event t (f rsp), Dynamic t (Map (Int, Int) (f (With' Int req), Int, Map Int Aeson.Value)))
 apiSocket path batches = do

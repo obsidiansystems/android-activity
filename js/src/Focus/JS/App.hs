@@ -1,11 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables #-}
 module Focus.JS.App where
 
-import Control.Lens hiding (ix, views)
+import Control.Lens hiding (ix, views, element)
 import Control.Monad.Exception
 import Control.Monad.Reader
 import Control.Monad.Ref
-import Data.Aeson
 import Data.Map (Map)
 import Data.Semigroup
 import Focus.Account
@@ -19,14 +18,13 @@ import Reflex.Dom
 import Reflex.Host.Class
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Focus.JS.BaseJSInstances ()
 
 type FocusWidgetInternal app t m = RequestT t (AppRequest app) (DynamicWriterT t (AppendMap (Signed AuthToken) (ViewSelector app)) (ReaderT (Env app t) m))
 
 newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException, MonadAsyncException)
 
-instance MonadTrans (FocusWidget  app t) where
+instance MonadTrans (FocusWidget app t) where
   lift = FocusWidget . lift . lift . lift
 
 instance HasJS x m => HasJS x (FocusWidget app t m) where
@@ -35,20 +33,29 @@ instance HasJS x m => HasJS x (FocusWidget app t m) where
 
 deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
 
-instance (HasEnv app, MonadWidget t m, Semigroup (ViewSelector app)) => MonadWidget t (FocusWidget app t m) where
-  type WidgetHost (FocusWidget app t m) = WidgetHost (FocusWidgetInternal app t m)
-  type GuiAction (FocusWidget app t m) = GuiAction (FocusWidgetInternal app t m)
-  type WidgetOutput t (FocusWidget app t m) = WidgetOutput t (FocusWidgetInternal app t m)
-  askParent = FocusWidget askParent
-  subWidget n w = FocusWidget $ subWidget n $ unFocusWidget w
-  subWidgetWithVoidActions n w = FocusWidget $ subWidgetWithVoidActions n $ unFocusWidget w
-  liftWidgetHost = FocusWidget . liftWidgetHost
-  schedulePostBuild = FocusWidget . schedulePostBuild
-  addVoidAction = FocusWidget . addVoidAction
-  getRunWidget = FocusWidget $ do
-    runWidget' <- getRunWidget
-    return $ \rootElement w -> runWidget' rootElement $ unFocusWidget w
-  tellWidgetOutput = FocusWidget . tellWidgetOutput
+instance PerformEvent t m => PerformEvent t (FocusWidget app t m) where
+  type Performable (FocusWidget app t m) = Performable m
+  performEvent_ = lift . performEvent_
+  performEvent = lift . performEvent
+
+instance TriggerEvent t m => TriggerEvent t (FocusWidget app t m) where
+  newTriggerEvent = lift newTriggerEvent
+  newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
+  newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
+
+instance (DomBuilder t m, Semigroup (ViewSelector app), MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, MonadAtomicRef m) => DomBuilder t (FocusWidget app t m) where
+  type DomBuilderSpace (FocusWidget app t m) = DomBuilderSpace m
+  textNode = liftTextNode
+  element elementTag cfg (FocusWidget child) = FocusWidget $ element elementTag (fmap1 unFocusWidget cfg) child
+  placeholder cfg = FocusWidget $ placeholder $ fmap1 unFocusWidget cfg
+  inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
+  textAreaElement cfg = FocusWidget $ textAreaElement $ fmap1 unFocusWidget cfg
+
+instance (Deletable t m, Semigroup (ViewSelector app), MonadHold t m, MonadFix m) => Deletable t (FocusWidget app t m) where
+  deletable delete (FocusWidget child) = FocusWidget $ deletable delete child
+
+instance PostBuild t m => PostBuild t (FocusWidget app t m) where
+  getPostBuild = lift getPostBuild
 
 instance MonadRef m => MonadRef (FocusWidget app t m) where
   type Ref (FocusWidget app t m) = Ref m
@@ -58,6 +65,8 @@ instance MonadRef m => MonadRef (FocusWidget app t m) where
 
 instance MonadHold t m => MonadHold t (FocusWidget app t m) where
   hold a = FocusWidget . hold a
+  holdDyn a = FocusWidget . holdDyn a
+  holdIncremental a = FocusWidget . holdIncremental a
 
 instance MonadSample t m => MonadSample t (FocusWidget app t m) where
   sample = FocusWidget . sample
@@ -65,14 +74,6 @@ instance MonadSample t m => MonadSample t (FocusWidget app t m) where
 instance HasWebView m => HasWebView (FocusWidget app t m) where
   type WebViewPhantom (FocusWidget app t m) = WebViewPhantom m
   askWebView = FocusWidget askWebView
-
-instance HasPostGui t h m => HasPostGui t h (FocusWidget app t m) where
-  askPostGui = FocusWidget askPostGui
-  askRunWithActions = FocusWidget askRunWithActions
-  scheduleFollowup r a = FocusWidget $ lift $ scheduleFollowup r a
-
-instance HasDocument m => HasDocument (FocusWidget app t m) where
-  askDocument = FocusWidget askDocument
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget app t m) where
   newEventWithTrigger = FocusWidget . newEventWithTrigger
@@ -82,7 +83,7 @@ class ( MonadWidget t m
       , MonadFix (WidgetHost m)
       , MonadRequest t (AppRequest app) m
       , HasFocus app
-      ) => MonadFocusWidget app t m | m -> app where
+      ) => MonadFocusWidget app t m | m -> app t where
   askEnv :: m (Env app t)
   tellInterest :: Dynamic t (ViewSelector app) -> m ()
   getView :: m (Dynamic t (View app))
@@ -97,6 +98,7 @@ class (HasEnv app, HasRequest app, HasView app) => HasFocus app
 instance ( HasFocus app
          , MonadFix (WidgetHost m)
          , MonadWidget t m
+         , MonadAtomicRef m
          ) => MonadFocusWidget app t (FocusWidget app t m) where
   askEnv = FocusWidget $ lift ask
   tellInterest is = do
@@ -107,7 +109,7 @@ instance ( HasFocus app
     views <- asksEnv getViews
     combineDyn (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
-instance (HasEnv app, Monad m) => MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) (FocusWidget app t m) where
+instance (Reflex t, HasEnv app, Monad m) => MonadDynamicWriter t (AppendMap (Signed AuthToken) (ViewSelector app)) (FocusWidget app t m) where
   tellDyn = FocusWidget . lift . tellDyn
 
 watchViewSelector :: MonadFocusWidget app t m => Dynamic t (ViewSelector app) -> m (Dynamic t (View app))
@@ -134,9 +136,6 @@ runFocusWidget :: forall t m a x app. ( MonadWidget t m
                                       , HasJS x m
                                       , HasJS x (WidgetHost m)
                                       , HasFocus app
-                                      , ToJSON (ViewSelector app)
-                                      , ToJSON (ViewPatch app)
-                                      , FromJSON (ViewPatch app)
                                       , Eq (ViewSelector app)
                                       )
                => Dynamic t (Maybe (Signed AuthToken))
@@ -160,6 +159,6 @@ runFocusWidget tokenDyn mkEnv child = do
     applyAndCrop :: Ord k => AppendMap k (ViewPatch app) -> AppendMap k (ViewSelector app) -> Map k (View app) -> Map k (View app)
     applyAndCrop p vs v = cropView' vs $ applyPatch' p v
     fromNotifications vs (ePatch :: Event t (AppendMap (Signed AuthToken) (ViewPatch app))) = do
-      views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attachDyn vs ePatch
+      views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attach (current vs) ePatch
       return $ mkEnv tokenDyn views
 

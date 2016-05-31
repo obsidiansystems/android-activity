@@ -47,7 +47,7 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m, MonadSign m) => Email -> m (Maybe (Id Account)) 
+ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account)) 
 ensureAccountExists email = do
   nonce <- getTime
   result <- insertByAll $ Account email Nothing (Just nonce)
@@ -60,7 +60,7 @@ ensureAccountExists email = do
 
 -- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
-  :: (PersistBackend m, MonadSign m, MonadBrand m, MonadRoute r m, Default r, MonadEmail m)
+  :: (PersistBackend m, MonadSign m)
   => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Maybe (Id Account))
@@ -105,7 +105,7 @@ login toLoginInfo email password = runMaybeT $ do
   lift $ toLoginInfo (toId aid)
 
 generateAndSendPasswordResetEmail
-  :: (PersistBackend m, MonadEmail m, MonadRoute r m, MonadSign m, MonadBrand m)
+  :: (PersistBackend m, MonadSign m)
   => (Signed PasswordResetToken -> Email -> m ())
   -> Id Account 
   -> m (Maybe UTCTime)
