@@ -16,6 +16,9 @@ import qualified Data.Map as Map
 
 import Focus.Patch
 
+-- | This type adds a secondary index to a data structure. The first type parameter p is a phantom used to indicate the instance of 'Projection' to use
+-- in order to obtain keys for the additional index. The second type parameter f is intended to be some FoldableWithIndex data structure, such as some Map k or another
+-- application of WithIndex. The third type parameter v is the type of values in the underlying Map structure which we're going to be projecting the new indices from.
 data WithIndex p f v = WithIndex { _withIndex_index :: Map (Projected p (IxValue (f v))) (Set (Index (f v)))
                                  , _withIndex_data :: f v
                                  }
