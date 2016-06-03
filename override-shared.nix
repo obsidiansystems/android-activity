@@ -135,6 +135,13 @@ self: super: {
     JuicyPixels = overrideCabal super.JuicyPixels (drv: {
       jailbreak = true;
     });
+    rex = overrideCabal super.rex (drv: {
+      src = nixpkgs.fetchgit {
+        url = git://github.com/ali-abrar/rex;
+        rev = "b575bcafa4853752b6490e95502f426431a7b213";
+        sha256 = "02n6gyr5dldq900qlv580qrvxrybqfmxqyrl3z1kjkfwq9mr3x9q";
+      };
+    });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
       version = "1.3.1.10";
       src = nixpkgs.fetchgit {
