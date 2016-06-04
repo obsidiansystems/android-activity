@@ -165,4 +165,5 @@ self: super: {
     map-syntax = doJailbreak super.map-syntax;
     websockets = doJailbreak super.websockets;
     zlib-enum = doJailbreak super.zlib-enum;
+    reflex-jsx = self.callPackage ./reflex-jsx.nix {};
   }
