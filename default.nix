@@ -167,8 +167,9 @@ in rec {
           ln -s "$backend/bin/backend" "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
-          ln -s "$androidApp" "$out/android"
+          #ln -s "$androidApp" "$out/android"
         '';
+        /*
         androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
         androidApp = nixpkgs.androidenv.buildApp {
           name = appName;
@@ -192,6 +193,7 @@ in rec {
           package = androidPackagePrefix + "." + appName;
           activity = ".MainActivity";
         };
+        */
         backend =
           let
             backendCommon = common backendHaskellPackages;
