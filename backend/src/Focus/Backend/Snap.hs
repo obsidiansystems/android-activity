@@ -51,6 +51,7 @@ serveAppAt loc app cfg = do
   route [ (loc, ifTop $ serveIndex cfg)
         , (loc, serveAssets (app </> "assets") (app </> "static"))
         , (loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))
+        , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
         , (loc, doNotCache >> error404)
         ]
 

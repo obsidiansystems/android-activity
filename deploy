@@ -20,6 +20,7 @@ if [ ! -d "$BACKEND_HOME" ] ; then
 fi
 EOF
 rsync -arvz "$CONFIG/config" root@"$HOSTNAME:$BACKEND_HOME"
+git -C "$CONFIG/src" describe --long --always | ssh root@"$HOSTNAME" "tee $BACKEND_HOME/version"
 ssh root@"$HOSTNAME" bash -x <<EOF
 nix-env -p /nix/var/nix/profiles/system --set "$RESULT"
 /nix/var/nix/profiles/system/bin/switch-to-configuration switch
