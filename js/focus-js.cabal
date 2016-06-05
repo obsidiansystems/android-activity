@@ -16,7 +16,6 @@ library
   build-depends:
     base,
     focus-core,
-    focus-emojione,
     focus-http-th,
     aeson,
     attoparsec,
@@ -57,7 +56,6 @@ library
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
-    Focus.JS.EmojiOne
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen

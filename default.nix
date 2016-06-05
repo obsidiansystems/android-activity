@@ -75,50 +75,46 @@ in rec {
         executable ${executableName}
           main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
       '';
-      #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-      mkPreConfigure = haskellPackages: pname: executableName: depends: ''
-        if ! ls | grep ".*\\.cabal$" ; then
-          cat >"${pname}.cabal" <<EOF
+      mkCabalFile = haskellPackages: pname: executableName: depends: ''
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
         ${if executableName != null then executableHeader executableName else libraryHeader}
-          hs-source-dirs: src
-          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+          hs-source-dirs: .
+          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
           other-extensions: TemplateHaskell
           ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
           if impl(ghcjs)
             cpp-options: -DGHCJS_GC_INTERVAL=60000
+      '';
+
+      #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
+      mkPreConfigure = haskellPackages: pname: executableName: depends: ''
+        if ! ls | grep ".*\\.cabal$" ; then
+          cat >"${pname}.cabal" <<EOF
+        ${mkCabalFile haskellPackages pname executableName depends}
         EOF
         fi
       '';
 
-      common = haskellPackages: if !(builtins.pathExists ../common) then null else haskellPackages.mkDerivation (rec {
-        pname = "${appName}-common";
-        version = appVersion;
-        src = ../common;
-        license = null;
-        preConfigure = mkPreConfigure haskellPackages pname null buildDepends;
-        buildDepends = with haskellPackages; [
-          focus-core
-        ] ++ commonDepends haskellPackages;
-        buildTools = [] ++ commonTools pkgs;
-        doHaddock = false;
-      });
-      mkFrontend = src: haskellPackages: static:
-        let frontendCommon = common haskellPackages;
-        in haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+      mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
+        haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
             pname = "${appName}-frontend";
             version = appVersion;
             license = null;
-            inherit src;
+            src = nixpkgs.runCommand "frontend-src" {
+              buildCommand = ''
+                mkdir "$out"
+                ln -s "${commonSrc}"/src/* "$out"/
+                ln -s "${frontendSrc}"/src/* "$out"/
+              '';
+            } "";
             preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
             preBuild = ''
               ln -sfT ${static} static
             '';
             buildDepends = [
-              frontendCommon
               focus-core
               focus-js
               ghcjs-dom
@@ -126,13 +122,12 @@ in rec {
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = true;
             passthru = {
-              common = frontendCommon;
               inherit haskellPackages;
             };
           })) {};
-      mkGhcjsApp = src: static: pkgs.stdenv.mkDerivation (rec {
+      ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend src frontendHaskellPackages static;
+        unminified = mkFrontend ../frontend ../common frontendHaskellPackages ../static;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -147,14 +142,13 @@ in rec {
         };
       });
       result =  pkgs.stdenv.mkDerivation (rec {
-        commonBackend = common backendHaskellPackages;
         name = "${appName}-${appVersion}";
         assets = mkAssets (fixupStatic ../static);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${mkGhcjsApp ../frontend ../static}/frontend.jsexe";
+        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
         ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
-        frontend = mkGhcjsApp ../frontend ../static;
+        frontend = ghcjsApp;
         frontend_ = frontend;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
@@ -167,47 +161,48 @@ in rec {
           ln -s "$backend/bin/backend" "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
-          #ln -s "$androidApp" "$out/android"
+          # ln -s "$androidApp" "$out/android"
         '';
-        /*
-        androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
-        androidApp = nixpkgs.androidenv.buildApp {
-          name = appName;
-          src = androidSrc;
-          platformVersions = [ "23" ];
-          useGoogleAPIs = false;
-
-          release = true;
-          keyStore = ./keystore;
-          keyAlias = "focus";
-          keyStorePassword = "password";
-          keyAliasPassword = "password";
-        };
-        androidEmulate = nixpkgs.androidenv.emulateApp {
-          name = appName;
-          app = androidApp;
-          platformVersion = "23";
-          enableGPU = true;
-          abiVersion = "x86_64";
-          useGoogleAPIs = false;
-          package = androidPackagePrefix + "." + appName;
-          activity = ".MainActivity";
-        };
-        */
+        # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
+        # androidApp = nixpkgs.androidenv.buildApp {
+        #   name = appName;
+        #   src = androidSrc;
+        #   platformVersions = [ "23" ];
+        #   useGoogleAPIs = false;
+        #   release = true;
+        #   keyStore = ./keystore;
+        #   keyAlias = "focus";
+        #   keyStorePassword = "password";
+        #   keyAliasPassword = "password";
+        # };
+        # androidEmulate = nixpkgs.androidenv.emulateApp {
+        #   name = appName;
+        #   app = androidApp;
+        #   platformVersion = "23";
+        #   enableGPU = true;
+        #   abiVersion = "x86_64";
+        #   useGoogleAPIs = false;
+        #   package = androidPackagePrefix + "." + appName;
+        #   activity = ".MainActivity";
+        # };
         backend =
-          let
-            backendCommon = common backendHaskellPackages;
-          in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
+          backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
             pname = "${appName}-backend";
             license = null;
             version = appVersion;
-            src = ../backend;
+            src = nixpkgs.runCommand "backend-src" {
+              buildCommand = ''
+                mkdir "$out"
+                ln -s "${../common}"/src/* "$out"/
+                ln -s "${../backend}"/src/* "$out"/
+              '';
+            } "";
+
             preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
             preBuild = ''
               ln -sfT ${../static} static
             '';
             buildDepends = [
-              backendCommon
               vector-algorithms
               focus-core focus-backend focus-serve
             ] ++ backendDepends backendHaskellPackages;
@@ -215,13 +210,11 @@ in rec {
             isExecutable = true;
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
-              common = backendCommon;
               haskellPackages = backendHaskellPackages;
             };
           })) {};
         ${if builtins.pathExists ../tests then "tests" else null} =
-          let testCommon = common backendHaskellPackages;
-          in backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
+          backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
               pname = "${appName}-tests";
               license = null;
               version = appVersion;
@@ -231,7 +224,6 @@ in rec {
                 ln -sfT ${../static} static
               '';
               buildDepends = [
-                testCommon
                 vector-algorithms
                 focus-core focus-backend focus-client
               ] ++ testDepends backendHaskellPackages;
@@ -239,13 +231,12 @@ in rec {
               isExecutable = true;
               configureFlags = [ "--ghc-option=-lgcc_s" ];
               passthru = {
-                common = testCommon;
                 haskellPackages = backendHaskellPackages;
               };
         })) {};
         passthru = rec {
           frontend = frontend_.unminified;
-          frontendGhc = mkFrontend ../frontend backendHaskellPackages ../static;
+          frontendGhc = mkFrontend ../frontend ../common backendHaskellPackages ../static;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];

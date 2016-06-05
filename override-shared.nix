@@ -4,6 +4,7 @@ with nixpkgs.haskell.lib;
 let inherit (nixpkgs) stdenv;
 in
 self: super: {
+    aeson = self.callPackage ./aeson.nix {};
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -134,6 +135,13 @@ self: super: {
     });
     JuicyPixels = overrideCabal super.JuicyPixels (drv: {
       jailbreak = true;
+    });
+    rex = overrideCabal super.rex (drv: {
+      src = nixpkgs.fetchgit {
+        url = git://github.com/ali-abrar/rex;
+        rev = "b575bcafa4853752b6490e95502f426431a7b213";
+        sha256 = "02n6gyr5dldq900qlv580qrvxrybqfmxqyrl3z1kjkfwq9mr3x9q";
+      };
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
       version = "1.3.1.10";

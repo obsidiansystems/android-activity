@@ -464,6 +464,7 @@ passwordReset
   -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
   -> m (Event t loginInfo)
 passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") $ do
+  elAttr "h3" (Map.singleton "class" "form-signin-heading") $ text "Set Password"
   pw <- passwordInputWithPlaceholder "Password"
   confirm <- passwordInputWithPlaceholder "Confirm Password"
   dPasswordConfirmed <- combineDyn (==) (_textInput_value pw) (_textInput_value confirm)
