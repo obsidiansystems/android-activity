@@ -265,7 +265,7 @@ in rec {
           defaultBackendPort = 8000;
           defaultBackendUid = 500;
           defaultBackendGid = 500;
-          completeServer = { hostName, ssl ? false, adminEmail ? "ops@obsidian.systems" }:
+          completeServer = { hostName, ssl ? false, adminEmail ? "ops@obsidian.systems", extraRootKey ? null }:
             let acmeWebRoot = "/srv/acme/";
                 nginxService = {locations}:
                   let locationConfig = path: port: ''
@@ -298,74 +298,135 @@ in rec {
                       error_log  /var/log/nginx_error.log  warn;
                     '';
                   };
-            in import "${nixpkgs.path}/nixos" {
-            system = "x86_64-linux";
-            configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
-              imports = [ "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix" ];
-              ec2.hvm = true;
+                system = "x86_64-linux";
+                configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
+                  environment.systemPackages = with pkgs; [
+                    emacs24-nox
+                    git
+                    rxvt_unicode.terminfo
+                    myPostgres
+                  ];
 
-              environment.systemPackages = with pkgs; [
-                emacs24-nox
-                git
-                rxvt_unicode.terminfo
-                myPostgres
-              ];
+                  networking = {
+                    inherit hostName;
+                    firewall.allowedTCPPorts = [
+                      80
+                    ] ++ (if ssl then [ 443 ] else []);
+                  };
 
-              networking = {
-                inherit hostName;
-                firewall.allowedTCPPorts = [
-                  80 443
-                ];
+                  services = {
+                    journald.rateLimitBurst = 0;
+
+                    nginx = nginxService {
+                      locations = {
+                        "/" = defaultBackendPort;
+                      };
+                    };
+                  } // (if !ssl then {} else {
+                    lighttpd = {
+                      enable = true;
+                      document-root = acmeWebRoot;
+                      port = 80;
+                      enableModules = [ "mod_redirect" ];
+                      extraConfig = ''
+                        $HTTP["url"] !~ "^/\.well-known/acme-challenge" {
+                          $HTTP["host"] =~ "^.*$" {
+                            url.redirect = ( "^.*$" => "https://%0$0" )
+                          }
+                        }
+                      '';
+                    };
+                  });
+
+                  systemd.services.backend = backendService {
+                    user = "backend";
+                    port = defaultBackendPort;
+                  };
+                  users.extraUsers.backend = {
+                    description = "backend server user";
+                    home = "/var/lib/backend";
+                    createHome = true;
+                    isSystemUser = true;
+                    uid = defaultBackendUid;
+                    group = "backend";
+                  };
+                  users.extraGroups.backend.gid = defaultBackendUid;
+                } // (if !ssl then {} else {
+                  security.acme.certs.${hostName} = {
+                    webroot = acmeWebRoot;
+                    email = adminEmail;
+                    plugins = [ "fullchain.pem" "key.pem" "account_key.json" ];
+                    postRun = ''
+                      systemctl reload-or-restart nginx.service
+                    '';
+                  };
+                });
+                nixos = import "${nixpkgs.path}/nixos";
+            in {
+              aws = nixos {
+                inherit system;
+                configuration = args@{ config, pkgs, ... }: {
+                  imports = [
+                    configuration
+                    "${nixpkgs.path}/nixos/modules/virtualisation/amazon-image.nix"
+                  ];
+
+                  ec2.hvm = true;
+                };
               };
+              qemu = nixos {
+                inherit system;
+                configuration = args@{ config, pkgs, ... }: {
+                  imports = [
+                    configuration
+                  ];
 
-              services = {
-                journald.rateLimitBurst = 0;
+                  services.openssh.enable = true;
+                  users.users.root.openssh.authorizedKeys.keys =
+                    if extraRootKey == null
+                    then []
+                    else [ extraRootKey ];
 
-                nginx = nginxService {
-                  locations = {
-                    "/" = defaultBackendPort;
+                  system.activationScripts.shutdownOnRootLogout = {
+                    text =
+                      let bashProfile = builtins.toFile "bash_profile" ''
+                            echo -n "Waiting for network... (ctrl-c to abort)"
+
+                            MY_IP=""
+                            for i in {1..50} ; do
+                              MY_IP="$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')"
+                              if [ -n "$MY_IP" ] ; then
+                                break
+                              fi
+                              sleep 0.1
+                            done
+
+                            echo
+                            echo "MAGIC BEGIN"
+                            echo "MY_IP=$MY_IP"
+                            echo "MY_HOST_KEY=$(printf "%q" "$(cat /etc/ssh/ssh_host_ed25519_key.pub)")"
+                            echo "MAGIC END"
+                          '';
+                      in ''
+                        echo "systemctl poweroff" >/root/.bash_logout
+                        ln -sfT ${bashProfile} /root/.bash_profile
+                      '';
+                    deps = [];
+                  };
+
+                  services.mingetty.autologinUser = "root";
+
+                  virtualisation = {
+                    graphics = false;
+                    qemu.networkingOptions = [
+                      "-net nic,model=virtio"
+                      "-net vde,sock=/var/run/vde.ctl"
+                      #"-net user\${QEMU_NET_OPTS:+,$QEMU_NET_OPTS}"
+                    ];
                   };
                 };
-              } // (if !ssl then {} else {
-                lighttpd = {
-                  enable = true;
-                  document-root = acmeWebRoot;
-                  port = 80;
-                  enableModules = [ "mod_redirect" ];
-                  extraConfig = ''
-                    $HTTP["url"] !~ "^/\.well-known/acme-challenge" {
-                      $HTTP["host"] =~ "^.*$" {
-                        url.redirect = ( "^.*$" => "https://%0$0" )
-                      }
-                    }
-                  '';
-                };
-              });
-
-              systemd.services.backend = backendService {
-                user = "backend";
-                port = defaultBackendPort;
               };
-              users.extraUsers.backend = {
-                description = "backend server user";
-                home = "/var/lib/backend";
-                createHome = true;
-                isSystemUser = true;
-                uid = defaultBackendUid;
-                group = "backend";
-              };
-              users.extraGroups.backend.gid = defaultBackendUid;
-            } // (if !ssl then {} else {
-              security.acme.certs.${hostName} = {
-                webroot = acmeWebRoot;
-                email = adminEmail;
-                plugins = [ "fullchain.pem" "key.pem" "account_key.json" ];
-                postRun = ''
-                  systemctl reload nginx.service
-                '';
-              };
-            });
-          };
+            };
         };
       });
     in result;

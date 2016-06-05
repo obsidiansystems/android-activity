@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SSH="$1"
+shift
+TARGET="$1"
+shift
+CONFIG="$1"
+shift
+
+BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.home')"
+BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.uid')"
+BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraGroups.backend.gid')"
+
+$SSH "$TARGET" bash <<EOF
+if [ ! -d "$BACKEND_HOME" ] ; then
+  mkdir -p "$BACKEND_HOME"
+  chown $BACKEND_UID:$BACKEND_GID "$BACKEND_HOME"
+fi
+EOF
+rsync -e "$SSH" -qarvz "$CONFIG/config" "$TARGET:$BACKEND_HOME"
+git describe --long --always | $SSH "$TARGET" "cat > $BACKEND_HOME/version"

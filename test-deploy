@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+HOSTNAME="$1"
+shift
+CONFIG="$1"
+shift
+
+TEMP=$(mktemp -d)
+trap "rm -rf $(printf "%q" "$TEMP") ; pkill -P $$" EXIT
+
+eval "$(ssh-agent)"
+ssh-keygen -f "$TEMP/key" -N ""
+ssh-add "$TEMP/key"
+
+mkfifo "$TEMP/pipe"
+exec 3<>"$TEMP/pipe"
+rm "$TEMP/pipe"
+
+NIX_DISK_IMAGE="$TEMP/disk" "$(nix-build --no-out-link -A completeServer.qemu.vm --argstr hostName "$HOSTNAME" --argstr extraRootKey "$(cat "$TEMP/key.pub")")/bin/run-$HOSTNAME-vm" | tee /dev/fd/3 &
+
+#MY_IP="$(sed -n '/^MY_IP=/{s/^MY_IP=\(.*\)$/\1/p;q}' <&3)"
+eval "$(sed -n -e "/MAGIC BEGIN/,/MAGIC END/{//!p}" -e '/MAGIC END/q' <&3 | tr -d '\r')"
+exec 3<&-
+
+echo ",$MY_IP $MY_HOST_KEY" > "$TEMP/known_hosts"
+
+SSH="ssh -o UserKnownHostsFile=$TEMP/known_hosts"
+TARGET="root@$MY_IP"
+
+"$DIR/deploy-config" "$SSH" "$TARGET" "$CONFIG"
+
+$SSH "$TARGET" bash <<EOF
+  sleep 1 # Without this, we sometimes get errors like this: "<command line>: can't load .so/.DLL for: /nix/store/hsww8cgczlp2q2c2rbrabbkg3s98fcjw-cereal-0.5.1.0/lib/ghc-8.0.1/cereal-0.5.1.0/libHScereal-0.5.1.0-JK5wdtcV0iTGsZDqLKxNfI-ghc8.0.1.so (/nix/store/hsww8cgczlp2q2c2rbrabbkg3s98fcjw-cereal-0.5.1.0/lib/ghc-8.0.1/cereal-0.5.1.0/libHScereal-0.5.1.0-JK5wdtcV0iTGsZDqLKxNfI-ghc8.0.1.so: cannot open shared object file: Interrupted system call)" #TODO: Investigate this
+  systemctl restart backend
+EOF
+
+wait

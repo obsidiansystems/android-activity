@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
 set -eux
 
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
 HOSTNAME="$1"
 shift
 CONFIG="$1"
 shift
 
+eval "$(ssh-agent)"
+ssh-add "$CONFIG/ssh_key"
 
-RESULT="$(nix-build --no-out-link -A completeServer.system --argstr hostName "$HOSTNAME" "$@")"
-BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraUsers.backend.home')"
-BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraUsers.backend.uid')"
-BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$HOSTNAME'"; }).config.users.extraGroups.backend.gid')"
+RESULT="$(nix-build --no-out-link -A completeServer.aws.system --argstr hostName "$HOSTNAME" "$@")"
 
 nix-copy-closure --to root@"$HOSTNAME" --gzip "$RESULT" $(readlink $(find -L "$(nix-build --no-out-link)"/*assets | grep 'encodings/identity$') | sed 's_\(^/nix/store/[^/]*\).*_\1_') # The last part here is to work around https://www.pivotaltracker.com/story/show/109156520
-ssh root@"$HOSTNAME" bash -x <<EOF
-if [ ! -d "$BACKEND_HOME" ] ; then
-  mkdir -p "$BACKEND_HOME"
-  chown $BACKEND_UID:$BACKEND_GID "$BACKEND_HOME"
-fi
-EOF
-rsync -arvz "$CONFIG/config" root@"$HOSTNAME:$BACKEND_HOME"
-git -C "$CONFIG/src" describe --long --always | ssh root@"$HOSTNAME" "tee $BACKEND_HOME/version"
+
+"$DIR/deploy-config" "ssh" root@"$HOSTNAME" "$CONFIG"
+
 ssh root@"$HOSTNAME" bash -x <<EOF
 nix-env -p /nix/var/nix/profiles/system --set "$RESULT"
 /nix/var/nix/profiles/system/bin/switch-to-configuration switch
