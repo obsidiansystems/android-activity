@@ -16,14 +16,24 @@ ssh-keygen -f "$TEMP/key" -N ""
 ssh-add "$TEMP/key"
 
 mkfifo "$TEMP/pipe"
-exec 3<>"$TEMP/pipe"
+
+VM="$(nix-build --no-out-link -A completeServer.qemu.vm --argstr hostName "$HOSTNAME" --argstr extraRootKey "$(cat "$TEMP/key.pub")")"
+
+if [ -z "$VM" ] ; then
+    echo "Build failed" 2>&1
+    exit 1
+fi
+
+NIX_DISK_IMAGE="$TEMP/disk" "$VM/bin/run-$HOSTNAME-vm" | tee --output-error=warn "$TEMP/pipe" 2>/dev/null &
+QEMU_INFO_BLOCK_DELIMITER="$(eval "echo $(nix-instantiate --eval -E '(import ./.).qemuInfoBlockDelimiter')")"
+
+eval "$(sed -n -e "/BEGIN $QEMU_INFO_BLOCK_DELIMITER/,/END $QEMU_INFO_BLOCK_DELIMITER/{//!p}" -e "/END $QEMU_INFO_BLOCK_DELIMITER/q" <"$TEMP/pipe" | tr -d '\r')"
 rm "$TEMP/pipe"
 
-NIX_DISK_IMAGE="$TEMP/disk" "$(nix-build --no-out-link -A completeServer.qemu.vm --argstr hostName "$HOSTNAME" --argstr extraRootKey "$(cat "$TEMP/key.pub")")/bin/run-$HOSTNAME-vm" | tee /dev/fd/3 &
-
-#MY_IP="$(sed -n '/^MY_IP=/{s/^MY_IP=\(.*\)$/\1/p;q}' <&3)"
-eval "$(sed -n -e "/MAGIC BEGIN/,/MAGIC END/{//!p}" -e '/MAGIC END/q' <&3 | tr -d '\r')"
-exec 3<&-
+if [ -z "${MY_IP+x}" ] ; then
+    echo "VM exited without producing expected values" 2>&1
+    exit 1
+fi
 
 echo ",$MY_IP $MY_HOST_KEY" > "$TEMP/known_hosts"
 

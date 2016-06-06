@@ -256,6 +256,7 @@ in rec {
           defaultBackendPort = 8000;
           defaultBackendUid = 500;
           defaultBackendGid = 500;
+          qemuInfoBlockDelimiter = "GUEST INFO";
           completeServer = { hostName, ssl ? false, adminEmail ? "ops@obsidian.systems", extraRootKey ? null }:
             let acmeWebRoot = "/srv/acme/";
                 nginxService = {locations}:
@@ -393,10 +394,10 @@ in rec {
                             done
 
                             echo
-                            echo "MAGIC BEGIN"
+                            echo "BEGIN ${qemuInfoBlockDelimiter}"
                             echo "MY_IP=$MY_IP"
                             echo "MY_HOST_KEY=$(printf "%q" "$(cat /etc/ssh/ssh_host_ed25519_key.pub)")"
-                            echo "MAGIC END"
+                            echo "END ${qemuInfoBlockDelimiter}"
                           '';
                       in ''
                         echo "systemctl poweroff" >/root/.bash_logout
@@ -412,6 +413,9 @@ in rec {
                     qemu.networkingOptions = [
                       "-net nic,model=virtio"
                       "-net vde,sock=/var/run/vde.ctl"
+
+                      # We can't keep the following, or the VDE-based networking fails
+                      # This may violate user expectations, since QEMU_NET_OPTS is not available
                       #"-net user\${QEMU_NET_OPTS:+,$QEMU_NET_OPTS}"
                     ];
                   };
