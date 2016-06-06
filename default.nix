@@ -213,28 +213,28 @@ in rec {
               haskellPackages = backendHaskellPackages;
             };
           })) {};
-        ${if builtins.pathExists ../tests then "tests" else null} =
-          backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
-              pname = "${appName}-tests";
-              license = null;
-              version = appVersion;
-              src = ../tests;
-              preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
-              preBuild = ''
-                ln -sfT ${../static} static
-              '';
-              buildDepends = [
-                vector-algorithms
-                focus-core focus-backend focus-client
-              ] ++ testDepends backendHaskellPackages;
-              buildTools = [] ++ testTools pkgs;
-              isExecutable = true;
-              configureFlags = [ "--ghc-option=-lgcc_s" ];
-              passthru = {
-                haskellPackages = backendHaskellPackages;
-              };
-        })) {};
         passthru = rec {
+          ${if builtins.pathExists ../tests then "tests" else null} =
+            backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
+                pname = "${appName}-tests";
+                license = null;
+                version = appVersion;
+                src = ../tests;
+                preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
+                preBuild = ''
+                  ln -sfT ${../static} static
+                '';
+                buildDepends = [
+                  vector-algorithms
+                  focus-core focus-backend focus-client
+                ] ++ testDepends backendHaskellPackages;
+                buildTools = [] ++ testTools pkgs;
+                isExecutable = true;
+                configureFlags = [ "--ghc-option=-lgcc_s" ];
+                passthru = {
+                  haskellPackages = backendHaskellPackages;
+                };
+          })) {};
           frontend = frontend_.unminified;
           frontendGhc = mkFrontend ../frontend ../common backendHaskellPackages ../static;
           nixpkgs = pkgs;
