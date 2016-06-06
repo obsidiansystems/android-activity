@@ -118,7 +118,7 @@ in rec {
               focus-core
               focus-js
               ghcjs-dom
-            ] ++ frontendDepends haskellPackages;
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = true;
             passthru = {
@@ -205,7 +205,7 @@ in rec {
             buildDepends = [
               vector-algorithms
               focus-core focus-backend focus-serve
-            ] ++ backendDepends backendHaskellPackages;
+            ] ++ backendDepends backendHaskellPackages ++ commonDepends backendHaskellPackages;
             buildTools = [] ++ backendTools pkgs;
             isExecutable = true;
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
