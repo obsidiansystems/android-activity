@@ -44,7 +44,7 @@ transitionWorkflow hello goodbye = f where
                               (leftmost [(transitionStyle1 hello) <$ hello0
                                         ,(transitionStyle0 goodbye) <$ goodbye0
                                         ,(transitionStyle1 goodbye) <$ goodbye1])
-           (r,e) <- elDynAttr "div" (traceDyn "attrs" attrs) act
+           (r,e) <- elDynAttr "div" attrs act
            let goodbye0 = fmap f e
            goodbye1 <- delay 0.01 goodbye0
            end <- delay (transitionTime goodbye) goodbye0
