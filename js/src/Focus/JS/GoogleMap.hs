@@ -240,7 +240,7 @@ searchInput' v0 setV attrs results listBuilder = do
       eMadeChoice <- listBuilder dResults
       let eSetValue = leftmost [fmap fst eMadeChoice, setV]
           eSelectionMade = fmap (const Nothing) eSetValue
-          eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (updated $ _textInput_value input), fmap Just (tag (current $ value input) enter)]
+          eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (_textInput_input input), fmap Just (tag (current $ value input) enter)]
           eInputEmpty = fmapMaybe id $ fmap (\i -> if i == "" then Just Map.empty else Nothing) eInputChanged
           eClearResults = leftmost [eInputEmpty, fmap (const Map.empty) eMadeChoice]
   return (eInputChanged, eMadeChoice)
