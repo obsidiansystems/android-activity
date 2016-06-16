@@ -141,7 +141,7 @@ diffListWithKey :: (Ord k, MonadWidget t m)
                 -> m (Dynamic t (SetPatch k))
 diffListWithKey ms selDyn = do
   selects <- fmap joinDynThroughMap . el "ul" . listWithKey ms $ \k w -> el "li" $ do
-    pb <- getPostBuild -- awful hack? These widgets are all rebuilt when I save the bundle, unexpectedly.
+    pb <- getPostBuild
     include <- checkbox False $ def & attributes .~ (constDyn mempty)
                                     & setValue .~ fmap (Set.member k) (leftmost [updated selDyn, tagDyn selDyn pb])
     void $ dyn w
@@ -247,7 +247,7 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
   return selection
 
 -- | Whenever the header is clicked, it toggles the "collapsed" state of the
--- | content, making it "display: none" and hiding it entirely.
+-- content, making it "display: none" and hiding it entirely.
 collapsibleSection :: (MonadWidget t m) => Text -> m a -> m a
 collapsibleSection header content = divClass "collapsible" $ do
   click <- divClass "collapsible-header" $ do
