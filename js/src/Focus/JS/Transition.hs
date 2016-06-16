@@ -1,6 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables, RecursiveDo, TypeFamilies, FlexibleContexts, OverloadedStrings #-}
 module Focus.JS.Transition where
 
+import Control.Monad.Fix
+import Control.Monad.IO.Class
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
@@ -34,7 +36,7 @@ fadeOutRight, fadeInLeft :: NominalDiffTime -> Transition
 fadeOutRight n = Transition ("opacity" =: ("1","0", n) <> "left" =: ("0%","10%",n)) ("position" =: "relative")
 fadeInLeft n = Transition ("opacity" =: ("0","1", n) <> "left" =: ("-10%","0%",n)) ("position" =: "relative")
 
-transitionWorkflow :: forall t m a. (MonadWidget t m) => Transition -> Transition -> Workflow t m a -> Workflow t m a
+transitionWorkflow :: forall t m a. (DomBuilder t m, PerformEvent t m, PostBuild t m, TriggerEvent t m, MonadFix m, MonadHold t m, MonadIO (Performable m)) => Transition -> Transition -> Workflow t m a -> Workflow t m a
 transitionWorkflow hello goodbye = f where
   f :: Workflow t m a -> Workflow t m a
   f (Workflow act) = Workflow $ do
