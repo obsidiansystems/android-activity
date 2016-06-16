@@ -56,8 +56,7 @@ frontendJsexeAssets = "frontend.jsexe.assets"
 
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
-  route [ (loc, ifTop $ serveIndex cfg)
-        , (loc <> "/sr", ifTop $ serveStaticIndex cfg)
+  route [ (loc, ifTop $ serveStaticIndex cfg)
         , (loc, serveAssets (app </> "assets") (app </> "static"))
         , (loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))
         , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
