@@ -245,3 +245,15 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
                               ]
       selection <- comboBox def getOptions li toString (el "ul")
   return selection
+
+-- | Whenever the header is clicked, it toggles the "collapsed" state of the
+-- | content, making it "display: none" and hiding it entirely.
+collapsibleSection :: (MonadWidget t m) => Text -> m a -> m a
+collapsibleSection header content = divClass "collapsible" $ do
+  click <- divClass "collapsible-header" $ do
+     fmap (_link_clicked) $ el "strong" $ link header
+  collapsed <- mapDyn collapse =<< toggle True click
+  elDynAttr "div" collapsed content
+  where
+    collapse b = "style" =: ("display: " <> if b then "none" else "block") <>
+      "class" =: "collapsible-content"
