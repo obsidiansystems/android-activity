@@ -195,6 +195,14 @@ in rec {
                 mkdir "$out"
                 ln -s "${../common}"/src/* "$out"/
                 ln -s "${../backend}"/src/* "$out"/
+
+                shopt -s nullglob
+                frontendFiles=("${../frontend}"/src/*)
+                for f in ''${frontendFiles[@]} ; do
+                    if echo "$f" | grep -vq "/Main.\(hs\|lhs\)$" ; then
+                        ln -s "$f" "$out"/
+                    fi
+                done
               '';
             } "";
 
@@ -205,7 +213,7 @@ in rec {
             buildDepends = [
               vector-algorithms
               focus-core focus-backend focus-serve
-            ] ++ backendDepends backendHaskellPackages ++ commonDepends backendHaskellPackages;
+            ] ++ backendDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ frontendDepends backendHaskellPackages;
             buildTools = [] ++ backendTools pkgs;
             isExecutable = true;
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
