@@ -6,7 +6,7 @@ import Control.Monad
 import Data.Text (Text)
 import Reflex.Dom
 
-dynHighlightedText :: MonadWidget t m
+dynHighlightedText :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                    => Dynamic t HighlightedText
                    -> m (Dynamic t Bool) -- ^ Whether any active highlights exist in this text
 dynHighlightedText hs = do
@@ -15,7 +15,7 @@ dynHighlightedText hs = do
     Highlight_Off t -> (text t) >> return False
   holdDyn False on
 
-dynHighlightedTextQ :: MonadWidget t m
+dynHighlightedTextQ :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                     => (Text -> Text -> HighlightedText) -- ^ Highlighter
                     -> Dynamic t Text -- ^ Query
                     -> Dynamic t Text -- ^ Text to search 

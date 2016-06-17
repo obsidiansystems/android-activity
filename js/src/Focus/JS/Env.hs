@@ -16,7 +16,8 @@ import Data.Text (Text)
 
 import Focus.JS.WebSocket
 
-openAndListenWebsocket :: forall t m x token notification req rsp vs. (MonadWidget t m, HasJS x m, FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
+openAndListenWebsocket :: forall t m x token notification req rsp vs.
+                          (PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m, HasJS x m, FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
                        => Event t [(Value, req)]
                        -> Event t (AppendMap token vs)
                        -> m (Event t (AppendMap token notification), Event t (Value, Either Text rsp))

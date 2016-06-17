@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables #-}
 module Focus.JS.App where
 
@@ -14,7 +15,7 @@ import Focus.AppendMap
 import Focus.JS.Request
 import Focus.Request
 import Focus.Sign
-import Reflex.Dom
+import Reflex.Dom hiding (MonadWidget)
 import Reflex.Host.Class
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -31,7 +32,7 @@ instance HasJS x m => HasJS x (FocusWidget app t m) where
   type JSM (FocusWidget app t m) = JSM m
   liftJS = lift . liftJS
 
-deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
+deriving instance (HasEnv app, MonadFix (WidgetHost m), MonadWidget' t m, Semigroup (ViewSelector app), Request (PublicRequest app), Request (PrivateRequest app)) => MonadRequest t (AppRequest app) (FocusWidget app t m)
 
 instance PerformEvent t m => PerformEvent t (FocusWidget app t m) where
   type Performable (FocusWidget app t m) = Performable m
@@ -79,7 +80,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
-class ( MonadWidget t m
+class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , MonadRequest t (AppRequest app) m
       , HasFocus app
@@ -97,7 +98,7 @@ class (HasEnv app, HasRequest app, HasView app) => HasFocus app
 
 instance ( HasFocus app
          , MonadFix (WidgetHost m)
-         , MonadWidget t m
+         , MonadWidget' t m
          , MonadAtomicRef m
          ) => MonadFocusWidget app t (FocusWidget app t m) where
   askEnv = FocusWidget $ lift ask
@@ -132,7 +133,31 @@ asksEnv f = fmap f askEnv
 asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
 asksView f = mapDyn f =<< getView
 
-runFocusWidget :: forall t m a x app. ( MonadWidget t m
+
+--TODO: HasDocument is still not accounted for
+type MonadWidget' t m =
+  ( DomBuilder t m
+  -- , DomBuilderSpace m ~ GhcjsDomSpace
+  , MonadFix m
+  , MonadHold t m
+  , MonadSample t (Performable m)
+  , MonadReflexCreateTrigger t m
+  , PostBuild t m
+  , PerformEvent t m
+  , MonadIO m
+  , MonadIO (Performable m)
+  , TriggerEvent t m
+  , HasWebView m
+  , HasWebView (Performable m)
+  -- , MonadAsyncException m
+  -- , MonadAsyncException (Performable m)
+  , MonadRef m
+  , Ref m ~ Ref IO
+  , MonadRef (Performable m)
+  , Ref (Performable m) ~ Ref IO
+  )
+
+runFocusWidget :: forall t m a x app. ( MonadWidget' t m
                                       , HasJS x m
                                       , HasJS x (WidgetHost m)
                                       , HasFocus app

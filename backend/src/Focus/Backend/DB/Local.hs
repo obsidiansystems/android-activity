@@ -85,7 +85,7 @@ shutdownPostgresFast postgres = do
 
 psqlLocal :: FilePath -> IO ()
 psqlLocal p = withLocalPostgres p $ \dbUri -> do
-  installHandler keyboardSignal Ignore Nothing
+  void $ installHandler keyboardSignal Ignore Nothing
   (_, _, _, psql) <- createProcess $ proc $(staticWhich "psql")
     [ T.unpack $ decodeUtf8 dbUri
     ]
@@ -114,7 +114,7 @@ serveLocalPostgres dbDir = do
     numClientsVar <- newMVar (0 :: Int) --TODO: There is a failure mode here: if an interloper connects and disconnects before the initial caller connects, the initial caller will fail to connect; instead, we should start up with an existing connection (possibly a pipe passed in from the parent process) and with this var set to 1
     -- When this var is filled, the server will shut down
     shutdownVar <- newEmptyMVar
-    forkIO $ forever $ do
+    void $ forkIO $ forever $ do
       (s, _) <- accept controlSocket
       --TODO: What happens if we decide we're shutting down here?
       modifyMVar_ numClientsVar $ \n -> do
@@ -148,9 +148,9 @@ withLocalPostgres dbDir a = do
                      , std_out = CreatePipe
                      , std_err = Inherit
                      }
-                  forkIO $ void $ waitForProcess server
+                  void $ forkIO $ void $ waitForProcess server
                   hClose serverIn
-                  hGetLine serverOut
+                  void $ hGetLine serverOut
                   acquire -- Try again
             | otherwise -> $checkIO $ throwIO e
   bracket_ acquire (shutdown s ShutdownBoth >> sClose s) $ do
