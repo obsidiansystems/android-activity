@@ -63,6 +63,13 @@ popAllRows rp = do
       _ -> trace ("popAllRows: fromPersistValues left " <> show remainder <> " remaining out of " <> show pvs) $ return ()
     return x
 
+-- | Useful variant of mapAllRows for debugging raw queries. Prints the values obtained from the DB.
+mapAllRows' :: MonadIO m => ([PersistValue] -> m a) -> RowPopper m -> m [a]
+mapAllRows' f pop = go where
+  go = do xs <- pop
+          liftIO (print xs)
+          maybe (return []) (f >=> \a -> liftM (a:) go) $ xs
+
 getTransactionTime :: PersistBackend m => m UTCTime
 getTransactionTime = do
   [t] <- queryRaw False "select current_timestamp at time zone 'UTC'" [] popAllRows
