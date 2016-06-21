@@ -177,7 +177,7 @@ runRequestT eViewSelectorWithAuth (RequestT m) = do
       Success a -> Just a
 
 withRequestT :: forall t m a (req :: * -> *) (req' :: * -> *).
-                (Reflex t, MonadHold t m)
+                (Reflex t, MonadHold t m, MonadFix m)
              => (forall x. req x -> req' x)
              -> RequestT t req m a
              -> RequestT t req' m a
@@ -186,7 +186,7 @@ withRequestT f m = RequestT $ hoist (hoist (withDynamicWriterT f')) (unRequestT 
     f' :: Event t [(y, SomeRequest req)] -> Event t [(y, SomeRequest req')]
     f' = fmap . fmap . fmap $ \(SomeRequest req) -> SomeRequest $ f req
 
-withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m)
+withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m, MonadFix m)
                    => (w -> w')
                    -> DynamicWriterT t w m a
                    -> DynamicWriterT t w' m a
