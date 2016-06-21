@@ -3,7 +3,7 @@ let
   enableProfiling = false;
 in rec {
   tryReflex = import ./try-reflex { enableLibraryProfiling = enableProfiling; };
-  nixpkgs = tryReflex.nixpkgs;
+  inherit (tryReflex) nixpkgs cabal2nixResult;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
   backendHaskellPackagesBase = tryReflex.ghc;
@@ -32,11 +32,12 @@ in rec {
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
         // { focus-core = self.callPackage ./core {};
-             focus-emojione = self.callPackage ./emojione {};
              focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
              focus-js = self.callPackage ./js {};
              focus-serve = self.callPackage ./http/serve {};
              focus-th = self.callPackage ./th {};
+             focus-emojione = self.callPackage (cabal2nixResult ./emojione) {};
+             focus-emojione-data = self.callPackage (cabal2nixResult ./emojione/data) {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
