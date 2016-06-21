@@ -31,13 +31,13 @@ in rec {
       appVersion = version;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
-        // { focus-core = self.callPackage ./core {};
-             focus-http-th = self.callPackage (tryReflex.cabal2nixResult ./http/th) {};
-             focus-js = self.callPackage ./js {};
-             focus-serve = self.callPackage ./http/serve {};
-             focus-th = self.callPackage ./th {};
+        // { focus-core = self.callPackage (cabal2nixResult ./core) {};
              focus-emojione = self.callPackage (cabal2nixResult ./emojione) {};
              focus-emojione-data = self.callPackage (cabal2nixResult ./emojione/data) {};
+             focus-http-th = self.callPackage (cabal2nixResult ./http/th) {};
+             focus-js = self.callPackage (cabal2nixResult ./js) {};
+             focus-serve = self.callPackage (cabal2nixResult ./http/serve) {};
+             focus-th = self.callPackage (cabal2nixResult ./th) {};
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
