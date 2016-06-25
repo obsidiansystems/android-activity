@@ -237,7 +237,9 @@ searchInput' v0 setV attrs results listBuilder = do
                                & textInputConfig_initialValue .~ v0
       let enter = textInputGetEnter input
       dResults <- holdDyn mempty $ leftmost [eClearResults, results]
-      eMadeChoice <- listBuilder dResults
+      eMadeChoiceViaList <- listBuilder dResults
+      let eMadeChoiceViaEnter = fmapMaybe (fmap fst . Map.minView) $ tag (current dResults) enter
+      let eMadeChoice = leftmost [eMadeChoiceViaList, eMadeChoiceViaEnter]
       let eSetValue = leftmost [fmap fst eMadeChoice, setV]
           eSelectionMade = fmap (const Nothing) eSetValue
           eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (_textInput_input input), fmap Just (tag (current $ value input) enter)]
