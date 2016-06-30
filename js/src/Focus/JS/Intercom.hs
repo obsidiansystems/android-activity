@@ -32,7 +32,7 @@ importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']
 importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; o['email'] = this[0]; o['created_at'] = this[1]; o['name'] = this[2]; o['user_hash'] = this[3]; o['type'] = this[4]; console.log('update', this, o); window['Intercom']('update', o)})['call'](this)" "intercomUpdate" [t| forall x m. MonadJS x m => String -> Int -> String -> String -> String -> m () |] --TODO: Factor out the the 'type' custom attribute into a separate custom attributes argument
 
 -- intercom update anonymous user
-importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; console.log('updateAnon', this, o); window['Intercom']('updateAnon', o)})['call'](this)" "intercomUpdateAnon" [t| forall x m. MonadJS x m => m () |]
+importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; console.log('updateAnon', this, o); window['Intercom']('update', o)})['call'](this)" "intercomUpdateAnon" [t| forall x m. MonadJS x m => m () |]
 
 -- intercom shutdown
 -- importJS Unsafe "window['Intercom']('shutdown')" "intercomShutdown" [t| forall x m. MonadJS x m => m () |]
