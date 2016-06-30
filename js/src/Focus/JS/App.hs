@@ -147,7 +147,8 @@ runFocusWidget tokenDyn mkEnv child = do
         is0 <- forDyn tokenDyn $ maybe mempty (\t -> AppendMap (Map.singleton t mempty))
         tellDyn is0
         child
-  rec ((a, patches), vs) <- runReaderT (runDynamicWriterT (runRequestT (updated nubbedVs) (unFocusWidget child'))) e
+  pb <- getPostBuild
+  rec ((a, patches), vs) <- runReaderT (runDynamicWriterT (runRequestT (leftmost [updated nubbedVs, tag (current nubbedVs) pb]) (unFocusWidget child'))) e
       let nubbedVs = nubDyn vs
       e <- fromNotifications nubbedVs patches
   return (a, vs)
