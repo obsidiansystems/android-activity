@@ -38,6 +38,7 @@ library
                , timezone-series
                , transformers
                , vector
+               , SHA
 
   exposed-modules:
       Focus.Account
@@ -64,6 +65,8 @@ library
     , Focus.Lens
     , Focus.Highlight
     , Focus.GoogleAnalytics
+    , Focus.Intercom
+    , Focus.Intercom.Common
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

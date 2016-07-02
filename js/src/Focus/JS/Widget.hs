@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts, OverloadedStrings, TypeFamilies #-}
 module Focus.JS.Widget where
 
-import Control.Lens hiding (ix)
+import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
@@ -21,6 +21,16 @@ import Focus.Highlight
 import Focus.JS.App
 import Focus.JS.Highlight
 import Focus.Patch
+
+-- | A variant of elDynAttr which sets the element's style to "display: none;" initially, until its attributes can be set properly.
+elDynAttrHide :: forall t m a. (DomBuilder t m, PostBuild t m) => Text -> Dynamic t (Map Text Text) -> m a -> m a
+elDynAttrHide elementTag attrs child = do
+  modifyAttrs <- dynamicAttributesToModifyAttributes attrs
+  let cfg = def
+        & initialAttributes .~ (Nothing, "style") =: "display: none;"
+        & elementConfig_namespace .~ Nothing
+        & modifyAttributes .~ modifyAttrs
+  snd <$> element elementTag cfg child
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
 resetAfterEach :: (DomBuilder t m, MonadHold t m, MonadFix m) => m (Event t a) -> m (Event t a)

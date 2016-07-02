@@ -135,6 +135,10 @@ serveLocalPostgres dbDir = do
 -- | Connect to a local postgres database instance; if it is not yet running, start it, then connect
 withLocalPostgres :: FilePath -> (ByteString -> IO a) -> IO a
 withLocalPostgres dbDir a = do
+  dbExists <- doesDirectoryExist dbDir
+  when (not dbExists) $ do
+    createDirectory dbDir
+    initLocalPostgres dbDir
   s <- socket AF_UNIX Stream defaultProtocol
   let acquire = do
         connectResult <- try $ connect s $ SockAddrUnix $ dbDir </> "control"

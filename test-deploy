@@ -17,7 +17,7 @@ ssh-add "$TEMP/key"
 
 mkfifo "$TEMP/pipe"
 
-VM="$(nix-build --no-out-link -A completeServer.qemu.vm --argstr hostName "$HOSTNAME" --argstr extraRootKey "$(cat "$TEMP/key.pub")")"
+VM="$(nix-build --no-out-link -A completeServer.qemu.vm --argstr hostName "$HOSTNAME" --argstr extraRootKey "$(cat "$TEMP/key.pub")" "$@")"
 
 if [ -z "$VM" ] ; then
     echo "Build failed" 2>&1

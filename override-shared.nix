@@ -9,6 +9,12 @@ self: super: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
     });
+    clay = overrideCabal super.clay (drv: {
+      version = "0.11";
+      sha256 = "1hdk551wl5hg9danz4yf4h7bs8w3076s6hyg6h3fq20mn9hj65y3";
+      revision = null;
+      editedCabalFile = null;
+    });
     heist = overrideCabal super.heist (drv: {
       jailbreak = true;
     });
