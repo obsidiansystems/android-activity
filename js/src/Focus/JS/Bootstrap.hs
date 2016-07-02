@@ -131,7 +131,7 @@ monthCal y m sel = do
   let selectionMade = leftmost $ concat click
   return $ fmapMaybe id selectionMade
 
-timeInput :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, PerformEvent t m, MonadIO (Performable m), MonadFix m) => TimeOfDay -> m (Dynamic t TimeOfDay)
+timeInput :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeOfDay -> m (Dynamic t TimeOfDay)
 timeInput t0 = do
   let hs = Map.map (T.pack . show) $ Map.fromList $ zip [(1::Int)..12] [(1::Int)..12]
       ms = Map.fromList $ zip [(0::Int)..59] (map paddingZero [(0::Int)..59])
@@ -155,7 +155,7 @@ mainlandUSTimeZoneMap = do
                return (n,s)
   return (Map.fromList [(n,s) | (n,Just s) <- kvs])
 
-mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO (Performable m), MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
+mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
 mainlandUSTimeInput tzMap t0 = 
   utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
 
@@ -167,7 +167,7 @@ mainlandUSTimeZone tzMap _ {- cfg -} = do
   selection <- mapDyn (valueMap Map.!) =<< toggleButtonStrip "btn-xs" 3 labelMap
   mapDyn (tzMap Map.!) selection
 
-utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO (Performable m), MonadFix m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
+utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
 utcTimeInputMini tz0 tzWidget t = do
   rec timeShown <- combineDyn (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do

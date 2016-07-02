@@ -49,10 +49,10 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    spinner sp request response
                                    return response
 
-enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown = enumDropdown' minBound
 
-enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
@@ -146,7 +146,7 @@ typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
   options <- mapDyn toWidgetMap xs
   diffListWithKey options selections0
 
-diffListWithKey :: (Ord k, MonadWidget' t m, DomBuilderSpace m ~ GhcjsDomSpace)
+diffListWithKey :: (Ord k, MonadWidget' t m)
                 => Dynamic t (Map k (m ()))
                 -> Dynamic t (Set k)
                 -> m (Dynamic t (SetPatch k))
@@ -198,7 +198,7 @@ comboBoxInput cfg = do
   down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t keycodeDown
   return (t, leftmost [enter, up, down, esc])
 
-comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m)
+comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
              => Dynamic t (Map k v)
              -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction)) -- ^ Returns child element hover event
              -> Dynamic t Text -- ^ Query
