@@ -305,7 +305,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
             return $ Map.difference <$> results <*> (Map.fromList <$> selections)
       -- TODO: Allow user to click a pill and delete it using backspace
       removeEvents <- elDynAttr "span" (fmap (\x -> if odd x then "class" =: "highlight-last" else mempty) bs) $
-        simpleList (fmap reverse selections) $ \x -> elClass "span" "typeahead-pill" $ do
+        simpleList (nubDyn $ fmap reverse selections) $ \x -> elClass "span" "typeahead-pill" $ do
           dynText $ fmap snd x
           close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ icon "times fa-fw"
           return $ tag (current x) close
