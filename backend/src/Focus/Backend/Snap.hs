@@ -78,9 +78,6 @@ serveStaticIndex cfg = do
       meta_ [charset_ "utf-8"]
       meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0"]
       _appConfig_extraHeadMarkup cfg
-      style_ [r|
-        html, body { height: 100%; width: 100%; }
-      |]
       toHtmlRaw initialHead
       style_ initialStyles
     body_ $ do
