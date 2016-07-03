@@ -11,6 +11,7 @@ import Data.Monoid
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+-- import qualified Data.Text as T
 import Reflex.Dom
 import qualified GHCJS.DOM.Element as E
 import qualified GHCJS.DOM.EventM as EM
@@ -18,6 +19,7 @@ import qualified GHCJS.DOM.EventM as EM
 import Focus.App
 import Focus.Highlight
 import Focus.JS.App
+import Focus.JS.FontAwesome
 import Focus.JS.Highlight
 import Focus.Patch
 
@@ -163,13 +165,25 @@ data ComboBoxAction = ComboBoxAction_Up
                     | ComboBoxAction_Hover
                     | ComboBoxAction_Select
                     | ComboBoxAction_Dismiss
+                    | ComboBoxAction_Backspace
+                    | ComboBoxAction_Left
+                    | ComboBoxAction_Right
   deriving (Show, Read, Eq, Ord)
 
 keycodeUp :: Int
 keycodeUp = 38
 
+keycodeLeft :: Int
+keycodeLeft = 37
+
+keycodeRight :: Int
+keycodeRight = 39
+
 keycodeDown :: Int
 keycodeDown = 40
+
+keycodeBackspace :: Int
+keycodeBackspace = 8
 
 textInputGetKeycode :: Reflex t => TextInput t -> Int -> Event t Int
 textInputGetKeycode t keycode = ffilter (==keycode) $ _textInput_keydown t
@@ -193,9 +207,12 @@ comboBoxInput cfg = do
   t <- textInput cfg
   let enter = ComboBoxAction_Select <$ textInputGetEnter t
       esc = ComboBoxAction_Dismiss <$ textInputGetKeycode t keycodeEscape
+      bs = ComboBoxAction_Backspace <$ textInputGetKeycode t keycodeBackspace
+      left = ComboBoxAction_Left <$ textInputGetKeycode t keycodeLeft
+      right = ComboBoxAction_Right <$ textInputGetKeycode t keycodeRight
   up <- fmap (ComboBoxAction_Up <$) $ textInputGetKeycodeAbsorb t keycodeUp
   down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t keycodeDown
-  return (t, leftmost [enter, up, down, esc])
+  return (t, leftmost [enter, up, down, esc, bs, left, right])
 
 comboBoxList :: (Ord k, MonadWidget t m)
              => Dynamic t (Map k v)
@@ -246,15 +263,23 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
               leftmost [ Just <$> updated q, Nothing <$ selection ]
             v <- watchViewSelector vs
             mapDyn fromView v
-          li :: k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction)
-          li k v sel q = do
-            selAttr <- mapDyn (\x -> "class" =: if x then "simple-combobox-focus" else "simple-combobox-blur") sel
-            (e, _) <- elDynAttr' "li" selAttr $ dynHighlightedTextQ highlighter q =<< mapDyn (toString k) v
-            return $ leftmost [ ComboBoxAction_Hover <$ domEvent Mouseover e
-                              , ComboBoxAction_Select <$ domEvent Click e
-                              ]
-      selection <- comboBox def getOptions li toString (el "ul")
+      selection <- comboBox def getOptions (comboBoxListItem highlighter toString) toString (el "ul")
   return selection
+
+comboBoxListItem :: MonadWidget t m
+                 => (Text -> Text -> HighlightedText) -- ^ Highlight results (Query -> Result Text -> Highlight)
+                 -> (k -> v -> Text) -- ^ Turn a result into a string for display
+                 -> k
+                 -> Dynamic t v
+                 -> Dynamic t Bool
+                 -> Dynamic t Text
+                 -> m (Event t ComboBoxAction)
+comboBoxListItem highlighter toString k v sel q = do
+  selAttr <- mapDyn (\x -> "class" =: if x then "simple-combobox-focus" else "simple-combobox-blur") sel
+  (e, _) <- elDynAttr' "li" selAttr $ dynHighlightedTextQ highlighter q =<< mapDyn (toString k) v
+  return $ leftmost [ ComboBoxAction_Hover <$ domEvent Mouseover e
+                    , ComboBoxAction_Select <$ domEvent Click e
+                    ]
 
 -- | Whenever the header is clicked, it toggles the "collapsed" state of the
 -- content, making it "display: none" and hiding it entirely.
@@ -267,3 +292,39 @@ collapsibleSection header content = divClass "collapsible" $ do
   where
     collapse b = "style" =: ("display: " <> if b then "none" else "block") <>
       "class" =: "collapsible-content"
+
+-- | Typeahead that displays selected items using pills, handles backspace and clicking to remove items
+typeaheadMulti :: forall k t m. (MonadWidget t m, Ord k)
+               => Text -- ^ Placeholder text for input
+               -> (Dynamic t Text -> m (Dynamic t (Map k Text))) -- ^ Query to search results function
+               -> m (Dynamic t (Set k)) -- ^ Selections
+typeaheadMulti ph getter = divClass "typeahead-multi" $ do
+  rec let attrs = def & attributes .~ constDyn ("placeholder" =: ph)
+          getter' q = do
+            results <- getter q
+            return $ Map.difference <$> results <*> (Map.fromList <$> selections)
+      -- TODO: Allow user to click a pill and delete it using backspace
+      removeEvents <- elDynAttr "span" (fmap (\x -> if odd x then "class" =: "highlight-last" else mempty) bs) $
+        simpleList (fmap reverse selections) $ \x -> elClass "span" "typeahead-pill" $ do
+          dynText $ fmap snd x
+          close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ icon "times fa-fw"
+          return $ tag (current x) close
+      let remove = switch $ current $ fmap leftmost removeEvents
+      (sel, bs) <- elClass "span" "typeahead-multi-input" $ comboBox' attrs getter' (comboBoxListItem noHighlight (\_ v -> v)) (el "ul")
+      selections <- foldDyn ($) [] $ leftmost [ fmap (:) sel
+                                              , fmap (\x y -> filter (/= x) y) remove
+                                              , fmap (\n y -> if even n && n /= 0 then drop 1 y else y) (updated bs)
+                                              ]
+  return $ fmap (Set.fromList . map fst) selections
+  where
+    noHighlight _ x = (:[]) $ Highlight_Off x
+    comboBox' cfg getOptions li wrapper = do
+      rec (t, inputActions) <- comboBoxInput $ cfg & setValue .~ leftmost [ _textInputConfig_setValue cfg, "" <$ selectionE' ]
+          options <- getOptions $ value t
+          selectionE <- wrapper $ comboBoxList options li (value t) inputActions
+          let selectionE' = attachWithMaybe (\opts k -> fmap (\v -> (k, v)) $ Map.lookup k opts) (current options) selectionE
+          let bsAction = () <$ ffilter (== ComboBoxAction_Backspace) inputActions
+          bs :: Dynamic t Int <- foldDyn ($) 0 $ leftmost [ (+1) <$ bsAction
+                                                          , (const 0) <$ (updated $ value t)
+                                                          ]
+      return (selectionE', bs)
