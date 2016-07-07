@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other) where
+module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other, toSet) where
 
 import Prelude hiding (map, fst, snd)
 import Data.Aeson
 import GHC.Generics
+import qualified Data.Set as Set
+import Data.Set (Set)
 
 data SortedPair a = SortedPair_LT a a
                   | SortedPair_EQ a
@@ -39,3 +41,8 @@ other x (SortedPair_EQ u) | x == u    = Just u
 other x (SortedPair_LT u v) | x == u = Just v
                             | x == v = Just u
                             | otherwise = Nothing
+
+toSet :: Ord a => SortedPair a -> Set a
+toSet sp = case sp of
+  SortedPair_LT a b -> Set.fromList [a,b]
+  SortedPair_EQ a -> Set.singleton a
