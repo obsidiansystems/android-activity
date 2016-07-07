@@ -22,6 +22,7 @@ newtype IntercomSecretKey = IntercomSecretKey { unIntercomSecretKey :: Text } de
 
 data IntercomEnv = IntercomEnv
   { _intercomEnv_appId :: Text
+  , _intercomEnv_secureModeKey :: IntercomSecretKey
   , _intercomEnv_secretKey :: IntercomSecretKey
   } deriving (Show, Read, Eq, Ord)
 
