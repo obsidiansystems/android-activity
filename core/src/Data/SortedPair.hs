@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other, toSet) where
+module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other, toSet, member) where
 
 import Prelude hiding (map, fst, snd)
 import Data.Aeson
@@ -41,6 +41,10 @@ other x (SortedPair_EQ u) | x == u    = Just u
 other x (SortedPair_LT u v) | x == u = Just v
                             | x == v = Just u
                             | otherwise = Nothing
+
+member :: Eq a => a -> SortedPair a -> Bool
+member x (SortedPair_EQ a) = x == a
+member x (SortedPair_LT a b) = x == a || x == b
 
 toSet :: Ord a => SortedPair a -> Set a
 toSet sp = case sp of
