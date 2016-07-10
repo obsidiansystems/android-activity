@@ -328,3 +328,12 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
                                                           , (const 0) <$ (updated $ value t)
                                                           ]
       return (selectionE', bs)
+
+-- | Dynamic Maybe that can only update from Nothing to Just or Just to Just (i.e., cannot revert to Nothing)
+improvingMaybe :: (MonadHold t m, PostBuild t m) => Dynamic t (Maybe a) -> m (Dynamic t (Maybe a))
+improvingMaybe a = do
+  pb <- getPostBuild
+  holdDyn Nothing $ fmapMaybe (fmap Just) $ leftmost [ updated a
+                                                     , tagDyn a pb
+                                                     ]
+
