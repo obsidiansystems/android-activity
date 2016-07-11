@@ -412,7 +412,7 @@ loginForm
   :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
   => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
   -- ^ Login request
-  -> m (Event t loginInfo, Event t ())
+  -> m (Event t loginInfo, Event t (), Event t ())
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Sign in or "
@@ -432,7 +432,8 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
     icon "warning"
     text " Invalid email address or password"
   let eLoginSuccess = fmapMaybe id eLoginResult
-  return (eLoginSuccess, (_link_clicked signupLink))
+  forgotPasswordLink <- elAttr "h3" (Map.singleton "class" "form-reset-password-heading") $ linkClass "Forgot password?" "pointer"
+  return (eLoginSuccess, _link_clicked signupLink, _link_clicked forgotPasswordLink)
 
 newAccountForm
   :: (DomBuilder t m, PostBuild t m, MonadHold t m)
@@ -570,5 +571,3 @@ checkButton b0 active inactive txt = do
       toggleClass <- mapDyn (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
       iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected
-
-
