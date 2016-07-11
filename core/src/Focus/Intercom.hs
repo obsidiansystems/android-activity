@@ -6,6 +6,7 @@ import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.SHA (showDigest, hmacSha256)
+import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -41,6 +42,8 @@ data IntercomUser = IntercomUser
        { _intercomUser_updatedAt :: UTCTime
        , _intercomUser_id :: Text
        , _intercomUser_email :: Text
+       , _intercomUser_sessionCount :: Int64
+       , _intercomUser_location :: Text
        }
   deriving (Show, Read, Eq, Ord)
 instance FromJSON IntercomUser where
@@ -48,6 +51,12 @@ instance FromJSON IntercomUser where
     _intercomUser_updatedAt <- fmap posixSecondsToUTCTime (o .: "updated_at")
     _intercomUser_id <- o .: "id"
     _intercomUser_email <- o .: "email"
+    _intercomUser_sessionCount <- o .: "session_count"
+    _intercomUser_location <- do
+      locationData <- o .: "location_data"
+      country <- locationData .: "country_name"
+      city <- locationData .: "city_name"
+      return $ city <> ", " <> country
     return IntercomUser {..}
 
 getIntercomUsers :: IntercomEnv -> IO [IntercomUser]
