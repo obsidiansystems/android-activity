@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , In (..), Only (..), Values (..)
                                    , Binary (..), (:.)(..), PGArray (..)
@@ -12,6 +14,7 @@ import Control.Monad.Reader.Class
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Int
+import Data.Semigroup
 import Database.Groundhog.Core
 import Database.Groundhog.Postgresql
 import Database.PostgreSQL.Simple hiding (query, query_, execute, execute_, executeMany, formatQuery)
@@ -70,3 +73,6 @@ liftWithConn :: MonadIO m
 liftWithConn f = DbPersist $ do
   (Postgresql conn) <- ask
   liftIO (f conn)
+
+instance Semigroup Query where
+  (<>) = mappend

@@ -22,6 +22,10 @@ class Semigroup (Patch v) => Patchable v where
   default patch :: First v -> v -> v
   patch (First v) _ = v
 
+instance (Patchable a, Patchable b) => Patchable (a, b) where
+  type Patch (a, b) = (Patch a, Patch b)
+  patch (p, q) (x, y) = (patch p x, patch q y)
+
 instance Ord v => Patchable (Set v) where
   type Patch (Set v) = SetPatch v
   patch (SetPatch sp) s = Map.keysSet (Map.filter id (Map.union sp (Map.fromSet (\_ -> True) s)))
@@ -48,6 +52,12 @@ instance (Ord k, Patchable v) => Patchable (Map k v) where
 newtype SetPatch a = SetPatch
           { unSetPatch :: Map a Bool }
   deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup, Typeable)
+
+setPatchAdd :: Set a -> SetPatch a
+setPatchAdd s = SetPatch (Map.fromSet (const True) s)
+
+setPatchRemove :: Set a -> SetPatch a
+setPatchRemove s = SetPatch (Map.fromSet (const False) s)
 
 instance (Ord a, FromJSON a) => FromJSON (SetPatch a) where
   parseJSON v = SetPatch <$> parseJSONMap v
