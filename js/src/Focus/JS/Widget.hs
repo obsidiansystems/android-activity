@@ -267,7 +267,7 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
       selection <- comboBox def getOptions (comboBoxListItem highlighter toString) toString (el "ul")
   return selection
 
-comboBoxListItem :: MonadWidget t m
+comboBoxListItem :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                  => (Text -> Text -> HighlightedText) -- ^ Highlight results (Query -> Result Text -> Highlight)
                  -> (k -> v -> Text) -- ^ Turn a result into a string for display
                  -> k
