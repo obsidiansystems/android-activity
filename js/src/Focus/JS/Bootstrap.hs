@@ -364,8 +364,8 @@ withLoginWorkflow'
   -- ^ New Account (New User, return to signin)
   -> m (Event t (), Event t ())
   -- ^ Recover (Password Reset Requested, return to signin)
-  -> m (Event t loginInfo, Event t ())
-  -- ^ Login (Successful login request, return to signup)
+  -> m (Event t loginInfo, Event t (), Event t ())
+  -- ^ Login (Successful login request, return to signup, password reset)
   -> (loginInfo -> m (Event t ()))
   -- ^ Post-login, returns a logout event
   -> Workflow t m (Event t (Maybe loginInfo))
@@ -378,7 +378,7 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
               (_ {- eReset -}, eSigninClick) <- recoveryForm'
               return (never, fmap (const loginWorkflow) eSigninClick)
             loginWorkflow = Workflow $ do
-              (eLoginSuccess, eNewAccountClick) <- loginForm'
+              (eLoginSuccess, eNewAccountClick, _) <- loginForm'
               recoverLink <- elAttr "p" (Map.singleton "class" "text-center") $ do
                 text "Forgot password? "
                 link "Recover account"

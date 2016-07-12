@@ -295,7 +295,7 @@ collapsibleSection header content = divClass "collapsible" $ do
       "class" =: "collapsible-content"
 
 -- | Typeahead that displays selected items using pills, handles backspace and clicking to remove items
-typeaheadMulti :: forall k t m. (MonadWidget t m, Ord k)
+typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m, Ord k)
                => Text -- ^ Placeholder text for input
                -> (Dynamic t Text -> m (Dynamic t (Map k Text))) -- ^ Query to search results function
                -> m (Dynamic t (Set k)) -- ^ Selections
