@@ -248,7 +248,7 @@ instance MonadWidget t m => MonadWidget t (RequestT t req m) where
   tellWidgetOutput = RequestT . lift . tellWidgetOutput
 -}
 
-class Monad m => MonadRequest t req m where
+class Monad m => MonadRequest t req m | m -> t where
   requesting :: (ToJSON a, FromJSON a) => Event t (req a) -> m (Event t a)
   -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
 
