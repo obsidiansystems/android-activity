@@ -3,6 +3,7 @@ module Focus.Patch where
 
 import Control.Lens
 import Data.Aeson
+import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -53,6 +54,9 @@ newtype SetPatch a = SetPatch
           { unSetPatch :: Map a Bool }
   deriving (Show, Read, Eq, Ord, Generic, Monoid, Semigroup, Typeable)
 
+setPatchInsert :: a -> SetPatch a
+setPatchInsert v = SetPatch (Map.singleton v True)
+
 setPatchAdd :: Set a -> SetPatch a
 setPatchAdd s = SetPatch (Map.fromSet (const True) s)
 
@@ -102,6 +106,10 @@ unionMapPatch (MapPatch x) (MapPatch y) = MapPatch (Map.unionWith (<>) x y)
 
 mapPatchInsert :: Map k a -> MapPatch k a
 mapPatchInsert m = MapPatch (fmap ElemPatch_Insert m)
+
+(~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (Map k v)
+k ~: p = MapPatch (Map.singleton k (ElemPatch_Upsert p (Just (patch p def))))
+infixr 5 ~:
 
 mapSetInsert :: k -> a -> MapPatch k (Set a)
 mapSetInsert k v = MapPatch (Map.singleton k (ElemPatch_Upsert (SetPatch (Map.singleton v True)) (Just (Set.singleton v))))
