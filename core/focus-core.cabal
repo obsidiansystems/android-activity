@@ -25,6 +25,7 @@ library
                , dependent-map
                , dependent-sum
                , haskell-src-exts
+               , http-conduit
                , lens
                , loch-th
                , mtl

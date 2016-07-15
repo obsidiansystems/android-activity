@@ -125,10 +125,10 @@ asyncApi r f = do
     liftIO $ f rsp
   return ()
 
-requestingXhr :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
+requestingXhr :: (Request r, ToJSON a, FromJSON a, TriggerEvent t m, PerformEvent t m, HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
 requestingXhr requestE = performEventAsync $ fmap (\r yield' -> liftJS $ asyncApi r yield') requestE
 
-requestingXhrMany :: (Request r, ToJSON a, FromJSON a, MonadWidget t m, HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
+requestingXhrMany :: (Request r, ToJSON a, FromJSON a, TriggerEvent t m, PerformEvent t m, MonadIO (Performable m), HasJS x (WidgetHost m), Traversable f) => Event t (f (r a)) -> m (Event t (f a))
 requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   resps <- forM rs $ \r -> do
     resp <- liftIO newEmptyMVar
@@ -158,7 +158,7 @@ instance MonadReader r m => MonadReader r (RequestT t req m) where
   local f (RequestT a) = RequestT $ mapStateT (mapReaderT $ local f) a
   reader = lift . reader
 
-runRequestT :: (Reflex t, Monad m, MonadHold t m, MonadWidget t m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON token, Ord token, Request req)
+runRequestT :: (Reflex t, Monad m, MonadFix m, MonadHold t m, Ref (Performable m) ~ Ref IO, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON token, Ord token, Request req)
             => Event t (AppendMap token vs)
             -> RequestT t req m a
             -> m (a, Event t (AppendMap token notification))
@@ -296,7 +296,7 @@ instance TriggerEvent t m => TriggerEvent t (RequestT t req m) where
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (MonadFix (WidgetHost m), MonadWidget t m, Request req) => MonadRequest t req (RequestT t req m) where
+instance (MonadFix (WidgetHost m), DomBuilder t m, Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do
     rid <- RequestT $ state $ \s -> (s, s + 1)
     c <- RequestT $ asks _requestEnv_currentInvocation

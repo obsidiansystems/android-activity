@@ -14,6 +14,9 @@ import Focus.Sign
 
 import Safe
 import Control.Monad
+import Control.Monad.Fix
+import Control.Monad.IO.Class
+-- import Control.Monad.Ref
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
@@ -26,41 +29,42 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import Text.RawString.QQ
 
-bootstrapCDN :: MonadWidget t m => m ()
+bootstrapCDN :: DomBuilder t m => m ()
 bootstrapCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css") $ return ()
 
-button :: MonadWidget t m => Text -> m (Event t ())
+button :: (DomBuilder t m, PostBuild t m) => Text -> m (Event t ())
 button s = buttonClass "btn btn-primary" s
 
-buttonClass :: MonadWidget t m => Text -> Text -> m (Event t ())
+buttonClass :: (DomBuilder t m, PostBuild t m) => Text -> Text -> m (Event t ())
 buttonClass k s = button' k $ text s
 
-buttonActiveClass :: MonadWidget t m => Text -> Dynamic t Bool -> Text -> m (Event t ())
+buttonActiveClass :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> Text -> m (Event t ())
 buttonActiveClass k actD s = buttonActive' k actD (text s)
 
-button' :: MonadWidget t m => Text -> m a -> m (Event t ())
+button' :: (DomBuilder t m, PostBuild t m) => Text -> m a -> m (Event t ())
 button' k w = buttonDynAttr (constDyn $ "class" =: k <> "type" =: "button") w
 
-buttonActive' :: MonadWidget t m => Text -> Dynamic t Bool -> m a -> m (Event t ())
+buttonActive' :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> m a -> m (Event t ())
 buttonActive' k actD w = do attrs <- forDyn actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
                             buttonDynAttr attrs w
 
-buttonDynAttr :: MonadWidget t m => Dynamic t (Map Text Text) -> m a -> m (Event t ())
+buttonDynAttr :: (DomBuilder t m, PostBuild t m) => Dynamic t (Map Text Text) -> m a -> m (Event t ())
 buttonDynAttr attrs w = liftM (domEvent Click . fst) $ elDynAttr' "button" attrs w
 
-panelContainer :: forall t m a. MonadWidget t m => m a -> m a
+panelContainer :: forall t m a. DomBuilder t m => m a -> m a
 panelContainer = divClass "panel panel-primary"
 
-panelHeader :: forall t m a. MonadWidget t m => m a -> m a
+panelHeader :: forall t m a. DomBuilder t m => m a -> m a
 panelHeader = divClass "panel-heading"
 
-panelBody :: forall t m a. MonadWidget t m => m a -> m a
+panelBody :: forall t m a. DomBuilder t m => m a -> m a
 panelBody = divClass "panel-body"
 
-panelFooter :: forall t m a. MonadWidget t m => m a -> m a
+panelFooter :: forall t m a. DomBuilder t m => m a -> m a
 panelFooter = divClass "panel-footer"
 
-dl :: forall t m a. MonadWidget t m => m a -> m a
+
+dl :: forall t m a. DomBuilder t m => m a -> m a
 dl = elAttr "dl" (Map.singleton "class" "dl-horizontal")
 
 data NumberInput t a = NumberInput { _numberInput_value :: Dynamic t (Maybe a)
@@ -70,7 +74,7 @@ instance HasValue (NumberInput t a) where
   type Value (NumberInput t a) = Dynamic t (Maybe a)
   value = _numberInput_value
 
-numberInput :: (Num a, MonadWidget t m) => Text -> m (NumberInput t a)
+numberInput :: (Num a, DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (NumberInput t a)
 numberInput initial =
   do ti <- textInput $ def & textInputConfig_inputType .~ "number"
                            & textInputConfig_initialValue .~ initial
@@ -78,7 +82,7 @@ numberInput initial =
      v <- mapDyn (fmap fromInteger . readMay . T.unpack) (value ti)
      return (NumberInput v ti)
 
-dayInput :: MonadWidget t m => Day -> m (Dynamic t Day)
+dayInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
 dayInput d0 = do
   let (year0, month0, _ {- dayOfMonth0 -} ) = toGregorian d0
   rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
@@ -103,7 +107,7 @@ dayInput d0 = do
       day <- holdDyn d0 $ attachDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
-monthCal :: forall t m. MonadWidget t m => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
+monthCal :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
 monthCal y m sel = do
   let som = fromGregorian y (monthToInt m) 1
       wd = dayToWeekDay som
@@ -127,7 +131,7 @@ monthCal y m sel = do
   let selectionMade = leftmost $ concat click
   return $ fmapMaybe id selectionMade
 
-timeInput :: forall t m. MonadWidget t m => TimeOfDay -> m (Dynamic t TimeOfDay)
+timeInput :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeOfDay -> m (Dynamic t TimeOfDay)
 timeInput t0 = do
   let hs = Map.map (T.pack . show) $ Map.fromList $ zip [(1::Int)..12] [(1::Int)..12]
       ms = Map.fromList $ zip [(0::Int)..59] (map paddingZero [(0::Int)..59])
@@ -144,18 +148,18 @@ timeInput t0 = do
   tod <- liftM (fmapMaybe id . updated) $ combineDyn (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
 
-mainlandUSTimeZoneMap :: (MonadWidget t m, HasJS x m) => m (Map Text TimeZoneSeries)
+mainlandUSTimeZoneMap :: (MonadIO m, HasJS x m) => m (Map Text TimeZoneSeries)
 mainlandUSTimeZoneMap = do
   kvs <- forM ["Eastern", "Central", "Mountain", "Pacific"] $ \n ->
             do s <- getTimeZoneSeries ("US/" <> n)
                return (n,s)
   return (Map.fromList [(n,s) | (n,Just s) <- kvs])
 
-mainlandUSTimeInput :: (HasJS x m, MonadWidget t m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
+mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
 mainlandUSTimeInput tzMap t0 = 
   utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
 
-mainlandUSTimeZone :: (HasJS x m, MonadWidget t m) => Map Text TimeZoneSeries -> DropdownConfig t Text -> m (Dynamic t TimeZoneSeries)
+mainlandUSTimeZone :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> DropdownConfig t Text -> m (Dynamic t TimeZoneSeries)
 mainlandUSTimeZone tzMap _ {- cfg -} = do
   let labelMap, valueMap :: Map Int Text
       labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
@@ -163,7 +167,7 @@ mainlandUSTimeZone tzMap _ {- cfg -} = do
   selection <- mapDyn (valueMap Map.!) =<< toggleButtonStrip "btn-xs" 3 labelMap
   mapDyn (tzMap Map.!) selection
 
-utcTimeInputMini :: (HasJS x m, MonadWidget t m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
+utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
 utcTimeInputMini tz0 tzWidget t = do
   rec timeShown <- combineDyn (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
@@ -203,7 +207,7 @@ data SortOrder = Ascending
                | Descending
                deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-sortList :: forall t m k v a. (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
+sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
 sortList items setK toString mkChild = do
   sortOrder :: Dynamic t SortOrder <- divClass "pull-right" $ alphaSortSelector
   query <- searchBox "search"
@@ -218,7 +222,7 @@ sortList items setK toString mkChild = do
       curSel <- holdDyn Nothing $ leftmost [setSel, sel]
   mapDyn (fmap snd) curSel
 
-sortListWithDeselectButton :: (Ord k, MonadWidget t m) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
+sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
 sortListWithDeselectButton buttonLabel items toString mkChild = do
   b <- button buttonLabel
   let deselect = fmap (const Nothing) b
@@ -230,7 +234,7 @@ substringFilter q s = case q of
                            Just "" -> True
                            Just q' -> T.count (T.toLower q') (T.toLower s) > 0
 
-alphaSortSelector :: MonadWidget t m => m (Dynamic t SortOrder)
+alphaSortSelector :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => m (Dynamic t SortOrder)
 alphaSortSelector = do
   divClass "btn-group" $ do
     rec asc <- buttonDynAttr attrsA $ icon "sort-alpha-asc"
@@ -242,7 +246,8 @@ alphaSortSelector = do
         attrsD <- forDyn order $ \x -> if x == Descending then active else inactive
     return order
 
-searchBox' :: MonadWidget t m => Text -> Text -> m (Dynamic t (Maybe Text))
+-- searchBox' :: (DomBuilder t m, PostBuild t m, Ref (Performable m) ~ Ref IO, Ref m ~ Ref IO, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, MonadRef m) => Text -> Text -> m (Dynamic t (Maybe Text))
+searchBox' :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> m (Dynamic t (Maybe Text))
 searchBox' i p = do
   divClass "input-group" $ do
     elClass "span" "input-group-addon" $ icon i
@@ -250,59 +255,59 @@ searchBox' i p = do
     forDyn q $ \v -> let x = T.strip v
                      in if x == "" then Nothing else Just x
 
-searchBox :: MonadWidget t m => Text -> m (Dynamic t (Maybe Text))
+searchBox :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (Dynamic t (Maybe Text))
 searchBox i = searchBox' i "Search..."
 
-readonlyInput :: forall t m. MonadWidget t m => Text -> Text -> Text -> Event t Text -> m (TextInput t)
+readonlyInput :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> Text -> Event t Text -> m (TextInput t)
 readonlyInput inputType initial _ eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
                                                             & textInputConfig_initialValue .~  initial
                                                             & setValue .~ eSetVal
                                                             & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("readonly", "readonly")])
 
 
-inputWithPlaceholder' :: forall t m. MonadWidget t m => Text -> Text -> Text -> Event t Text -> m (TextInput t)
+inputWithPlaceholder' :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> Text -> Event t Text -> m (TextInput t)
 inputWithPlaceholder' inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
                                                                     & textInputConfig_initialValue .~  initial
                                                                     & setValue .~ eSetVal
                                                                     & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("placeholder", p)])
 
-inputWithPlaceholder :: forall t m. MonadWidget t m => Text -> Text -> m (TextInput t)
+inputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> m (TextInput t)
 inputWithPlaceholder inputType p = inputWithPlaceholder' inputType "" p never
 
-textInputWithPlaceholder :: forall t m. MonadWidget t m => Text -> m (TextInput t)
+textInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
 textInputWithPlaceholder p = inputWithPlaceholder "text" p
 
-passwordInputWithPlaceholder :: forall t m. MonadWidget t m => Text -> m (TextInput t)
+passwordInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
 passwordInputWithPlaceholder p = inputWithPlaceholder "password" p
 
-emailInputWithPlaceholder :: forall t m. MonadWidget t m => Text -> m (TextInput t)
+emailInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
 emailInputWithPlaceholder p = inputWithPlaceholder "email" p
 
-labelledInput :: forall t m a. MonadWidget t m => Text -> m a -> m a
+labelledInput :: forall t m a. DomBuilder t m => Text -> m a -> m a
 labelledInput name content = do
   divClass "form-group" $ do
     elAttr "label" (Map.fromList [("for", ""), ("class", "col-sm-2 control-label")]) $ do
       text $ name
     divClass "col-sm-10" $ return =<< content
 
-buttonWithIcon :: forall t m. MonadWidget t m => Text -> Text -> Text -> m (Event t ())
+buttonWithIcon :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> Text -> Text -> m (Event t ())
 buttonWithIcon i s btnClass = button' btnClass $ do
   icon i
   text $ " " <> s
 
-stamp :: MonadWidget t m => Text -> Text -> m ()
+stamp :: DomBuilder t m => Text -> Text -> m ()
 stamp k v = elAttr "span" ("class" =: ("stamp " <> k) <> stampDefaultStyle) $ text v
 
-stamp' :: MonadWidget t m => Text -> Text -> m ()
+stamp' :: DomBuilder t m => Text -> Text -> m ()
 stamp' k v = stampWidget k $ text v
 
-stampWidget :: MonadWidget t m => Text -> m a -> m a
+stampWidget :: DomBuilder t m => Text -> m a -> m a
 stampWidget k w = elAttr "span" ("class" =: ("stamp " <> k)) w
 
 stampDefaultStyle :: Map Text Text
 stampDefaultStyle = "style" =: "color: white; text-transform: uppercase; font-weight: bold; padding-left: 0.25em; padding-right: 0.25em; font-size: small; border-radius: 0.25em; box-shadow: 1px 1px 1px black; text-shadow: 1px 1px 1px black;"
 
-tristateButton :: MonadWidget t m => Text -> Text -> Dynamic t (Maybe Bool) -> m (Event t ())
+tristateButton :: (DomBuilder t m, PostBuild t m) => Text -> Text -> Dynamic t (Maybe Bool) -> m (Event t ())
 tristateButton k l b = do
   attrs <- mapDyn buttonAttrs b
   buttonDynAttr attrs (dyn =<< mapDyn buttonContents b)
@@ -317,29 +322,29 @@ tristateButton k l b = do
                               icon "check"
                             _ -> text l
 
-maybeBadge :: forall t m a. (MonadWidget t m, Show a) => Dynamic t (Maybe a) -> m (Event t ())
+maybeBadge :: forall t m a. (DomBuilder t m, PostBuild t m, Show a) => Dynamic t (Maybe a) -> m (Event t ())
 maybeBadge mInt = dyn $ ffor mInt $ maybe blank $ \n -> elAttr "span" (Map.singleton "class" "badge") $ text $ T.pack $ show n
 
-checkboxWithLabel :: forall t m. MonadWidget t m => Text -> m (Checkbox t)
+checkboxWithLabel :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> m (Checkbox t)
 checkboxWithLabel l = checkboxWithLabelAttrs l Map.empty
 
-checkboxWithLabelAttrs :: forall t m. MonadWidget t m => Text -> Map Text Text -> m (Checkbox t)
+checkboxWithLabelAttrs :: forall t m. ((DomBuilder t m, PostBuild t m)) => Text -> Map Text Text -> m (Checkbox t)
 checkboxWithLabelAttrs l attrs = elAttr "label" attrs $ do
   c <- checkbox False def
   text $ " " <> l
   return c
 
-progressBar :: MonadWidget t m => Text -> Dynamic t Double -> m ()
+progressBar :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Double -> m ()
 progressBar k w = divClass "progress" $ do
   attrs <- forDyn w $ \w' -> "class" =: ("progress-bar progress-bar-" <> k) <> "style" =: ("width: " <> T.pack (show w') <> "%")
   elDynAttr "div" attrs $ return ()
 
-maybeDisplay :: forall t m a b. MonadWidget t m => a -> (Dynamic t a -> m (Dynamic t (Maybe b))) -> (a -> b -> m ()) -> m ()
+maybeDisplay :: forall t m a b. (DomBuilder t m, PostBuild t m) => a -> (Dynamic t a -> m (Dynamic t (Maybe b))) -> (a -> b -> m ()) -> m ()
 maybeDisplay someId watcher child = do
   _ <- dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
   return ()
 
-jumbotron :: forall t m a. MonadWidget t m => Text -> Text -> m a -> m a
+jumbotron :: forall t m a. DomBuilder t m => Text -> Text -> m a -> m a
 jumbotron t subtitle child = divClass "jumbotron" $ do
   elAttr "h1" (Map.singleton "class" "text-center") $ do
     text t
@@ -348,7 +353,7 @@ jumbotron t subtitle child = divClass "jumbotron" $ do
   child
 
 withLoginWorkflow'
-  :: forall t m loginInfo newUser. (MonadWidget t m)
+  :: forall t m loginInfo newUser. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Bool -- ^ Whether to display sign-up form first
   -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
       m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
@@ -360,7 +365,7 @@ withLoginWorkflow'
   -> m (Event t (), Event t ())
   -- ^ Recover (Password Reset Requested, return to signin)
   -> m (Event t loginInfo, Event t ())
-  -- ^ Login (Successful login request, return to signup)
+  -- ^ Login (Successful login request, return to signup, password reset)
   -> (loginInfo -> m (Event t ()))
   -- ^ Post-login, returns a logout event
   -> Workflow t m (Event t (Maybe loginInfo))
@@ -389,7 +394,7 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
   in maybe loginWorkflow' f' li0
 
 recoveryForm
-  :: forall t m. (MonadWidget t m)
+  :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
   => (Event t Email -> m (Event t ()))
   -- ^ Recover password request
   -> m (Event t (), Event t ())
@@ -404,7 +409,7 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
   return (eReset, (_link_clicked signinLink))
 
 loginForm
-  :: forall t m loginInfo. (MonadWidget t m)
+  :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
   => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
   -- ^ Login request
   -> m (Event t loginInfo, Event t ())
@@ -427,10 +432,20 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
     icon "warning"
     text " Invalid email address or password"
   let eLoginSuccess = fmapMaybe id eLoginResult
-  return (eLoginSuccess, (_link_clicked signupLink))
+  return (eLoginSuccess, _link_clicked signupLink)
+
+loginFormWithReset
+  :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
+  -- ^ Login request
+  -> m (Event t loginInfo, Event t (), Event t ())
+loginFormWithReset login = do
+  (eLoginSuccess, signup) <- loginForm login
+  forgotPasswordLink <- elAttr "h3" (Map.singleton "class" "form-reset-password-heading") $ linkClass "Forgot password?" "pointer"
+  return (eLoginSuccess, signup, _link_clicked forgotPasswordLink)
 
 newAccountForm
-  :: MonadWidget t m
+  :: (DomBuilder t m, PostBuild t m, MonadHold t m)
   => m (Behavior t newUser)
   -- ^ New Account form
   -> (Event t newUser -> m (Event t newUserId))
@@ -447,7 +462,7 @@ newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "fo
   return (eNewUser, (_link_clicked signinLink))
 
 passwordResetWorkflow
-  :: MonadWidget t m
+  :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m)
   => Signed PasswordResetToken
   -> (Maybe loginInfo -> Workflow t m (Event t (Maybe loginInfo)))
   -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
@@ -459,7 +474,7 @@ passwordResetWorkflow token withLoginWorkflow reset = do
     return (eLoginResult, eLoggedIn)
 
 passwordReset
-  :: MonadWidget t m
+  :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace)
   => Signed PasswordResetToken
   -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
   -> m (Event t loginInfo)
@@ -476,7 +491,7 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   --performEvent_ $ fmap (const $ liftIO $ windowHistoryPushState "/") loginInfo
   return loginInfo
 
-styleTagSignin :: MonadWidget t m => m ()
+styleTagSignin :: DomBuilder t m => m ()
 styleTagSignin = el "style" $ text [r|
   .form-signin {
     max-width: 330px;
@@ -514,7 +529,7 @@ styleTagSignin = el "style" $ text [r|
   }
 |]
 
-toggleButton :: MonadWidget t m => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
+toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
         _ <- dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
@@ -529,7 +544,7 @@ toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "over
       selAttrB <- mapDyn (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
   return sel
 
-toggleButtonStrip :: (Ord k, MonadWidget t m) => Text -> k -> Map k Text -> m (Dynamic t k)
+toggleButtonStrip :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Text -> k -> Map k Text -> m (Dynamic t k)
 toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
   rec selection <- holdDyn s0 changeE
       let baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: ("width: " <> (T.pack $ show (100 / fromIntegral (Map.size labelMap) :: Double)) <> "%;")
@@ -540,7 +555,7 @@ toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
                          dynText labelDyn
   return selection
 
-dayInputMini :: MonadWidget t m => Day -> m (Dynamic t Day)
+dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
 dayInputMini d0 = do
   let showDate = T.pack . formatTime defaultTimeLocale "%b %e, %Y"
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
@@ -556,7 +571,7 @@ dayInputMini d0 = do
         return (updated d, never)
   holdDyn d0 date
 
-checkButton :: MonadWidget t m => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
+checkButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 checkButton b0 active inactive txt = do
   rec e <- buttonDynAttr toggleClass $ do
         elDynAttr "i" iconClass $ return ()
@@ -565,5 +580,3 @@ checkButton b0 active inactive txt = do
       toggleClass <- mapDyn (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
       iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected
-
-

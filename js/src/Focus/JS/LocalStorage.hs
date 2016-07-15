@@ -42,10 +42,10 @@ storageGetMany :: (MonadWidget t m, HasJS x (WidgetHost m), Traversable f) => Ev
 storageGetMany gets = do
   performEvent $ ffor gets $ liftJS . mapM localStorageGetItemMaybe
 
-storageSet :: (MonadWidget t m) => Event t (Key, Maybe Value) -> m (Event t ())
+storageSet :: (PerformEvent t m, HasWebView m, MonadIO m, MonadIO (Performable m)) => Event t (Key, Maybe Value) -> m (Event t ())
 storageSet = liftM (fmap runIdentity) . storageSetMany . fmap Identity
 
-storageSetMany :: (MonadWidget t m, Traversable f) => Event t (f (Key, Maybe Value)) -> m (Event t (f ()))
+storageSetMany :: (PerformEvent t m, HasWebView m, MonadIO m, MonadIO (Performable m), Traversable f) => Event t (f (Key, Maybe Value)) -> m (Event t (f ()))
 storageSetMany sets = do
   dw <- askDomWindow
   Just s <- liftIO $ getLocalStorage dw

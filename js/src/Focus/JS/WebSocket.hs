@@ -7,6 +7,7 @@ import Focus.Request
 import Prelude hiding (div, span, mapM, mapM_, concat, concatMap, all, sequence)
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
+import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
@@ -36,7 +37,7 @@ instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, MonadWidget t m) => Text -> WebSocketConfig t -> m (WebSocket t)
+webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t -> m (WebSocket t)
 webSocket path config = do
   pageHost <- liftIO . getLocationHost =<< askWebView
   pageProtocol <- liftIO . getLocationProtocol =<< askWebView
@@ -62,7 +63,14 @@ fromJSONViaAllArgsHave req rspRaw = case getArgDict req :: Dict (ComposeConstrai
 apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
              ( HasJS x m
              , HasJS x (WidgetHost m)
-             , MonadWidget t m
+             , HasWebView m
+             , MonadFix m
+             , MonadHold t m
+             , MonadIO m
+             , MonadIO (Performable m)
+             , PostBuild t m
+             , PerformEvent t m
+             , TriggerEvent t m
              , Traversable' f
              , ToJSON' req
              , AllArgsHave (ComposeConstraint FromJSON rsp) req

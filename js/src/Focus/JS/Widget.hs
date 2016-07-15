@@ -3,6 +3,7 @@ module Focus.JS.Widget where
 
 import Control.Lens hiding (ix, element)
 import Control.Monad
+import Control.Monad.Fix
 import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -34,7 +35,7 @@ elDynAttrHide elementTag attrs child = do
   snd <$> element elementTag cfg child
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
-resetAfterEach :: (MonadWidget t m) => m (Event t a) -> m (Event t a)
+resetAfterEach :: (DomBuilder t m, MonadHold t m, MonadFix m) => m (Event t a) -> m (Event t a)
 resetAfterEach w = do rec success <- liftM (switch . current) $ widgetHold w (fmap (const $ w) success)
                       return success
 
@@ -42,18 +43,18 @@ data SpinnerParts m a b = SpinnerParts { _spinnerParts_pre  :: m ()
                                        , _spinnerParts_wait :: a -> m ()
                                        , _spinnerParts_post :: b -> m () }
 
-spinner :: (MonadWidget t m) => SpinnerParts m a b -> Event t a -> Event t b -> m ()
+spinner :: (DomBuilder t m, MonadHold t m) => SpinnerParts m a b -> Event t a -> Event t b -> m ()
 spinner (SpinnerParts pre' wait post) request response = fmap (const ()) $ widgetHold pre' (leftmost [fmap post response, fmap wait request])
 
-withSpinner :: MonadWidget t m => SpinnerParts m a b -> (Event t a -> m (Event t b)) -> (Event t a -> m (Event t b))
+withSpinner :: (DomBuilder t m, MonadHold t m) => SpinnerParts m a b -> (Event t a -> m (Event t b)) -> (Event t a -> m (Event t b))
 withSpinner sp asyncW request = do response <- asyncW request
                                    spinner sp request response
                                    return response
 
-enumDropdown :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Ord k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown = enumDropdown' minBound
 
-enumDropdown' :: forall t m k. (MonadWidget t m, Enum k, Bounded k, Ord k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
@@ -100,7 +101,7 @@ extensibleListWidget n x0 xs0 itemWidget =
             valuesD <- mapDyn Map.elems valuesMapD
         return valuesD
 
-typeaheadSearch :: (MonadFocusWidget app t m, Monoid a)
+typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace, Monoid a)
                 => Text
                 -- ^ text input placeholder
                 -> ASetter a (ViewSelector app) b (Set Text)
@@ -115,7 +116,7 @@ typeaheadSearch ph vsQuery extractor = do
   result <- mapDyn extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a)
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a, DomBuilderSpace m ~ GhcjsDomSpace)
                         => Text
                         -- ^ text input placeholder
                         -> ASetter a (ViewSelector app) b (Set Text)
@@ -130,7 +131,7 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Monoid a)
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Monoid a, DomBuilderSpace m ~ GhcjsDomSpace)
                            => Text
                            -- ^ text input placeholder
                            -> ASetter a (ViewSelector app) b (Set Text)
@@ -147,7 +148,7 @@ typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
   options <- mapDyn toWidgetMap xs
   diffListWithKey options selections0
 
-diffListWithKey :: (Ord k, MonadWidget t m)
+diffListWithKey :: (Ord k, MonadWidget' t m)
                 => Dynamic t (Map k (m ()))
                 -> Dynamic t (Set k)
                 -> m (Dynamic t (SetPatch k))
@@ -200,7 +201,7 @@ textInputGetKeycodeAbsorb t keycode = fmap (fmapMaybe id) $ wrapDomEvent (_textI
        return $ Just e
      else return Nothing
 
-comboBoxInput :: MonadWidget t m
+comboBoxInput :: (DomBuilder t m, PostBuild t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m)
               => TextInputConfig t
               -> m (TextInput t, Event t ComboBoxAction)
 comboBoxInput cfg = do
@@ -214,7 +215,7 @@ comboBoxInput cfg = do
   down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t keycodeDown
   return (t, leftmost [enter, up, down, esc, bs, left, right])
 
-comboBoxList :: (Ord k, MonadWidget t m)
+comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
              => Dynamic t (Map k v)
              -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction)) -- ^ Returns child element hover event
              -> Dynamic t Text -- ^ Query
@@ -236,7 +237,7 @@ comboBoxList xs li query externalActions = do
       focus <- foldDyn (\a _ -> a) Nothing $ leftmost [ actionToFocus, selectOnUpdate ]
   return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
 
-comboBox :: (Ord k, MonadWidget t m)
+comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m)
          => TextInputConfig t
          -> (Dynamic t Text -> m (Dynamic t (Map k v)))
          -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction))
@@ -250,7 +251,7 @@ comboBox cfg getOptions li toStr wrapper = do
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
 
-simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k)
+simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
                => (Text -> ViewSelector app) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display
@@ -266,7 +267,7 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
       selection <- comboBox def getOptions (comboBoxListItem highlighter toString) toString (el "ul")
   return selection
 
-comboBoxListItem :: MonadWidget t m
+comboBoxListItem :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                  => (Text -> Text -> HighlightedText) -- ^ Highlight results (Query -> Result Text -> Highlight)
                  -> (k -> v -> Text) -- ^ Turn a result into a string for display
                  -> k
@@ -283,7 +284,7 @@ comboBoxListItem highlighter toString k v sel q = do
 
 -- | Whenever the header is clicked, it toggles the "collapsed" state of the
 -- content, making it "display: none" and hiding it entirely.
-collapsibleSection :: (MonadWidget t m) => Text -> m a -> m a
+collapsibleSection :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Text -> m a -> m a
 collapsibleSection header content = divClass "collapsible" $ do
   click <- divClass "collapsible-header" $ do
      fmap (_link_clicked) $ el "strong" $ link header
@@ -294,7 +295,7 @@ collapsibleSection header content = divClass "collapsible" $ do
       "class" =: "collapsible-content"
 
 -- | Typeahead that displays selected items using pills, handles backspace and clicking to remove items
-typeaheadMulti :: forall k t m. (MonadWidget t m, Ord k)
+typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m, Ord k)
                => Text -- ^ Placeholder text for input
                -> (Dynamic t Text -> m (Dynamic t (Map k Text))) -- ^ Query to search results function
                -> m (Dynamic t (Set k)) -- ^ Selections
