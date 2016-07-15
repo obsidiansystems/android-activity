@@ -44,8 +44,12 @@ data IntercomUser = IntercomUser
        , _intercomUser_email :: Text
        , _intercomUser_sessionCount :: Int64
        , _intercomUser_location :: Text
+       , _intercomUser_userAgent :: Text
+       , _intercomUser_device :: Text
+       , _intercomUser_browser :: Text
        }
   deriving (Show, Read, Eq, Ord)
+
 instance FromJSON IntercomUser where
   parseJSON = withObject "IntercomUser" $ \o -> do
     _intercomUser_updatedAt <- fmap posixSecondsToUTCTime (o .: "updated_at")
@@ -57,7 +61,22 @@ instance FromJSON IntercomUser where
       country <- locationData .: "country_name"
       city <- locationData .: "city_name"
       return $ city <> ", " <> country
+    _intercomUser_userAgent <- o .: "user_agent_data"
+    let _intercomUser_device = getDevice _intercomUser_userAgent
+    let _intercomUser_browser = getBrowser _intercomUser_userAgent
     return IntercomUser {..}
+    where
+      -- Simplistic user agent sniffing
+      getDevice ua
+        | "Mobile" `T.isInfixOf` ua = "Mobile"
+        | otherwise = "Unknown"
+      getBrowser ua
+        | "Chrome" `T.isInfixOf` ua = "Chrome"
+        | "Safari" `T.isInfixOf` ua = "Safari"
+        | ("Opera" `T.isInfixOf` ua) || ("OPR" `T.isInfixOf` ua) = "Opera"
+        | "IE" `T.isInfixOf` ua = "Internet Explorer"
+        | otherwise = "Unknown"
+
 
 getIntercomUsers :: IntercomEnv -> IO [IntercomUser]
 getIntercomUsers env = do
