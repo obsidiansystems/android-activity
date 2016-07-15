@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase, AllowAmbiguousTypes, PartialTypeSignatures #-}
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase, AllowAmbiguousTypes, PartialTypeSignatures, BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Focus.Backend.Listen where
 
@@ -15,10 +15,11 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (handle, try, SomeException, displayException)
 import Control.Lens
+import Control.Monad.State.Strict hiding (state)
 import Control.Monad.Writer
 import Data.Aeson
+import Data.Align
 import qualified Data.Map as Map
-import Data.IORef
 import Data.Pool
 import Data.String
 import Data.Text.Encoding
@@ -97,33 +98,38 @@ notifyEntityId nt aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
-handleListen :: forall m m' rsp rq notification vs vp token.
-                (MonadSnap m, MonadListenDb m', ToJSON rsp, FromJSON rq,
-                 FromJSON vs, ToJSON vp, Monoid vp, FromJSON token, ToJSON token, Ord token, Monoid vs)
+handleListen :: forall m m' rsp rq notification vs vp state.
+                (MonadSnap m, ToJSON rsp, FromJSON rq,
+                 FromJSON vs, ToJSON vp, Monoid vs)
              => (forall x. m' x -> IO x) -- runGroundhog
              -> TChan notification -- chan
-             -> AppendMap token vs -- vsMap0
-             -> (token -> vs -> vs -> m' vp) -- getView
-             -> (token -> vs -> notification -> m' (Maybe vp)) -- getPatch
-             -> (token -> vs -> vs -> m' vp) -- onViewSelectorChange
+             -> vs
+             -> state
+             -> (vs -> vs -> StateT state m' vp) -- getView
+             -> (vs -> notification -> StateT state m' (Maybe vp)) -- getPatch
              -> (rq -> IO rsp) -- processRequest
              -> m () 
-handleListen runGroundhog chan vsMap0 getView getPatch onViewSelectorChange processRequest = ifTop $ do
+handleListen runGroundhog chan vs0 state0 getView getPatch processRequest = ifTop $ do
   changes <- liftIO . atomically $ dupTChan chan
-  vsRef <- liftIO $ newIORef vsMap0
+  stateRef <- liftIO $ newMVar (vs0, state0)
   runWebSocketsSnap $ \pc -> do
     conn <- acceptRequest pc
     let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
     senderThread <- forkIO $ do
-      vsMapInit <- readIORef vsRef
-      send' =<< runGroundhog (iforM vsMapInit (\token vs -> getView token vs vs))
+      vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
+        -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
+        (vpInit, !newStateInit) <- runGroundhog (runStateT (getView vsInit mempty) stateInit)
+        -- atomicModifyIORef' stateRef $ \(vs, _) -> ((vs, newStateInit), ())
+        return ((vsInit, newStateInit), vpInit)
+      send' vpInit
+
       forever $ do
         change <- atomically $ readTChan changes
-        vsMap <- readIORef vsRef
-        mpMap <- fmap (_Wrapped %~ Map.mapMaybe id) . runGroundhog $ iforM vsMap (\token vs -> getPatch token vs change)
-        case Map.null (mpMap ^. _Wrapped) of
-          True -> return ()
-          False -> send' mpMap
+        vp <- modifyMVar stateRef $ \(vs, state) -> do
+          -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
+          (vp, !newState) <- runGroundhog $ runStateT (getPatch vs change) state
+          return ((vs, newState), vp)
+        mapM_ send' vp
     let handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           _ -> print e
@@ -140,25 +146,33 @@ handleListen runGroundhog chan vsMap0 getView getPatch onViewSelectorChange proc
       case eitherDecode' r of
         Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
         Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
-        Right (WebSocketData_Listen vsMap) -> do
-          vsMapOld <- readIORef vsRef
-          let vsDiff = diffVsMaps vsMap vsMapOld
-          atomicModifyIORef vsRef (const (vsMap, ()))
-          viewMap <- fmap (_Wrapped %~ Map.mapMaybe id) . runGroundhog $ do
-            iforM vsDiff $ \token -> \case
-              -- Logout
-              That vsOld -> fmap Just $ onViewSelectorChange token mempty vsOld -- TODO Should we run getView again on logout?
-              -- Login
-              This vsNew -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vsNew mempty) (getView token vsNew mempty)
-              -- Update for a logged in user
-              These vsNew vsOld -> fmap Just $ liftM2 (<>) (onViewSelectorChange token vsNew vsOld) (getView token vsNew vsOld)
-          send' viewMap
+        Right (WebSocketData_Listen vs) -> do
+          vp <- modifyMVar stateRef $ \(vsOld, state) -> do
+            -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
+            (vp, !newState) <- runGroundhog $ runStateT (getView vs vsOld) state
+            return ((vs, newState), vp)
+          send' vp
     killThread senderThread
-    vsMap <- readIORef vsRef
-    runGroundhog (iforM_ vsMap $ \token vs -> onViewSelectorChange token vs mempty)
- where encodeR :: Either String (WebSocketData token vp (Either String rsp)) -> LBS.ByteString
-       encodeR = encode
-       diffVsMaps (AppendMap m0) (AppendMap m1) = AppendMap $ Map.mergeWithKey (\_ a b -> Just (These a b)) (fmap This) (fmap That) m0 m1
+ where
+   encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
+   encodeR = encode
+
+getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs) => (token -> vs -> vs -> m vp) -> AppendMap token vs -> AppendMap token vs -> m (AppendMap token vp)
+getViewsForTokens getView vs vsOld = do
+  viewMap <- iforM (align vs vsOld) $ \token -> \case
+    -- Logout
+    That _ -> return Nothing
+    -- Login
+    This vsNew -> fmap Just $ getView token vsNew mempty
+    -- Update for a logged in user
+    These vsNew vsOld' -> fmap Just $ getView token vsNew vsOld'
+  return $ (AppendMap . Map.mapMaybe id . _unAppendMap) viewMap
+
+getPatchesForTokens :: Monad m => (token -> vs -> n -> m (Maybe vp)) -> AppendMap token vs -> n -> m (Maybe (AppendMap token vp))
+getPatchesForTokens getPatch vs notification = do
+  m <- iforM vs $ \token vs' -> getPatch token vs' notification
+  let m' = (AppendMap . Map.mapMaybe id . _unAppendMap) m
+  return $ if Map.null (_unAppendMap m') then Nothing else Just m'
 
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
 listenDB withConn' = do

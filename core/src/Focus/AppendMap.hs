@@ -1,8 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving #-}
 module Focus.AppendMap where
 
 import Control.Lens
 import Data.Aeson
+import Data.Align
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -10,7 +11,7 @@ import Data.Typeable
 import GHC.Generics (Generic)
 
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
-  deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable, Align)
 
 empty :: AppendMap k m
 empty = AppendMap Map.empty

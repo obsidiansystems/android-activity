@@ -34,6 +34,7 @@ library
                , semigroups
                , template-haskell
                , text
+               , these
                , time
                , timezone-series
                , transformers

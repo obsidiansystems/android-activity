@@ -7,7 +7,6 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Focus.AppendMap
 import Focus.Request
 import Focus.Schema
 import Focus.WebSocket
@@ -16,12 +15,12 @@ import Data.Text (Text)
 
 import Focus.JS.WebSocket
 
-openAndListenWebsocket :: forall t m x token notification req rsp vs. (MonadWidget t m, HasJS x m, FromJSON notification, FromJSON rsp, ToJSON token, ToJSON req, ToJSON vs, Ord token, FromJSON token)
+openAndListenWebsocket :: forall t m x notification req rsp vs. (MonadWidget t m, HasJS x m, FromJSON notification, FromJSON rsp, ToJSON req, ToJSON vs)
                        => Event t [(Value, req)]
-                       -> Event t (AppendMap token vs)
-                       -> m (Event t (AppendMap token notification), Event t (Value, Either Text rsp))
+                       -> Event t vs
+                       -> m (Event t notification, Event t (Value, Either Text rsp))
 openAndListenWebsocket eReq eViewSelectorWithAuth = do
-  (eMessages :: Event t (Either Text (WebSocketData token notification (Either Text rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+  (eMessages :: Event t (Either Text (WebSocketData notification (Either Text rs)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
     webSocket ("/listen")
       (WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat [ fmap (map (uncurry WebSocketData_Api)) eReq
                                                                       , fmap ((:[]) . WebSocketData_Listen) eViewSelectorWithAuth
