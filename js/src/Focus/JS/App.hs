@@ -89,6 +89,14 @@ class ( MonadWidget' t m
   tellInterest :: Dynamic t (ViewSelector app) -> m ()
   getView :: m (Dynamic t (View app))
 
+-- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
+type MonadFocusFrontendWidget app t m =
+    ( MonadFocusWidget app t m
+    , DomBuilderSpace m ~ GhcjsDomSpace
+    , MonadAsyncException m
+    , MonadAsyncException (Performable m)
+    )
+
 class (HasView app) => HasEnv app where
   data Env app :: * -> *
   getToken :: Env app t -> Dynamic t (Maybe (Signed AuthToken)) -- This is a Maybe to handle logged-out interactions
