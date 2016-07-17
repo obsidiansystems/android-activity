@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import Data.Semigroup
 import Data.Typeable
 import GHC.Generics (Generic)
+import Focus.Patch
 
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable, Align)
@@ -50,5 +51,9 @@ instance (FromJSON k, FromJSON m, Ord k) => FromJSON (AppendMap k m) where
   parseJSON r = do
     res <- parseJSON r
     fmap AppendMap . sequence . Map.fromListWithKey (fail "duplicate key in JSON deserialization of AppendMap") . map (fmap return) $ res
+
+instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
+  type Patch (AppendMap k v) = MapPatch k v
+  patch p (AppendMap m) = AppendMap $ patch p m
 
 makeWrapped ''AppendMap

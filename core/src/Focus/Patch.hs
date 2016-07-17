@@ -57,6 +57,9 @@ newtype SetPatch a = SetPatch
 setPatchInsert :: a -> SetPatch a
 setPatchInsert v = SetPatch (Map.singleton v True)
 
+setPatchDelete :: a -> SetPatch a
+setPatchDelete a = SetPatch (Map.singleton a False)
+
 setPatchAdd :: Set a -> SetPatch a
 setPatchAdd s = SetPatch (Map.fromSet (const True) s)
 
