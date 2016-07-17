@@ -23,7 +23,9 @@ import Data.List
 import Data.Time.Clock
 import Control.Monad.Trans
 import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.State (StateT)
+import qualified Control.Monad.State as S
+import qualified Control.Monad.State.Strict as Strict
 
 import Debug.Trace
 
@@ -108,7 +110,7 @@ instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract
   count = lift . DB.count
   countAll = lift . DB.countAll
   project p o = lift $ DB.project p o
-  migrate v = mapStateT (lift) $ DB.migrate v
+  migrate v = S.mapStateT (lift) $ DB.migrate v
   executeRaw c q p = lift $ DB.executeRaw c q p
   queryRaw c q p f = do
     k <- ask
@@ -116,5 +118,58 @@ instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract
   insertList = lift . DB.insertList
   getList = lift . DB.getList
 
+instance PersistBackend m => PersistBackend (StateT s m) where
+  type PhantomDb (StateT s m) = PhantomDb m
+  insert = lift . DB.insert
+  insert_ = lift . DB.insert_
+  insertBy u v = lift $ DB.insertBy u v
+  insertByAll = lift . DB.insertByAll
+  replace k v = lift $ DB.replace k v
+  replaceBy u v = lift $ DB.replaceBy u v
+  select = lift . DB.select
+  selectAll = lift DB.selectAll
+  get = lift . DB.get
+  getBy = lift . DB.getBy
+  update us c = lift $ DB.update us c
+  delete = lift . DB.delete
+  deleteBy = lift . DB.deleteBy
+  deleteAll = lift . DB.deleteAll
+  count = lift . DB.count
+  countAll = lift . DB.countAll
+  project p o = lift $ DB.project p o
+  migrate v = S.mapStateT (lift) $ DB.migrate v
+  executeRaw c q p = lift $ DB.executeRaw c q p
+  queryRaw c q p f = do
+    k <- S.get
+    (a, s) <- lift $ DB.queryRaw c q p $ \rp -> S.runStateT (f $ lift rp) k
+    S.put s >> return a
+  insertList = lift . DB.insertList
+  getList = lift . DB.getList
 
-
+instance PersistBackend m => PersistBackend (Strict.StateT s m) where
+  type PhantomDb (Strict.StateT s m) = PhantomDb m
+  insert = lift . DB.insert
+  insert_ = lift . DB.insert_
+  insertBy u v = lift $ DB.insertBy u v
+  insertByAll = lift . DB.insertByAll
+  replace k v = lift $ DB.replace k v
+  replaceBy u v = lift $ DB.replaceBy u v
+  select = lift . DB.select
+  selectAll = lift DB.selectAll
+  get = lift . DB.get
+  getBy = lift . DB.getBy
+  update us c = lift $ DB.update us c
+  delete = lift . DB.delete
+  deleteBy = lift . DB.deleteBy
+  deleteAll = lift . DB.deleteAll
+  count = lift . DB.count
+  countAll = lift . DB.countAll
+  project p o = lift $ DB.project p o
+  migrate v = S.mapStateT (lift) $ DB.migrate v
+  executeRaw c q p = lift $ DB.executeRaw c q p
+  queryRaw c q p f = do
+    k <- Strict.get
+    (a, s) <- lift $ DB.queryRaw c q p $ \rp -> Strict.runStateT (f $ lift rp) k
+    Strict.put s >> return a
+  insertList = lift . DB.insertList
+  getList = lift . DB.getList

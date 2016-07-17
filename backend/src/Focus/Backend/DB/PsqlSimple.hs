@@ -11,7 +11,8 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
 
 import Control.Exception
 import Control.Monad.Reader.Class
-import Control.Monad.IO.Class
+import Control.Monad.State
+import qualified Control.Monad.State.Strict as Strict
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Semigroup
@@ -76,3 +77,17 @@ liftWithConn f = DbPersist $ do
 
 instance Semigroup Query where
   (<>) = mappend
+
+instance (Monad m, PostgresRaw m) => PostgresRaw (StateT s m) where
+  execute psql qs = lift $ execute psql qs
+  execute_ = lift . execute_
+  query psql qs = lift $ query psql qs
+  query_ = lift . query_
+  formatQuery psql qs = lift $ formatQuery psql qs
+
+instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
+  execute psql qs = lift $ execute psql qs
+  execute_ = lift . execute_
+  query psql qs = lift $ query psql qs
+  query_ = lift . query_
+  formatQuery psql qs = lift $ formatQuery psql qs
