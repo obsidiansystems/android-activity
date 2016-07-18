@@ -19,7 +19,6 @@ askDomWindow = do
 windowHasFocus :: ( Reflex t
                   , MonadHold t m
                   , TriggerEvent t m
-                  , MonadIO m
                   )
                => DOM.Window
                -> m (Dynamic t Bool)

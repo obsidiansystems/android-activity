@@ -13,7 +13,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 -- import qualified Data.Text as T
-import Reflex.Dom
+import Reflex.Dom hiding (Delete)
 import qualified GHCJS.DOM.Element as E
 import qualified GHCJS.DOM.EventM as EM
 
@@ -186,16 +186,16 @@ keycodeDown = 40
 keycodeBackspace :: Int
 keycodeBackspace = 8
 
-textInputGetKeycode :: Reflex t => TextInput t -> Int -> Event t Int
-textInputGetKeycode t keycode = ffilter (==keycode) $ _textInput_keydown t
+textInputGetKeycode :: Reflex t => TextInput t -> Key -> Event t Int
+textInputGetKeycode t key = ffilter (\v -> keyCodeLookup v == key) $ _textInput_keydown t
 
 textInputGetKeycodeAbsorb :: (MonadIO m, Reflex t, TriggerEvent t m)
                           => TextInput t
-                          -> Int
+                          -> Key
                           -> m (Event t Int)
-textInputGetKeycodeAbsorb t keycode = fmap (fmapMaybe id) $ wrapDomEvent (_textInput_element t) (`EM.on` E.keyDown) $ do
+textInputGetKeycodeAbsorb t key = fmap (fmapMaybe id) $ wrapDomEvent (_textInput_element t) (`EM.on` E.keyDown) $ do
   e <- getKeyEvent
-  if e == keycode
+  if key == keyCodeLookup e
      then do
        EM.preventDefault
        return $ Just e
@@ -207,12 +207,12 @@ comboBoxInput :: (DomBuilder t m, PostBuild t m, TriggerEvent t m, DomBuilderSpa
 comboBoxInput cfg = do
   t <- textInput cfg
   let enter = ComboBoxAction_Select <$ textInputGetEnter t
-      esc = ComboBoxAction_Dismiss <$ textInputGetKeycode t keycodeEscape
-      bs = ComboBoxAction_Backspace <$ textInputGetKeycode t keycodeBackspace
-      left = ComboBoxAction_Left <$ textInputGetKeycode t keycodeLeft
-      right = ComboBoxAction_Right <$ textInputGetKeycode t keycodeRight
-  up <- fmap (ComboBoxAction_Up <$) $ textInputGetKeycodeAbsorb t keycodeUp
-  down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t keycodeDown
+      esc = ComboBoxAction_Dismiss <$ textInputGetKeycode t Escape
+      bs = ComboBoxAction_Backspace <$ textInputGetKeycode t Backspace
+      left = ComboBoxAction_Left <$ textInputGetKeycode t ArrowLeft
+      right = ComboBoxAction_Right <$ textInputGetKeycode t ArrowRight
+  up <- fmap (ComboBoxAction_Up <$) $ textInputGetKeycodeAbsorb t ArrowUp
+  down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t ArrowDown
   return (t, leftmost [enter, up, down, esc, bs, left, right])
 
 comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)

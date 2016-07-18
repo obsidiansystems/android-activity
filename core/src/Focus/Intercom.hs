@@ -88,7 +88,7 @@ getIntercomUsers env = do
 
     getReq env' url = do
       man <- newManager tlsManagerSettings
-      req <- fmap (asJson . applyBasicAuth user pass) $ parseUrl url
+      req <- fmap (asJson . applyBasicAuth user pass) $ parseUrlThrow url
       res <- httpLbs req man
       return $ responseBody res
       where

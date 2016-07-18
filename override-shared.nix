@@ -157,10 +157,6 @@ self: super: {
         sha256 = "363e271745b9d5b4985495333866ad98c89c8d40ce972c376efeb6cc64b41140";
       };
     });
-    lucid-svg = overrideCabal super.lucid-svg (drv: {
-      version = "0.5.0.0";
-      sha256 = "1p7ipdy0nmqfg1b038a1b5nd3xh2779d2gnw4h683mm5jcbf0mvj";
-    });
     gpx-conduit = overrideCabal super.gpx-conduit (drv: {
       src = nixpkgs.fetchgit {
         url = git://github.com/obsidiansystems/gpx-conduit;
