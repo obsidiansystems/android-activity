@@ -133,7 +133,10 @@ in rec {
           source "$stdenv/setup"
 
           mkdir -p "$out/frontend.jsexe"
-          closure-compiler -O ADVANCED --js_output_file="$out/frontend.jsexe/all.js" "$unminified/bin/frontend.jsexe/all.js"
+          cd "$out/frontend.jsexe"
+          ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
+          closure-compiler -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+          echo "//# sourceMappingURL=all.js.map" >> all.js
         '';
         buildInputs = with pkgs; [
           closurecompiler
