@@ -142,10 +142,11 @@ self: super: {
       jailbreak = true;
     });
     rex = overrideCabal super.rex (drv: {
-      src = nixpkgs.fetchgit {
-        url = git://github.com/ali-abrar/rex;
+      src = nixpkgs.fetchFromGitHub {
+        owner = "ali-abrar";
+        repo = "rex";
         rev = "b575bcafa4853752b6490e95502f426431a7b213";
-        sha256 = "02n6gyr5dldq900qlv580qrvxrybqfmxqyrl3z1kjkfwq9mr3x9q";
+        sha256 = "0gxpsaf1gwd24frrlfkf7arjpylv11x2vkrp9qwi85l2gq35di2x";
       };
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
