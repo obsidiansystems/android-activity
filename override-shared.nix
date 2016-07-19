@@ -150,10 +150,11 @@ self: super: {
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
       version = "1.3.1.10";
-      src = nixpkgs.fetchgit {
-        url = git://github.com/diagrams/diagrams-svg;
+      src = nixpkgs.fetchFromGitHub {
+        owner = "diagrams";
+        repo = "diagrams-svg";
         rev = "0fcfe833844baccd567bc01986ffe0462f2c2d18";
-        sha256 = "363e271745b9d5b4985495333866ad98c89c8d40ce972c376efeb6cc64b41140";
+        sha256 = "1mwibd972n1xv9ywf4jidmfc7w9qbv5xy10afgammn71ziniz29y";
       };
     });
     gpx-conduit = overrideCabal super.gpx-conduit (drv: {
