@@ -4,7 +4,7 @@ module Focus.Backend.Listen where
 
 import Focus.Account
 import Focus.Api
-import Focus.AppendMap
+import Focus.AppendMap (AppendMap (..))
 import Focus.Backend.Schema.TH
 import Focus.Schema
 import Focus.Request

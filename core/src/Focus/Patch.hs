@@ -134,19 +134,6 @@ instance (Ord k, Patchable a) => Monoid (MapPatch k a) where
   mempty = MapPatch Map.empty
   mappend = (<>)
 
-mapIntersectionWithKeysSet :: Ord k => Map k v -> Set k -> Map k v
-mapIntersectionWithKeysSet m s = Map.intersection m $ Map.fromSet (const ()) s
-
-mapIntersectionWithSetMap :: (Ord k) => Map k v -> Map k' (Set k) -> Map k v
-mapIntersectionWithSetMap m sm = mapIntersectionWithKeysSet m $ Set.unions $ Map.elems sm
-
-intersectTypeaheadResults :: (Ord k, Ord k')
-                          => Map k v -- All values
-                          -> Set k' -- Queries in view selector
-                          -> Map k' (Set k) -- Map of query results
-                          -> Map k v -- Filtered values
-intersectTypeaheadResults vall vsq vqr = Map.intersection vall . Map.fromSet (const ()) . Set.unions . Map.elems . Map.intersection vqr $ Map.fromSet (const ()) vsq
-
 elemUpsert :: Patchable a => Patch a -> a -> ElemPatch a
 elemUpsert p v = ElemPatch_Upsert p (Just (patch p v))
 

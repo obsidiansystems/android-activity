@@ -2,6 +2,7 @@
 
 module Focus.Backend.DB where
 
+import Focus.AppendMap (AppendMap (..))
 import Focus.Schema
 import Focus.Backend.Schema.TH
 
@@ -38,6 +39,17 @@ selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
              t -> a -> m (Map (Id v) v)
 --selectMap :: (PersistBackend m, PersistEntity v, EntityConstr v c, Constructor c, Projection (c (ConstructorMarker v)) (PhantomDb m) (RestrictionHolder v c) v, HasSelectOptions opts (PhantomDb m) (RestrictionHolder v c), AutoKey v ~ DefaultKey v, DefaultKeyId v, Ord (IdData v)) => c (ConstructorMarker v) -> opts -> m (Map (Id v) v)
 selectMap constr = liftM (Map.fromList . map (first toId)) . project (AutoKeyField, constr)
+
+selectMap' :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
+              (ProjectionDb t (PhantomDb m),
+              ProjectionRestriction t (RestrictionHolder v c), DefaultKeyId v,
+              Projection t v,
+              EntityConstr v c,
+              HasSelectOptions a (PhantomDb m) (RestrictionHolder v c),
+              PersistBackend m, Ord (IdData v),
+              AutoKey v ~ DefaultKey v) =>
+              t -> a -> m (AppendMap (Id v) v)
+selectMap' constr = fmap AppendMap . selectMap constr
 
 fieldIsJust, fieldIsNothing :: (NeverNull a, Expression db r f, PrimitivePersistField a, Projection f (Maybe a), Unifiable f (Maybe a)) => f -> Cond db r
 

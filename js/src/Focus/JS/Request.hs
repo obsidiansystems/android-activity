@@ -16,7 +16,7 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Trans.Control
 import Foreign.JavaScript.TH
-import Focus.AppendMap
+import Focus.AppendMap (AppendMap)
 import Focus.JS.Env
 import Focus.Request
 import Control.Arrow
