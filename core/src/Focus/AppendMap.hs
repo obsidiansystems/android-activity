@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts #-}
 module Focus.AppendMap where
 
 import Control.Arrow ((***))
@@ -51,10 +51,6 @@ instance (FromJSON k, FromJSON m, Ord k) => FromJSON (AppendMap k m) where
   parseJSON r = do
     res <- parseJSON r
     fmap AppendMap . sequence . Map.fromListWithKey (fail "duplicate key in JSON deserialization of AppendMap") . fmap (fmap return) $ res
-
-instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
-  type Patch (AppendMap k v) = MapPatch k v
-  patch p (AppendMap m) = AppendMap $ patch p m
 
 (!) :: Ord k => AppendMap k a -> k -> a
 (!) m k = (Map.!) (_unAppendMap m) k
@@ -382,4 +378,36 @@ valid = Map.valid . _unAppendMap
 instance Default (AppendMap k v) where
   def = empty
 
+newtype AppendMapPatch k a = AppendMapPatch
+          { unAppendMapPatch :: AppendMap k (ElemPatch a)
+          }
+  deriving (Generic, Typeable)
+
+instance (Ord k, Patchable a) => Semigroup (AppendMapPatch k a) where
+  (AppendMapPatch mp) <> (AppendMapPatch mq) = AppendMapPatch $ (<>) mp mq
+
+instance (Ord k, Patchable a) => Monoid (AppendMapPatch k a) where
+  mempty = AppendMapPatch empty
+  mappend = (<>)
+
+instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
+  type Patch (AppendMap k v) = AppendMapPatch k v
+  patch p m = patch p m
+
+(~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (AppendMap k v)
+k ~: p = AppendMapPatch (singleton k (ElemPatch_Upsert p (Just (patch p def))))
+infixr 5 ~:
+
+appendMapInsert :: AppendMap k a -> AppendMapPatch k a
+appendMapInsert = AppendMapPatch . fmap ElemPatch_Insert
+
+deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (AppendMapPatch k a)
+deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (AppendMapPatch k a)
+deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (AppendMapPatch k a)
+deriving instance (Ord k, Read k, Read a, Read (Patch a)) => Read (AppendMapPatch k a)
+deriving instance (ToJSON k, ToJSON a, ToJSON (Patch a)) => ToJSON (AppendMapPatch k a)
+deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSON (AppendMapPatch k a)
+
 makeWrapped ''AppendMap
+
+
