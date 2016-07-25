@@ -4,8 +4,9 @@ module Focus.Backend.Typeahead where
 import Control.Applicative
 import Control.Lens
 import Data.Foldable
-import Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Map as DM
+import Focus.AppendMap (AppendMap (..), AppendMapPatch (..))
+import qualified Focus.AppendMap as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -21,12 +22,12 @@ notificationToTypeaheadPatch :: (Ord k, Monoid s)
                              -> (t -> Maybe Text)
                              -> (Patch t -> Maybe Text)
                              -> Set Text -- Queries
-                             -> ASetter' s (Patch (Map Text (Set k))) -- typeahead results
-                             -> ASetter' s (Patch (Map k t)) -- fetch results
+                             -> ASetter' s (Patch (AppendMap Text (Set k))) -- typeahead results
+                             -> ASetter' s (Patch (AppendMap k t)) -- fetch results
                              -> s -- patch
 notificationToTypeaheadPatch nt k x toTextValue toTextPatch qs rlens vlens =
-  mempty & rlens .~ MapPatch typeaheadPatch
-         & vlens .~ MapPatch fetchPatch
+  mempty & rlens .~ AppendMapPatch typeaheadPatch
+         & vlens .~ AppendMapPatch fetchPatch
  where
   patchToIds = \case
     ElemPatch_Insert v -> Just v
@@ -47,11 +48,11 @@ isPrefix :: Ord a
          -> (t -> Maybe Text)
          -> Maybe (ElemPatch (Set a))
 isPrefix nt q k x f = case fmap (q `T.isPrefixOf`) (f x) of
-  Just True -> Just $ flip elemUpsert Set.empty $ SetPatch $ Map.singleton k $ case nt of
+  Just True -> Just $ flip elemUpsert Set.empty $ SetPatch $ DM.singleton k $ case nt of
     NotificationType_Delete -> False
     _ -> True
   Just False -> case nt of
-    NotificationType_Update -> Just $ flip elemUpsert Set.empty $ SetPatch $ Map.singleton k False
+    NotificationType_Update -> Just $ flip elemUpsert Set.empty $ SetPatch $ DM.singleton k False
     _ -> Nothing
   _ -> Nothing
 
