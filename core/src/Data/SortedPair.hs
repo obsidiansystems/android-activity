@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other, toSet, member) where
+module Data.SortedPair (SortedPair, sortedPair, map, fst, snd, other, toSet, toList, member) where
 
 import Prelude hiding (map, fst, snd)
+import Data.Foldable
 import Data.Aeson
 import GHC.Generics
 import qualified Data.Set as Set
@@ -10,6 +11,11 @@ import Data.Set (Set)
 data SortedPair a = SortedPair_LT a a
                   | SortedPair_EQ a
   deriving (Show, Read, Eq, Ord, Generic)
+
+instance Foldable SortedPair where
+  foldMap f sp = case sp of
+    SortedPair_LT a b -> mappend (f a) (f b)
+    SortedPair_EQ a -> f a
 
 instance ToJSON a => ToJSON (SortedPair a)
 instance FromJSON a => FromJSON (SortedPair a)
@@ -47,6 +53,4 @@ member x (SortedPair_EQ a) = x == a
 member x (SortedPair_LT a b) = x == a || x == b
 
 toSet :: Ord a => SortedPair a -> Set a
-toSet sp = case sp of
-  SortedPair_LT a b -> Set.fromList [a,b]
-  SortedPair_EQ a -> Set.singleton a
+toSet sp = Set.fromList (toList sp)

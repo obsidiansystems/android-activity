@@ -4,7 +4,6 @@ with nixpkgs.haskell.lib;
 let inherit (nixpkgs) stdenv;
 in
 self: super: {
-    aeson = self.callPackage ./aeson.nix {};
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -143,18 +142,20 @@ self: super: {
       jailbreak = true;
     });
     rex = overrideCabal super.rex (drv: {
-      src = nixpkgs.fetchgit {
-        url = git://github.com/ali-abrar/rex;
+      src = nixpkgs.fetchFromGitHub {
+        owner = "ali-abrar";
+        repo = "rex";
         rev = "b575bcafa4853752b6490e95502f426431a7b213";
-        sha256 = "02n6gyr5dldq900qlv580qrvxrybqfmxqyrl3z1kjkfwq9mr3x9q";
+        sha256 = "0gxpsaf1gwd24frrlfkf7arjpylv11x2vkrp9qwi85l2gq35di2x";
       };
     });
     diagrams-svg = overrideCabal super.diagrams-svg (drv: {
       version = "1.3.1.10";
-      src = nixpkgs.fetchgit {
-        url = git://github.com/diagrams/diagrams-svg;
+      src = nixpkgs.fetchFromGitHub {
+        owner = "diagrams";
+        repo = "diagrams-svg";
         rev = "0fcfe833844baccd567bc01986ffe0462f2c2d18";
-        sha256 = "363e271745b9d5b4985495333866ad98c89c8d40ce972c376efeb6cc64b41140";
+        sha256 = "1mwibd972n1xv9ywf4jidmfc7w9qbv5xy10afgammn71ziniz29y";
       };
     });
     gpx-conduit = overrideCabal super.gpx-conduit (drv: {

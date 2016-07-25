@@ -6,7 +6,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , Binary (..), (:.)(..), PGArray (..)
                                    , ToRow (..), FromRow (..)
                                    , ToField (..), FromField (..)
-                                   , Query (..), sql
+                                   , Query (..), sql, traceQuery
                                    ) where
 
 import Control.Exception
@@ -14,6 +14,7 @@ import Control.Monad.Reader.Class
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as Strict
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BSC
 import Data.Int
 import Data.Semigroup
 import Database.Groundhog.Core
@@ -59,6 +60,12 @@ class PostgresRaw m where
   query :: (ToRow q, FromRow r) => Query -> q -> m [r]
   query_ :: FromRow r => Query -> m [r]
   formatQuery :: ToRow q => Query -> q -> m ByteString
+
+traceQuery :: (PostgresRaw m, MonadIO m, ToRow q, FromRow r) => Query -> q -> m [r]
+traceQuery p q = do
+  s <- formatQuery p q
+  liftIO (BSC.putStrLn s)
+  query p q
 
 instance MonadIO m => PostgresRaw (DbPersist Postgresql m) where
   execute psql qs = liftWithConn $ \conn -> do

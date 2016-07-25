@@ -2,7 +2,7 @@
 module Focus.Intercom where
 
 import Control.Lens (makeLenses)
-import Data.Aeson
+import Data.Aeson.Compat
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.SHA (showDigest, hmacSha256)
