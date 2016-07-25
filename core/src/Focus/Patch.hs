@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
 module Focus.Patch where
 
+import Control.Applicative
 import Control.Lens
 import Data.Aeson
 import Data.Default
@@ -72,9 +73,11 @@ instance (Ord a, FromJSON a) => FromJSON (SetPatch a) where
 instance ToJSON a => ToJSON (SetPatch a) where
   toJSON = toJSONMap . unSetPatch
 
-data ElemPatch a = ElemPatch_Remove
-                 | ElemPatch_Insert a
-                 | ElemPatch_Upsert (Patch a) (Maybe a)
+data ElemPatch a = ElemPatch_Remove -- ^ Remove a value.
+                 | ElemPatch_Insert a -- ^ Simply insert a value, replacing any previous one.
+                 | ElemPatch_Upsert (Patch a) (Maybe a) -- ^ A patch to be applied only in the case where there is an existing value,
+                                                        -- together with an initial value in case none is present
+                                                        -- (the initial value will not have the patch applied to it).
   deriving (Generic, Typeable)
 
 --TODO: Use our deriving JSON instead of the generic deriving after enabling it to handle instance contexts
@@ -89,7 +92,7 @@ deriving instance (Read a, Read (Patch a)) => Read (ElemPatch a)
 instance Patchable a => Semigroup (ElemPatch a) where
   p' <> q' = case p' of
     (ElemPatch_Upsert p mpv) -> case q' of
-      ElemPatch_Upsert q _ -> ElemPatch_Upsert (p <> q) mpv
+      ElemPatch_Upsert q mqv -> ElemPatch_Upsert (p <> q) (fmap (patch p) mqv <|> mpv)
       ElemPatch_Insert v -> ElemPatch_Insert (patch p v)
       ElemPatch_Remove -> case mpv of
         Nothing -> ElemPatch_Remove
