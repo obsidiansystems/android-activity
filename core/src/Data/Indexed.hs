@@ -24,6 +24,7 @@ data WithIndex p f v = WithIndex { _withIndex_index :: AppendMap (Projected p (I
                                  }
 
 deriving instance (Show (f v), Show (Projected p (IxValue (f v))), Show (Index (f v))) => Show (WithIndex p f v)
+deriving instance (Read (f v), Read (Projected p (IxValue (f v))), Ord (Projected p (IxValue (f v))), Ord (Index (f v)), Read (Index (f v))) => Read (WithIndex p f v)
 
 {-
 merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a

@@ -392,7 +392,7 @@ instance (Ord k, Patchable a) => Monoid (AppendMapPatch k a) where
 
 instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
   type Patch (AppendMap k v) = AppendMapPatch k v
-  patch p m = patch p m
+  patch (AppendMapPatch (AppendMap p)) (AppendMap m) = AppendMap $ patch (MapPatch p) m
 
 (~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (AppendMap k v)
 k ~: p = AppendMapPatch (singleton k (ElemPatch_Upsert p (Just (patch p def))))
