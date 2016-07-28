@@ -101,10 +101,10 @@ extensibleListWidget n x0 xs0 itemWidget =
             valuesD <- mapDyn Map.elems valuesMapD
         return valuesD
 
-typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace, Monoid a)
+typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
                 => Text
                 -- ^ text input placeholder
-                -> ASetter a (ViewSelector app) b (Set Text)
+                -> (Text -> ViewSelector app ())
                 -- ^ setter for query field of view selector
                 -> (View app -> s)
                 -- ^ extractor for relevant things from the view
@@ -112,14 +112,14 @@ typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace,
                 -- ^ results and the search string
 typeaheadSearch ph vsQuery extractor = do
   search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
-  aspenView <- watchViewSelectorLensSet vsQuery $ value search
+  aspenView <- watchViewSelector $ vsQuery <$> value search
   result <- mapDyn extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, Monoid a, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
                         => Text
                         -- ^ text input placeholder
-                        -> ASetter a (ViewSelector app) b (Set Text)
+                        -> (Text -> ViewSelector app ())
                         -- ^ setter for query field of view selector
                         -> (View app -> s)
                         -- ^ extractor for relevant things from the view
@@ -131,10 +131,10 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, Monoid a, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
                            => Text
                            -- ^ text input placeholder
-                           -> ASetter a (ViewSelector app) b (Set Text)
+                           -> (Text -> ViewSelector app ())
                            -- ^ setter for query field of view selector
                            -> (View app -> s)
                            -- ^ extractor for relevant things from the view
@@ -252,7 +252,7 @@ comboBox cfg getOptions li toStr wrapper = do
   return selectionE
 
 simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
-               => (Text -> ViewSelector app) -- ^ Convert query to ViewSelector
+               => (Text -> ViewSelector app ()) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display
                -> (Text -> Text -> HighlightedText) -- ^ Highlight results
