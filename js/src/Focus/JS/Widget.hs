@@ -285,10 +285,14 @@ comboBoxListItem highlighter toString k v sel q = do
 -- | Whenever the header is clicked, it toggles the "collapsed" state of the
 -- content, making it "display: none" and hiding it entirely.
 collapsibleSection :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Text -> m a -> m a
-collapsibleSection header content = divClass "collapsible" $ do
+collapsibleSection = collapsibleSectionWithDefault True
+
+-- | Like `collapsibleSection` but takes a Bool to indicate if sections should be collapsed by default
+collapsibleSectionWithDefault :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> m a -> m a
+collapsibleSectionWithDefault collapsedByDefault header content = divClass "collapsible" $ do
   click <- divClass "collapsible-header" $ do
      fmap (_link_clicked) $ el "strong" $ link header
-  collapsed <- mapDyn collapse =<< toggle True click
+  collapsed <- mapDyn collapse =<< toggle collapsedByDefault click
   elDynAttr "div" collapsed content
   where
     collapse b = "style" =: ("display: " <> if b then "none" else "block") <>
@@ -337,4 +341,3 @@ improvingMaybe a = do
   holdDyn Nothing $ fmapMaybe (fmap Just) $ leftmost [ updated a
                                                      , tagDyn a pb
                                                      ]
-
