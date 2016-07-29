@@ -2,7 +2,7 @@
 let
   enableProfiling = false;
 in rec {
-  tryReflex = import ./try-reflex { enableLibraryProfiling = enableProfiling; };
+  tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
   inherit (tryReflex) nixpkgs cabal2nixResult;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;

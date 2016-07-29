@@ -33,12 +33,6 @@ self: super: {
       editedCabalFile = "0p5apya7gd8kbkknpzamvnc902jdlp8kdmwrqzrj6gvxkr9ss2br";
       jailbreak = true;
     });
-    timezone-series = overrideCabal super.timezone-series (drv: {
-      jailbreak = true; # To allow time >= 1.5
-    });
-    timezone-olson = overrideCabal super.timezone-olson (drv: {
-      jailbreak = true; # To allow time >= 1.5
-    });
     groundhog = self.mkDerivation ({
       pname = "groundhog";
       version = "0.7.0.3";
