@@ -1,9 +1,10 @@
 {}:
-let
-  enableProfiling = false;
-in rec {
-  tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
-  inherit (tryReflex) nixpkgs cabal2nixResult;
+let enableProfiling = false;
+    tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
+    inherit (tryReflex) nixpkgs cabal2nixResult;
+in with nixpkgs.haskell.lib;
+rec {
+  inherit tryReflex nixpkgs cabal2nixResult;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
   backendHaskellPackagesBase = tryReflex.ghc;
@@ -31,13 +32,13 @@ in rec {
       appVersion = version;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
-        // { focus-core = self.callPackage (cabal2nixResult ./core) {};
-             focus-emojione = self.callPackage (cabal2nixResult ./emojione) {};
-             focus-emojione-data = self.callPackage (cabal2nixResult ./emojione/data) {};
-             focus-http-th = self.callPackage (cabal2nixResult ./http/th) {};
-             focus-js = self.callPackage (cabal2nixResult ./js) {};
-             focus-serve = self.callPackage (cabal2nixResult ./http/serve) {};
-             focus-th = self.callPackage (cabal2nixResult ./th) {};
+        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult ./core) {});
+             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult ./emojione) {});
+             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult ./emojione/data) {});
+             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult ./http/th) {});
+             focus-js = dontHaddock (self.callPackage (cabal2nixResult ./js) {});
+             focus-serve = dontHaddock (self.callPackage (cabal2nixResult ./http/serve) {});
+             focus-th = dontHaddock (self.callPackage (cabal2nixResult ./th) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
@@ -59,9 +60,9 @@ in rec {
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
-          focus-backend = self.callPackage ./backend { inherit myPostgres; };
-          focus-client = self.callPackage ./client {};
-          focus-test = self.callPackage ./test {};
+          focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
+          focus-client = dontHaddock (self.callPackage ./client {});
+          focus-test = dontHaddock (self.callPackage ./test {});
         };
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
@@ -125,6 +126,7 @@ in rec {
             passthru = {
               inherit haskellPackages;
             };
+            doHaddock = false;
           })) {};
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
@@ -224,6 +226,7 @@ in rec {
             passthru = {
               haskellPackages = backendHaskellPackages;
             };
+            doHaddock = false;
           })) {};
         passthru = rec {
           ${if builtins.pathExists ../tests then "tests" else null} =
@@ -246,6 +249,7 @@ in rec {
                 passthru = {
                   haskellPackages = backendHaskellPackages;
                 };
+                doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
           frontendGhc = mkFrontend ../frontend ../common backendHaskellPackages ../static;
