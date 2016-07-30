@@ -246,7 +246,10 @@ comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t
          -> m (Event t k)
 comboBox cfg getOptions li toStr wrapper = do
   rec (t, inputActions) <- comboBoxInput $ cfg & setValue .~ leftmost [ _textInputConfig_setValue cfg, selectionString ]
-      options <- getOptions $ value t
+      userInput <- holdDyn "" $ leftmost [ _textInput_input t
+                                         , "" <$ selectionE
+                                         ]
+      options <- getOptions userInput
       selectionE <- wrapper $ comboBoxList options li (value t) inputActions
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
