@@ -129,7 +129,7 @@ importJS Unsafe "this[0]['lng']()" "placeDetailsLng_" [t| forall x m. MonadJS x 
 
 importJS Unsafe "new google['maps']['places']['AutocompleteService'](null, {})" "googleMapsPlacesAutocompleteService_" [t| forall x m. MonadJS x m => m (PlacesAutocompleteService x) |]
 
-importJS Unsafe "this[0]['getPlacePredictions']({input: this[1]}, this[2])" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> Text -> JSFun x -> m () |]
+importJS Unsafe "(function(that) { var req = {}; req['input'] = that[1]; req['bounds'] = new google['maps']['LatLngBounds'](new google['maps']['LatLng'](67.7, -170.8), new google['maps']['LatLng'](25.2, -52.4)); that[0]['getPlacePredictions'](req, that[2]) }(this))" "googleMapsPlacesGetPlacePredictions_" [t| forall x m. MonadJS x m => PlacesAutocompleteService x -> Text -> JSFun x -> m () |]
 -- (JSArray PlacesAutocompletePrediction -> JSRef Text -> IO ()) -> IO ())
 
 -- TODO: figure out if this can be done without the extra performEvent -- I don't really understand the full manner in which liftJS operates well enough to determine if this is possible.
@@ -422,7 +422,7 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 -- googleMapGetCenter m = do
 --   c <- googleMapGetCenter_ (unGoogleMap m)
 --   return $ GoogleMapLatLng c
--- 
+--
 -- newtype GoogleMapPolyline = GoogleMapPolyline { unGoogleMapPolyline :: JSRef GoogleMapPolyline }
 -- JS(googleMapPolyline_, "new google.maps.Polyline({path: [new google.maps.LatLng($2, $3), new google.maps.LatLng($4, $5)], strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.6, scale: 4 }, offset: '0', repeat: '20px'}], map: $1})", JSRef GoogleMap -> JSRef Double -> JSRef Double -> JSRef Double -> JSRef Double -> IO (JSRef GoogleMapPolyline))
 -- googleMapAddPolyline :: GoogleMap -> (Double, Double) -> (Double, Double) -> IO GoogleMapPolyline
@@ -433,7 +433,7 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --   d <- toJSRef $ snd c2
 --   p <- googleMapPolyline_ (unGoogleMap m) a b c d
 --   return $ GoogleMapPolyline p
--- 
+--
 -- JS(googleMapPolylineRemove_, "$1.setMap(null)", JSRef GoogleMapPolyline -> IO ())
 -- googleMapPolylineRemove :: GoogleMapPolyline -> IO ()
 -- googleMapPolylineRemove = googleMapPolylineRemove_ . unGoogleMapPolyline
@@ -445,10 +445,10 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --   c <- toJSRef $ fst c2
 --   d <- toJSRef $ snd c2
 --   googleMapPolylineSetPath_ (unGoogleMapPolyline p) a b c d
--- 
+--
 -- newtype GeocoderPlace = GeocoderPlace { unGeocoderPlace :: JSRef GeocoderPlace } deriving (Typeable)
 -- JS(googleMapsGeocoderPlace_, "new google.maps.Geocoder().geocode({ address: $1 }, $2)", JSRef Text -> JSFun (JSArray GeocoderPlace -> JSRef () -> IO ()) -> IO ())
--- 
+--
 -- googleMapsGeocoderPlace :: Text -> ([(Text, (Double, Double))] -> IO ()) -> IO ()
 -- googleMapsGeocoderPlace s f =  do
 --   rec cb <- syncCallback2 AlwaysRetain True $ \result status -> if isNull result then return () else do
@@ -463,4 +463,3 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --         release cb
 --   s' <- toJSRef s
 --   googleMapsGeocoderPlace_ s' cb
-
