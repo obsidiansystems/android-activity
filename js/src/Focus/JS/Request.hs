@@ -193,7 +193,7 @@ withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m, MonadFix m)
 withDynamicWriterT f dw = do
   (r, d) <- lift $ do
     (r, d) <- runDynamicWriterT dw
-    d' <- mapDyn f d
+    let d' = fmap f d
     return (r, d')
   tellDyn d
   return r

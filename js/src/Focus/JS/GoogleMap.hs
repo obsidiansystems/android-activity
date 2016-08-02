@@ -214,7 +214,7 @@ googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoor
           tell $ Any True
           lift $ liftJS $ googleMapMarkerRemove c
           return Nothing
-  rec dCurrentMarkers <- holdDyn Map.empty . (fmapMaybe (\(x, Any b) -> if b then Just x else Nothing)) =<< performEvent . (fmap updateMarkers) . updated =<< combineDyn (\gm x -> fmap (flip (,) x) gm) dMyGoogleMap =<< combineDyn (,) dTargetMarkers dCurrentMarkers
+  rec dCurrentMarkers <- holdDyn Map.empty . (fmapMaybe (\(x, Any b) -> if b then Just x else Nothing)) =<< (performEvent . (fmap updateMarkers) . updated $ zipDynWith (\gm x -> fmap (flip (,) x) gm) dMyGoogleMap $ zipDynWith (,) dTargetMarkers dCurrentMarkers)
   performEvent_ $ fmap (liftJS . googleMapFitToCoords m) fitToCoords
   performEvent_ $ fmap (liftJS . uncurry (googleMapSetCenter m)) center
   performEvent_ $ fmap (liftJS . googleMapSetZoom m) zoom
@@ -223,7 +223,7 @@ googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoor
 
 searchInputResult :: forall t m a. (DomBuilder t m, PostBuild t m) => Dynamic t (Text, a) -> m (Event t (Text, a))
 searchInputResult r = el "li" $ do
-  (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText =<< mapDyn fst r
+  (li, _) <- elAttr' "a" (Map.singleton "style" "cursor: pointer;") $ dynText $ fmap fst r
   return $ tag (current r) (domEvent Click li)
 
 -- TODO: A lot of this stuff seems like it belongs either in Focus.JS.Bootstrap or Focus.JS.Widget as it has little to do with Google Maps
@@ -239,8 +239,8 @@ searchInput' v0 setV attrs results listBuilder = do
       dResults <- holdDyn mempty $ leftmost [eClearResults, results]
       eMadeChoiceViaList <- listBuilder dResults
       let eMadeChoiceViaEnter = fmapMaybe (fmap fst . Map.minView) $ tag (current dResults) enter
-      let eMadeChoice = leftmost [eMadeChoiceViaList, eMadeChoiceViaEnter]
-      let eSetValue = leftmost [fmap fst eMadeChoice, setV]
+          eMadeChoice = leftmost [eMadeChoiceViaList, eMadeChoiceViaEnter]
+          eSetValue = leftmost [fmap fst eMadeChoice, setV]
           eSelectionMade = fmap (const Nothing) eSetValue
           eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (_textInput_input input), fmap Just (tag (current $ value input) enter)]
           eInputEmpty = fmapMaybe id $ fmap (\i -> if i == "" then Just Map.empty else Nothing) eInputChanged
@@ -254,7 +254,7 @@ searchInputResultsList' :: forall t m a k. (DomBuilder t m, PostBuild t m, Monad
 searchInputResultsList' results builder = do
   let hideDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: none;")]
       showDropdown = Map.fromList [("class", "dropdown-menu"), ("style", "display: block;")]
-  attrs <- mapDyn (\rs -> if Map.null rs then hideDropdown else showDropdown) results
+      attrs = fmap (\rs -> if Map.null rs then hideDropdown else showDropdown) results
   resultsList <- elDynAttr "ul" attrs $ builder results
   liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated resultsList)
 
@@ -275,8 +275,8 @@ twoSourceSearch placeholderText al bl searchAs searchBs = do
       bResults' :: Event t (Int, [(Text, b)]) <- searchBs taggedQuery
       as <- holdDyn (0, []) aResults'
       bs <- holdDyn (0, []) bResults'
-      resultsReady <- combineDyn (\(t1, a) (t2, b) -> if t1 == t2 then Just (alignResults (These a b)) else Nothing) as bs
-      let results = fmapMaybe id $ updated resultsReady
+      let resultsReady = zipDynWith (\(t1, a) (t2, b) -> if t1 == t2 then Just (alignResults (These a b)) else Nothing) as bs
+          results = fmapMaybe id $ updated resultsReady
   holdDyn Nothing $ fmap (Just . snd) selection
   where
     alignResults :: These [(Text, a)] [(Text, b)] -> (Map Int (Text, Either a b))
@@ -289,16 +289,16 @@ twoSourceSearch placeholderText al bl searchAs searchBs = do
     resultsList aLabel bLabel results = do
       let open = "class" =: "dropdown-menu" <> "style" =: "display: block;"
           closed = "class" =: "dropdown-menu" <> "style" =: "display: none;"
-      attrs <- forDyn results $ \r -> if Map.null r then closed else open
-      (as, bs) <- splitDyn =<< forDyn results (\rs -> Map.partition (isLeft . snd) rs)
+          attrs = ffor results $ \r -> if Map.null r then closed else open
+          (as, bs) = splitDynPure $ ffor results (\rs -> Map.partition (isLeft . snd) rs)
       elDynAttr "ul" attrs $ do
         elClass "li" "dropdown-header" $ text aLabel
-        _ <- dyn =<< mapDyn (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) as
+        _ <- dyn $ fmap (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) as
         as' <- list as searchInputResult
         elClass "li" "dropdown-header" $ text bLabel
-        _ <- dyn =<< mapDyn (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) bs
+        _ <- dyn $ fmap (\x -> if Map.null x then elClass "li" "disabled" (elClass "a" "disabled-pointer" (text "No results")) else return ()) bs
         bs' <- list bs searchInputResult
-        results' <- combineDyn Map.union as' bs'
+        let results' = zipDynWith Map.union as' bs'
         liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated results')
 
 googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> (((Double, Double), Map AddressComponent AddressComponentValue) -> IO ()) -> m ()

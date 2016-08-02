@@ -90,15 +90,15 @@ extensibleListWidget n x0 xs0 itemWidget =
                                           in Map.insert i x0 (Map.union us' vs)
       map0 = Map.fromList . zip [0..] $ xs0
   in do rec listMapD <- foldDyn (\m xs -> foldr handleChange xs (Map.toList m)) map0 changeMapE
-            ixMapD <- mapDyn (Map.fromList . (`zip` [0..]) . Map.keys) listMapD
+            let ixMapD = fmap (Map.fromList . (`zip` [0..]) . Map.keys) listMapD
             resultMapD <- listWithKey listMapD $ \k vD -> do
-                            ix <- mapDyn (Map.findWithDefault (-1) k) ixMapD
+                            let ix = fmap (Map.findWithDefault (-1) k) ixMapD
                                     -- TODO, maybe: figure out why this Map lookup is too strict.
                                     -- Deleting an item causes a failed lookup, however, I'm not sure it really matters.
                             itemWidget ix vD
-            changeMapE <- fmap (switch . current) . mapDyn (mergeMap . fmap fst) $ resultMapD
-            valuesMapD <- fmap joinDynThroughMap . mapDyn (fmap snd) $ resultMapD
-            valuesD <- mapDyn Map.elems valuesMapD
+            let changeMapE = (switch . current) $ fmap (mergeMap . fmap fst) $ resultMapD
+                valuesMapD = joinDynThroughMap $ fmap (fmap snd) $ resultMapD
+                valuesD = fmap Map.elems valuesMapD
         return valuesD
 
 typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
@@ -113,7 +113,7 @@ typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
 typeaheadSearch ph vsQuery extractor = do
   search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
   aspenView <- watchViewSelector $ vsQuery <$> value search
-  result <- mapDyn extractor aspenView
+  let result = fmap extractor aspenView
   return (result, value search)
 
 typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
@@ -128,7 +128,7 @@ typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~
                         -> m (Dynamic t (Maybe k))
 typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   (xs, _) <- typeaheadSearch ph vsQuery extractor
-  options <- forDyn xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
+  let options = ffor xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
 typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
@@ -145,7 +145,7 @@ typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace 
                            -> m (Dynamic t (SetPatch k))
 typeaheadSearchMultiselect ph vsQuery extractor toWidgetMap selections0 = do
   (xs, _) <- typeaheadSearch ph vsQuery extractor
-  options <- mapDyn toWidgetMap xs
+  let options = fmap toWidgetMap xs
   diffListWithKey options selections0
 
 diffListWithKey :: (Ord k, MonadWidget' t m)
@@ -156,10 +156,10 @@ diffListWithKey ms selDyn = do
   selects <- fmap joinDynThroughMap . el "ul" . listWithKey ms $ \k w -> el "li" $ do
     pb <- getPostBuild
     include <- checkbox False $ def & attributes .~ (constDyn mempty)
-                                    & setValue .~ fmap (Set.member k) (leftmost [updated selDyn, tagDyn selDyn pb])
+                                    & setValue .~ fmap (Set.member k) (leftmost [updated selDyn, tagPromptlyDyn selDyn pb])
     void $ dyn w
     return $ value include
-  mapDyn SetPatch selects
+  return $ fmap SetPatch selects
 
 data ComboBoxAction = ComboBoxAction_Up
                     | ComboBoxAction_Down
@@ -222,7 +222,7 @@ comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m
              -> Event t ComboBoxAction
              -> m (Event t k)
 comboBoxList xs li query externalActions = do
-  xs' <- mapDyn (Map.mapKeysMonotonic Just) xs
+  let xs' = fmap (Map.mapKeysMonotonic Just) xs
   rec focusE <- selectViewListWithKey focus xs' (\k v isFocused -> maybe (return never) (\k' -> li k' v isFocused query) k)
       let actions = leftmost [ attachWith (\xs'' (k, a) -> ((k, xs''), a)) (current xs') focusE
                              , attach ((,) <$> current focus <*> current xs') externalActions
@@ -266,7 +266,7 @@ simpleCombobox toVS fromView toString highlighter = elClass "span" "simple-combo
             vs <- foldDyn (\a _ -> case a of Nothing -> mempty; Just a' -> toVS a') mempty $
               leftmost [ Just <$> updated q, Nothing <$ selection ]
             v <- watchViewSelector vs
-            mapDyn fromView v
+            return $ fmap fromView v
       selection <- comboBox def getOptions (comboBoxListItem highlighter toString) toString (el "ul")
   return selection
 
@@ -279,8 +279,8 @@ comboBoxListItem :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                  -> Dynamic t Text
                  -> m (Event t ComboBoxAction)
 comboBoxListItem highlighter toString k v sel q = do
-  selAttr <- mapDyn (\x -> "class" =: if x then "simple-combobox-focus" else "simple-combobox-blur") sel
-  (e, _) <- elDynAttr' "li" selAttr $ dynHighlightedTextQ highlighter q =<< mapDyn (toString k) v
+  let selAttr = fmap (\x -> "class" =: if x then "simple-combobox-focus" else "simple-combobox-blur") sel
+  (e, _) <- elDynAttr' "li" selAttr $ dynHighlightedTextQ highlighter q $ fmap (toString k) v
   return $ leftmost [ ComboBoxAction_Hover <$ domEvent Mouseover e
                     , ComboBoxAction_Select <$ domEvent Click e
                     ]
@@ -291,7 +291,7 @@ collapsibleSection :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
 collapsibleSection header content = divClass "collapsible" $ do
   click <- divClass "collapsible-header" $ do
      fmap (_link_clicked) $ el "strong" $ link header
-  collapsed <- mapDyn collapse =<< toggle True click
+  collapsed <- fmap collapse <$> toggle True click
   elDynAttr "div" collapsed content
   where
     collapse b = "style" =: ("display: " <> if b then "none" else "block") <>
@@ -309,7 +309,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
             return $ Map.difference <$> results <*> (Map.fromList <$> selections)
       -- TODO: Allow user to click a pill and delete it using backspace
       removeEvents <- elDynAttr "span" (fmap (\x -> if odd x then "class" =: "highlight-last" else mempty) bs) $
-        simpleList (nubDyn $ fmap reverse selections) $ \x -> elClass "span" "typeahead-pill" $ do
+        simpleList (uniqDyn $ fmap reverse selections) $ \x -> elClass "span" "typeahead-pill" $ do
           dynText $ fmap snd x
           close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ icon "times fa-fw"
           return $ tag (current x) close
@@ -338,6 +338,6 @@ improvingMaybe :: (MonadHold t m, PostBuild t m) => Dynamic t (Maybe a) -> m (Dy
 improvingMaybe a = do
   pb <- getPostBuild
   holdDyn Nothing $ fmapMaybe (fmap Just) $ leftmost [ updated a
-                                                     , tagDyn a pb
+                                                     , tagPromptlyDyn a pb
                                                      ]
 

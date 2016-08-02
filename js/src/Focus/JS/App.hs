@@ -113,11 +113,11 @@ instance ( HasFocus app
   askEnv = FocusWidget $ lift ask
   tellInterest is = do
     token <- asksEnv getToken
-    tellDyn =<< combineDyn (\mt is' -> maybe mempty (\t -> AppendMap (Map.singleton t is')) mt) token is
+    tellDyn $ zipDynWith (\mt is' -> maybe mempty (\t -> AppendMap (Map.singleton t is')) mt) token is
   getView = do
     token <- asksEnv getToken
     views <- asksEnv getViews
-    combineDyn (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
+    return $ zipDynWith (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
 instance (Reflex t, HasEnv app, Monad m, a ~ ViewSelector app ()) => MonadDynamicWriter t (AppendMap (Signed AuthToken) a) (FocusWidget app t m) where
   tellDyn = FocusWidget . lift . tellDyn
@@ -125,7 +125,7 @@ instance (Reflex t, HasEnv app, Monad m, a ~ ViewSelector app ()) => MonadDynami
 watchViewSelector :: MonadFocusWidget app t m => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
 watchViewSelector s = do
   tellInterest s
-  combineDyn cropView s =<< getView
+  zipDynWith cropView s <$> getView
 
 -- watchViewSelectorLens :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) c b -> Dynamic t b -> m (Dynamic t (View app))
 -- watchViewSelectorLens l sdyn = do
@@ -140,7 +140,7 @@ asksEnv :: MonadFocusWidget app t m => (Env app t -> a) -> m a
 asksEnv f = fmap f askEnv
 
 asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
-asksView f = mapDyn f =<< getView
+asksView f = fmap f <$> getView
 
 
 --TODO: HasDocument is still not accounted for
@@ -178,12 +178,12 @@ runFocusWidget :: forall t m a x app. ( MonadWidget' t m
                -> m (a, Dynamic t (AppendMap (Signed AuthToken) (ViewSelector app ())))
 runFocusWidget tokenDyn mkEnv child = do
   let child' = do
-        is0 <- forDyn tokenDyn $ maybe mempty (\t -> AppendMap (Map.singleton t mempty))
+        let is0 = ffor tokenDyn $ maybe mempty (\t -> AppendMap (Map.singleton t mempty))
         tellDyn is0
         child
   pb <- getPostBuild
   rec ((a, patches), vs) <- runReaderT (runDynamicWriterT (runRequestT (leftmost [updated nubbedVs, tag (current nubbedVs) pb]) (unFocusWidget child'))) e
-      let nubbedVs = nubDyn vs
+      let nubbedVs = uniqDyn vs
       e <- fromNotifications nubbedVs patches
   return (a, vs)
   where
