@@ -40,7 +40,7 @@ data ClientEnv app = ClientEnv
        , _clientEnv_viewMap :: TVar (Map (Signed AuthToken) (View app))
        , _clientEnv_notifyViewChange :: TChan ()
        , _clientEnv_nextInterestId :: TVar InterestId
-       , _clientEnv_interests :: TVar (Map InterestId (Signed AuthToken, ViewSelector app))
+       , _clientEnv_interests :: TVar (Map InterestId (Signed AuthToken, ViewSelector app ()))
        }
 
 data RequestEnv app = RequestEnv
@@ -48,11 +48,11 @@ data RequestEnv app = RequestEnv
                                  => AppRequest app rsp
                                  -> IO (Async (Either Text Value))
        , _requestEnv_registerInterest :: Signed AuthToken
-                                      -> ViewSelector app
+                                      -> ViewSelector app ()
                                       -> IO (InterestId, STM ()) -- returns unregister action
        , _requestEnv_sendInterestSet :: IO ()
        , _requestEnv_listen :: forall a. Signed AuthToken
-                            -> ViewSelector app
+                            -> ViewSelector app ()
                             -> (View app -> Maybe a)
                             -> IO (Async a)
        }
@@ -60,7 +60,7 @@ data RequestEnv app = RequestEnv
 data RequestState app = RequestState
        { _requestState_token :: Maybe (Signed AuthToken)
        , _requestState_timeout :: Maybe Int
-       , _requestState_interests :: Map InterestId (ViewSelector app, STM ())
+       , _requestState_interests :: Map InterestId (ViewSelector app (), STM ())
        }
 
 data RequestResult rsp = RequestResult_Success rsp
