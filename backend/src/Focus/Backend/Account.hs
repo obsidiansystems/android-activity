@@ -90,13 +90,16 @@ setPasswordWithToken token password = do
   Just (AuthToken aid) <- readSigned token
   setAccountPassword aid password
 
-resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed PasswordResetToken -> Text -> m (Id Account)
+resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed PasswordResetToken -> Text -> m (Maybe (Id Account))
 resetPasswordWithToken prt password = do
   Just (PasswordResetToken (aid, nonce)) <- readSigned prt
   Just a <- get $ fromId aid
-  True <- return $ account_passwordResetNonce a == Just nonce
-  setAccountPassword aid password
-  return aid
+  isValidToken <- return $ account_passwordResetNonce a == Just nonce
+  if isValidToken
+    then do
+      setAccountPassword aid password
+      return $ Just aid
+    else return Nothing
 
 login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
 login toLoginInfo email password = runMaybeT $ do
