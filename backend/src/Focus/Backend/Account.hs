@@ -78,6 +78,9 @@ generatePasswordResetToken aid = do
   nonce <- getTime
   sign $ PasswordResetToken (aid, nonce)
 
+generatePasswordResetTokenFromNonce :: MonadSign m => Id Account -> UTCTime -> m (Signed PasswordResetToken)
+generatePasswordResetTokenFromNonce aid nonce = sign $ PasswordResetToken (aid, nonce)
+
 setAccountPassword :: (PersistBackend m, MonadIO m) => Id Account -> Text -> m ()
 setAccountPassword aid password = do
   salt <- liftIO genSaltIO
@@ -94,8 +97,7 @@ resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed P
 resetPasswordWithToken prt password = do
   Just (PasswordResetToken (aid, nonce)) <- readSigned prt
   Just a <- get $ fromId aid
-  isValidToken <- return $ account_passwordResetNonce a == Just nonce
-  if isValidToken
+  if account_passwordResetNonce a == Just nonce
     then do
       setAccountPassword aid password
       return $ Just aid
