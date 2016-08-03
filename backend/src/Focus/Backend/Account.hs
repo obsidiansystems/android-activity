@@ -25,6 +25,7 @@ import Data.Time
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.TH
+import Database.Groundhog.Generic.Sql.Functions
 import qualified Data.Text as T
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html5 as H
@@ -47,7 +48,7 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account)) 
+ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account))
 ensureAccountExists email = do
   nonce <- getTime
   result <- insertByAll $ Account email Nothing (Just nonce)
@@ -97,9 +98,9 @@ resetPasswordWithToken prt password = do
   setAccountPassword aid password
   return aid
 
-login :: (PersistBackend m) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
+login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
 login toLoginInfo email password = runMaybeT $ do
-  (aid, a) <- MaybeT . fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (Account_emailField ==. email) 
+  (aid, a) <- MaybeT . fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
   ph <- MaybeT . return $ account_passwordHash a
   guard $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph
   lift $ toLoginInfo (toId aid)
@@ -107,7 +108,7 @@ login toLoginInfo email password = runMaybeT $ do
 generateAndSendPasswordResetEmail
   :: (PersistBackend m, MonadSign m)
   => (Signed PasswordResetToken -> Email -> m ())
-  -> Id Account 
+  -> Id Account
   -> m (Maybe UTCTime)
 generateAndSendPasswordResetEmail pwEmail aid = do
   nonce <- getTime
@@ -143,4 +144,3 @@ sendPasswordResetEmail f prt email = do
   let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
       body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
   sendEmailDefault (email :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
-
