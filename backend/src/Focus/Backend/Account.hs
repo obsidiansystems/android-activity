@@ -25,6 +25,7 @@ import Data.Time
 import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.TH
+import Database.Groundhog.Generic.Sql.Functions
 import qualified Data.Text as T
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html5 as H
@@ -47,7 +48,7 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account)) 
+ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account))
 ensureAccountExists email = do
   nonce <- getTime
   result <- insertByAll $ Account email Nothing (Just nonce)
@@ -77,6 +78,9 @@ generatePasswordResetToken aid = do
   nonce <- getTime
   sign $ PasswordResetToken (aid, nonce)
 
+generatePasswordResetTokenFromNonce :: MonadSign m => Id Account -> UTCTime -> m (Signed PasswordResetToken)
+generatePasswordResetTokenFromNonce aid nonce = sign $ PasswordResetToken (aid, nonce)
+
 setAccountPassword :: (PersistBackend m, MonadIO m) => Id Account -> Text -> m ()
 setAccountPassword aid password = do
   salt <- liftIO genSaltIO
@@ -89,17 +93,19 @@ setPasswordWithToken token password = do
   Just (AuthToken aid) <- readSigned token
   setAccountPassword aid password
 
-resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed PasswordResetToken -> Text -> m (Id Account)
+resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed PasswordResetToken -> Text -> m (Maybe (Id Account))
 resetPasswordWithToken prt password = do
   Just (PasswordResetToken (aid, nonce)) <- readSigned prt
   Just a <- get $ fromId aid
-  True <- return $ account_passwordResetNonce a == Just nonce
-  setAccountPassword aid password
-  return aid
+  if account_passwordResetNonce a == Just nonce
+    then do
+      setAccountPassword aid password
+      return $ Just aid
+    else return Nothing
 
-login :: (PersistBackend m) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
+login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
 login toLoginInfo email password = runMaybeT $ do
-  (aid, a) <- MaybeT . fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (Account_emailField ==. email) 
+  (aid, a) <- MaybeT . fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
   ph <- MaybeT . return $ account_passwordHash a
   guard $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph
   lift $ toLoginInfo (toId aid)
@@ -107,7 +113,7 @@ login toLoginInfo email password = runMaybeT $ do
 generateAndSendPasswordResetEmail
   :: (PersistBackend m, MonadSign m)
   => (Signed PasswordResetToken -> Email -> m ())
-  -> Id Account 
+  -> Id Account
   -> m (Maybe UTCTime)
 generateAndSendPasswordResetEmail pwEmail aid = do
   nonce <- getTime
@@ -143,4 +149,3 @@ sendPasswordResetEmail f prt email = do
   let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
       body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
   sendEmailDefault (email :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
-
