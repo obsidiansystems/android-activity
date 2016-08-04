@@ -156,7 +156,7 @@ mainlandUSTimeZoneMap = do
   return (Map.fromList [(n,s) | (n,Just s) <- kvs])
 
 mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
-mainlandUSTimeInput tzMap t0 = 
+mainlandUSTimeInput tzMap t0 =
   utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
 
 mainlandUSTimeZone :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> DropdownConfig t Text -> m (Dynamic t TimeZoneSeries)
@@ -395,9 +395,9 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
 
 recoveryForm
   :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t Email -> m (Event t ()))
+  => (Event t Email -> m (Event t (Either Text ())))
   -- ^ Recover password request
-  -> m (Event t (), Event t ())
+  -> m (Event t (Either Text ()), Event t ())
 recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Recover or "
