@@ -13,7 +13,7 @@ import Focus.Sign
 import Focus.Route
 import Focus.Schema
 
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Except
 import Control.Monad.Writer
 import Crypto.PasswordStore
 import Data.Default
@@ -103,12 +103,16 @@ resetPasswordWithToken prt password = do
       return $ Just aid
     else return Nothing
 
-login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Maybe loginInfo)
-login toLoginInfo email password = runMaybeT $ do
-  (aid, a) <- MaybeT . fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
-  ph <- MaybeT . return $ account_passwordHash a
-  guard $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph
+login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either Text loginInfo)
+login toLoginInfo email password = runExceptT $ do
+  (aid, a) <- ExceptT . fmap (maybeToEither "The user is not recognized" . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
+  ph <- ExceptT . return $ maybeToEither "This user is not recognized" $ account_passwordHash a
+  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left "Please enter a valid password"
   lift $ toLoginInfo (toId aid)
+  where
+    maybeToEither b Nothing = Left b
+    maybeToEither _ (Just a) = Right a
+
 
 generateAndSendPasswordResetEmail
   :: (PersistBackend m, MonadSign m)

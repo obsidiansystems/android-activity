@@ -410,7 +410,7 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
 
 loginForm
   :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
+  => (Event t (Email, Text) -> m (Event t (Either Text loginInfo)))
   -- ^ Login request
   -> m (Event t loginInfo, Event t ())
 loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
@@ -427,16 +427,17 @@ loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
   let eEmailEnter = textInputGetEnter emailBox
       ePasswordEnter = textInputGetEnter passwordBox
   eLoginResult <- login $ tag bCreds $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
-  errorAttrs <- holdDyn ("style" =: "display: none") (fmap (\r' -> if isNothing r' then "class" =: "alert alert-warning" else "style" =: "display: none") eLoginResult)
-  elDynAttr "div" errorAttrs $ do
-    icon "warning"
-    text " Invalid email address or password"
-  let eLoginSuccess = fmapMaybe id eLoginResult
+  _ <- widgetHold blank (either (\t -> icon "warning" >> divClass "alert alert-warning" (text t)) (const blank) <$> eLoginResult)
+  let eLoginSuccess = fmapMaybe eitherToMaybe eLoginResult
   return (eLoginSuccess, _link_clicked signupLink)
+  where
+    eitherToMaybe :: Either a b -> Maybe b
+    eitherToMaybe (Left _) = Nothing
+    eitherToMaybe (Right b) = Just b
 
 loginFormWithReset
   :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t (Email, Text) -> m (Event t (Maybe loginInfo)))
+  => (Event t (Email, Text) -> m (Event t (Either T.Text loginInfo)))
   -- ^ Login request
   -> m (Event t loginInfo, Event t (), Event t ())
 loginFormWithReset login = do
