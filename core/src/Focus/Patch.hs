@@ -24,9 +24,36 @@ class Semigroup (Patch v) => Patchable v where
   default patch :: First v -> v -> v
   patch (First v) _ = v
 
+data PairPatch a b = PatchFst (Patch a)
+                   | PatchSnd (Patch b)
+                   | PatchBoth (Patch a) (Patch b)
+  deriving (Generic, Typeable)
+
+deriving instance (Show (Patch a), Show (Patch b)) => Show (PairPatch a b)
+deriving instance (Read (Patch a), Read (Patch b)) => Read (PairPatch a b)
+deriving instance (Eq (Patch a), Eq (Patch b)) => Eq (PairPatch a b)
+deriving instance (Ord (Patch a), Ord (Patch b)) => Ord (PairPatch a b)
+
+instance (Patchable a, Patchable b) => Semigroup (PairPatch a b) where
+  (PatchFst a) <> (PatchFst a') = PatchFst (a <> a')
+  (PatchFst a) <> (PatchSnd b) = PatchBoth a b
+  (PatchFst a) <> (PatchBoth a' b) = PatchBoth (a <> a') b
+  (PatchSnd b) <> (PatchFst a) = PatchBoth a b
+  (PatchSnd b) <> (PatchSnd b') = PatchSnd (b <> b')
+  (PatchSnd b) <> (PatchBoth a b') = PatchBoth a (b <> b')
+  (PatchBoth a b) <> (PatchFst a') = PatchBoth (a <> a') b
+  (PatchBoth a b) <> (PatchSnd b') = PatchBoth a (b <> b')
+  (PatchBoth a b) <> (PatchBoth a' b') = PatchBoth (a <> a') (b <> b')
+
 instance (Patchable a, Patchable b) => Patchable (a, b) where
-  type Patch (a, b) = (Patch a, Patch b)
-  patch (p, q) (x, y) = (patch p x, patch q y)
+  type Patch (a, b) = PairPatch a b
+  patch p (x, y) = case p of
+    PatchFst px -> (patch px x, y)
+    PatchSnd py -> (x, patch py y)
+    PatchBoth px py -> (patch px x, patch py y)
+
+instance (FromJSON (Patch a), FromJSON (Patch b)) => FromJSON (PairPatch a b)
+instance (ToJSON (Patch a), ToJSON (Patch b)) => ToJSON (PairPatch a b)
 
 instance Ord v => Patchable (Set v) where
   type Patch (Set v) = SetPatch v
