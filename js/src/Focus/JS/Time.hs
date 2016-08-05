@@ -5,7 +5,6 @@ import Focus.JS.Request
 import Foreign.JavaScript.TH
 import Reflex.Dom
 
-import Control.Applicative
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
@@ -32,10 +31,10 @@ createDynamicTime = do
   tn <- performEventAsync $ fmap (\_ cb -> liftIO $ void $ forkIO $ forever $ threadDelay 1000000 >> getCurrentTime >>= cb) pb
   holdDyn t tn
 
-importJS Unsafe "(function() { return new Date().toJSON(); })" "newDateToJSON_" [t| forall x m. (MonadJS x m) => m String |]
+importJS Unsafe "(function() { return new Date().toJSON(); })()" "newDateToJSON_" [t| forall x m. (MonadJS x m) => m String |]
 
 jsCurrentTime :: HasJS x m => m (Maybe UTCTime)
 jsCurrentTime = do
   j <- liftJS newDateToJSON_
-  return $ parseTimeM True defaultTimeLocale "%FT%T%QZ" j <|> parseTimeM True defaultTimeLocale "%FT%T%Q%z" j
+  return $ parseTimeM True defaultTimeLocale (iso8601DateFormat (Just "%T%QZ")) j
 
