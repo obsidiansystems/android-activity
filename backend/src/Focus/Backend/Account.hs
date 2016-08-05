@@ -55,20 +55,24 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m) => Email -> m (Maybe (Id Account))
+ensureAccountExists :: (PersistBackend m, SqlDb (PhantomDb m)) => Email -> m (Maybe (Id Account))
 ensureAccountExists email = do
   nonce <- getTime
-  result <- insertByAll $ Account email Nothing (Just nonce)
-  case result of
-    Left _ -> return Nothing
-    Right aid -> do
-      let aid' = toId aid
-      notifyEntityId NotificationType_Insert aid'
-      return (Just aid')
+  mExists <- fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
+  case mExists of
+    Just _ -> return Nothing
+    Nothing -> do
+      result <- insertByAll $ Account email Nothing (Just nonce)
+      case result of
+        Left _ -> return Nothing
+        Right aid -> do
+          let aid' = toId aid
+          notifyEntityId NotificationType_Insert aid'
+          return (Just aid')
 
 -- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
-  :: (PersistBackend m, MonadSign m)
+  :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m))
   => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Maybe (Id Account))
