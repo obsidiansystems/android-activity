@@ -41,6 +41,7 @@ data AppConfig
                , _appConfig_initialStyles :: Maybe Text
                , _appConfig_initialBody :: Maybe ByteString
                , _appConfig_initialHead :: Maybe ByteString
+               , _appConfig_serveJsexe :: Bool
                }
 
 instance Default AppConfig where
@@ -49,6 +50,7 @@ instance Default AppConfig where
                   , _appConfig_initialStyles = mempty
                   , _appConfig_initialBody = mempty
                   , _appConfig_initialHead = mempty
+                  , _appConfig_serveJsexe = True
                   }
 
 frontendJsexeAssets :: FilePath
@@ -56,12 +58,13 @@ frontendJsexeAssets = "frontend.jsexe.assets"
 
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
-  route [ (loc, ifTop $ serveStaticIndex cfg)
-        , (loc, serveAssets (app </> "assets") (app </> "static"))
-        , (loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))
-        , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
-        , (loc, doNotCache >> error404)
-        ]
+  route $ [ (loc, ifTop $ serveStaticIndex cfg)
+          , (loc, serveAssets (app </> "assets") (app </> "static"))
+          , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
+          , (loc, doNotCache >> error404)
+          ] ++ if _appConfig_serveJsexe cfg
+                  then [(loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))]
+                  else []
 
 serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
 serveApp = serveAppAt ""
