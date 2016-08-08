@@ -12,6 +12,7 @@ import Control.Monad.State
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Parser
+import Data.Align
 import qualified Data.Attoparsec.Lazy as LA
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
@@ -20,9 +21,11 @@ import Data.Constraint
 import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import Data.List (isPrefixOf)
+import Data.Maybe
 import Data.Monoid hiding (First)
 import Data.Semigroup hiding ((<>))
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.These
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Language.Haskell.TH
@@ -195,30 +198,39 @@ makeJson n = do
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
     |]
 
-makeJsonForDataInstance :: Name -> Name -> DecsQ
-makeJsonForDataInstance n n' = do
+makeJsonForDataInstance :: Name -> [Maybe Name] -> DecsQ
+makeJsonForDataInstance n mns = do
   x <- reify n
   let base = nameBase n
       toBeStripped = base <> "_"
-      modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
-      cons = case x of
+      matchingInstances {- :: [([Type], [Con])] -} = case x of
        (FamilyI _ dataInstances) -> do
 #if MIN_VERSION_template_haskell(2,11,0)
-         (DataInstD _ _ [ConT m] _ xs _) <- dataInstances
+         (DataInstD _ _ tParams _ xs _) <- dataInstances
 #else
-         (DataInstD _ _ [ConT m] xs _) <- dataInstances
+         (DataInstD _ _ tParams xs _) <- dataInstances
 #endif
-         guard $ m == n'
-         xs
+         
+         typeNames <- maybeToList $ forM (align mns tParams) $ \case
+           These Nothing v@(VarT _) -> Just v
+           These (Just n') c@(ConT m) | m == n' -> Just c
+           _ -> Nothing
+         return (typeNames, xs)
        _ -> $undef
-      typeNames = case x of
-       (FamilyI _ _) -> [conT n']
-       _ -> $undef
+      -- typeNames = case x of
+      --  (FamilyI _ _) -> [conT n']
+      --  _ -> $undef
+  (typeNames, cons) <- case matchingInstances of
+    [matchingInstance] -> return matchingInstance
+    [] -> fail $ "makeJsonForDataInstance: No Data Instances found for pattern " <> show (n, mns)
+    _ -> fail $ "makeJsonForDataInstance: Ambiguous pattern " <> show (n, mns)
+
+  let modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
-    instance ToJSON $(foldl appT (conT n) typeNames)   where
+    instance ToJSON $(foldl appT (conT n) (map return typeNames))   where
       toJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
-    instance FromJSON $(foldl appT (conT n) typeNames) where
+    instance FromJSON $(foldl appT (conT n) (map return typeNames)) where
       parseJSON v = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName id [|v'|]) cons ++ [wild])
@@ -487,3 +499,6 @@ encodeURIComponent = escapeURIString (`elem` ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'
 
 deriving instance FromJSON a => FromJSON (First a)
 deriving instance ToJSON a => ToJSON (First a)
+
+deriving instance FromJSON Any
+deriving instance ToJSON Any

@@ -49,7 +49,7 @@ requestEnv c = RequestEnv
           teardown s = atomically $ modifyTVar' pending $ Map.delete s
           run :: (RequestId, TBQueue (Either Text Value)) -> IO (Async (Either Text Value))
           run (s,em) =
-            let payload :: WebSocketData (Maybe (Signed AuthToken)) Value (SomeRequest (AppRequest app))
+            let payload :: WebSocketData (Maybe (Signed AuthToken)) (SomeRequest (AppRequest app))
                 payload = WebSocketData_Api (toJSON s) (SomeRequest req)
             in sendTextData conn (encode payload) >> async (atomically (readTBQueue em) `finally` teardown s)
       in setup >>= run
@@ -63,7 +63,7 @@ requestEnv c = RequestEnv
         return $ (s, modifyTVar' interests $ Map.delete s)
   , _requestEnv_sendInterestSet = do
       is <- Map.foldr (<>) mempty . fmap (AppendMap . uncurry Map.singleton) <$> readTVarIO (_clientEnv_interests c)
-      let payload :: WebSocketData (Signed AuthToken) (ViewSelector app) Value
+      let payload :: WebSocketData (AppendMap (Signed AuthToken) (ViewSelector app ())) Value
           payload = WebSocketData_Listen is
       sendTextData conn $ encode payload
   , _requestEnv_listen = \t s l -> do
@@ -89,7 +89,7 @@ requestEnv c = RequestEnv
 listener :: HasView app => ClientEnv app -> IO ()
 listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
-  (mma :: Either Text (WebSocketData (Signed AuthToken) (ViewPatch app) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
+  (mma :: Either Text (WebSocketData (AppendMap (Signed AuthToken) (ViewPatch app)) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
@@ -189,7 +189,7 @@ withToken mt a =
   teardown t' = setToken t'
   run _ = a
 
-tellInterest :: (MonadRequest app m) => ViewSelector app -> m (Maybe ())
+tellInterest :: (MonadRequest app m) => ViewSelector app () -> m (Maybe ())
 tellInterest s = do
   mt <- gets _requestState_token
   case mt of
@@ -202,7 +202,7 @@ tellInterest s = do
       liftIO sendInterestSet
       return (Just ())
 
-withInterest :: (MonadRequest app m) => ViewSelector app -> m a -> m (Maybe a)
+withInterest :: (MonadRequest app m) => ViewSelector app () -> m a -> m (Maybe a)
 withInterest s a = do
   mt <- gets _requestState_token
   case mt of

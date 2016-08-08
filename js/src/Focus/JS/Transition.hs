@@ -40,15 +40,13 @@ transitionWorkflow :: forall t m a. (DomBuilder t m, PerformEvent t m, PostBuild
 transitionWorkflow hello goodbye = f where
   f :: Workflow t m a -> Workflow t m a
   f (Workflow act) = Workflow $ do
-    do hello0 <- delay 0.01 =<< getPostBuild
-       rec attrs <- mapDyn ("style" =:) =<<
-                      holdDyn (transitionStyle0 hello)
-                              (leftmost [(transitionStyle1 hello) <$ hello0
-                                        ,(transitionStyle0 goodbye) <$ goodbye0
-                                        ,(transitionStyle1 goodbye) <$ goodbye1])
-           (r,e) <- elDynAttr "div" attrs act
-           let goodbye0 = fmap f e
-           goodbye1 <- delay 0.01 goodbye0
-           end <- delay (transitionTime goodbye) goodbye0
-       return (r, end)
+    hello0 <- delay 0.01 =<< getPostBuild
+    rec attrs <- holdDyn ("style" =: transitionStyle0 hello) $ fmap ("style" =:) $ leftmost [ transitionStyle1 hello <$ hello0
+                                                                                            , transitionStyle0 goodbye <$ goodbye0
+                                                                                            , transitionStyle1 goodbye <$ goodbye1]
+        (r,e) <- elDynAttr "div" attrs act
+        let goodbye0 = fmap f e
+        goodbye1 <- delay 0.01 goodbye0
+        end <- delay (transitionTime goodbye) goodbye0
+    return (r, end)
 

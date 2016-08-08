@@ -16,7 +16,7 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Trans.Control
 import Foreign.JavaScript.TH
-import Focus.AppendMap
+import Focus.AppendMap (AppendMap)
 import Focus.JS.Env
 import Focus.Request
 import Control.Arrow
@@ -193,7 +193,7 @@ withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m, MonadFix m)
 withDynamicWriterT f dw = do
   (r, d) <- lift $ do
     (r, d) <- runDynamicWriterT dw
-    d' <- mapDyn f d
+    let d' = fmap f d
     return (r, d')
   tellDyn d
   return r

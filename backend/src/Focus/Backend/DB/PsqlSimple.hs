@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeFamilies, UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
@@ -27,6 +27,8 @@ import Database.PostgreSQL.Simple.ToRow
 import Database.PostgreSQL.Simple.Types
 import Database.PostgreSQL.Simple.SqlQQ
 import qualified Database.PostgreSQL.Simple as Sql
+
+import Focus.Schema
 
 data WrappedSqlError = WrappedSqlError
        { _wrappedSqlError_rawQuery :: ByteString
@@ -98,3 +100,9 @@ instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
   query psql qs = lift $ query psql qs
   query_ = lift . query_
   formatQuery psql qs = lift $ formatQuery psql qs
+
+instance (FromField (IdData a)) => FromField (Id a) where
+  fromField f mbs = fmap Id (fromField f mbs)
+
+instance (ToField (IdData a)) => ToField (Id a) where
+  toField (Id x) = toField x

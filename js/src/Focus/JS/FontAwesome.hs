@@ -12,12 +12,12 @@ fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxc
 
 dynIconAttr :: (DomBuilder t m, PostBuild t m) => Map Text Text -> Dynamic t Text -> m ()
 dynIconAttr m i = do
-  attr <- forDyn i (\name -> m <> if T.null name then mempty else "class" =: ("fa fa-" <> name))
+  let attr = ffor i $ \name -> m <> if T.null name then mempty else "class" =: ("fa fa-" <> name)
   elDynAttr "i" attr $ return ()
 
 dynIcon2xAttr :: (DomBuilder t m, PostBuild t m) => Map Text Text -> Dynamic t Text -> m ()
 dynIcon2xAttr m i = do
-  attr <- forDyn i (\name -> m <> if T.null name then mempty else "class" =: ("fa fa-2x fa-" <> name))
+  let attr = ffor i $ \name -> m <> if T.null name then mempty else "class" =: ("fa fa-2x fa-" <> name)
   elDynAttr "i" attr $ return ()
 
 dynIcon :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()

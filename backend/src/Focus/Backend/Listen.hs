@@ -4,7 +4,7 @@ module Focus.Backend.Listen where
 
 import Focus.Account
 import Focus.Api
-import Focus.AppendMap
+import Focus.AppendMap (AppendMap (..))
 import Focus.Backend.Schema.TH
 import Focus.Schema
 import Focus.Request
@@ -84,12 +84,15 @@ updateAndNotify tid dt = do
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> a -> m ()
 notifyEntity nt aid _ = notifyEntityId nt aid
 
-notifyEntityWithBody :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
-notifyEntityWithBody nt aid a = do
+notifyEntityWithBody' :: forall a b m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON b) => NotificationType -> Id a -> b -> m ()
+notifyEntityWithBody' nt aid b = do
   let proxy = undefined :: proxy (PhantomDb m)
       cmd = "NOTIFY " <> updateChannel <> ", ?"
-  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, a))]
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, b))]
   return ()
+
+notifyEntityWithBody :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
+notifyEntityWithBody = notifyEntityWithBody'
 
 notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> m ()
 notifyEntityId nt aid = do

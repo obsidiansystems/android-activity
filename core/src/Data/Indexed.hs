@@ -11,20 +11,20 @@ import Data.Maybe
 import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Focus.AppendMap (AppendMap)
+import qualified Focus.AppendMap as Map
 
 import Focus.Patch
-import Focus.AppendMap
 
 -- | This type adds a secondary index to a data structure. The first type parameter p is a phantom used to indicate the instance of 'Projection' to use
 -- in order to obtain keys for the additional index. The second type parameter f is intended to be some FoldableWithIndex data structure, such as some Map k or another
 -- application of WithIndex. The third type parameter v is the type of values in the underlying Map structure which we're going to be projecting the new indices from.
-data WithIndex p f v = WithIndex { _withIndex_index :: Map (Projected p (IxValue (f v))) (Set (Index (f v)))
+data WithIndex p f v = WithIndex { _withIndex_index :: AppendMap (Projected p (IxValue (f v))) (Set (Index (f v)))
                                  , _withIndex_data :: f v
                                  }
 
 deriving instance (Show (f v), Show (Projected p (IxValue (f v))), Show (Index (f v))) => Show (WithIndex p f v)
+deriving instance (Read (f v), Read (Projected p (IxValue (f v))), Ord (Projected p (IxValue (f v))), Ord (Index (f v)), Read (Index (f v))) => Read (WithIndex p f v)
 
 {-
 merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a
@@ -47,7 +47,7 @@ class HasIndex p f where
   index :: (Ord (Projected p (IxValue (f v))), Ord (Index (f v)))
         => proxy p
         -> f v
-        -> Map (Projected p (IxValue (f v))) (Set (Index (f v)))
+        -> AppendMap (Projected p (IxValue (f v))) (Set (Index (f v)))
   differenceByIndex :: (At (f v), Ord (Index (f v)), Ord (Projected p (IxValue (f v))), Projection p (IxValue (f v)))
                     => proxy p
                     -> Set (Projected p (IxValue (f v)))
@@ -99,10 +99,10 @@ valuesByIndex :: ( Ord (Index (f' b))
                  )
               => proxy p
               -> f b
-              -> Map (Projected p (IxValue (f b))) (f' b)
+              -> AppendMap (Projected p (IxValue (f b))) (f' b)
 valuesByIndex p f = let ixs = index p f
                         vals = values f
-                    in Map.map (\ks -> intersectionByKey ks vals) ixs
+                    in fmap (\ks -> intersectionByKey ks vals) ixs
 
 instance {-# OVERLAPPING #-} HasIndex p (WithIndex p f) where
   keysByIndex _ ixs wi = Set.unions $ Map.elems $ Map.intersection (_withIndex_index wi) $ Map.fromSet (const ()) ixs
@@ -119,8 +119,6 @@ class HasValues w f | w -> f where
 
 instance HasValues f f' => HasValues (WithIndex p f) f' where
   values = values . _withIndex_data
-
-instance HasValues (Map k) (Map k)
 
 withIndex :: ( FoldableWithIndex (Index (f v)) f
              , Ord (Projected p v)
@@ -165,10 +163,10 @@ intersectionByKey ks wi = differenceByKey (Set.difference (Set.fromList $ map fs
 nonEmptySet :: Set a -> Maybe (Set a)
 nonEmptySet s = if Set.null s then Nothing else Just s
 
-deleteFromIndex :: (Ord k, Ord a) => k -> a -> Map k (Set a) -> Map k (Set a)
+deleteFromIndex :: (Ord k, Ord a) => k -> a -> AppendMap k (Set a) -> AppendMap k (Set a)
 deleteFromIndex k a m = Map.alter (nonEmptySet . Set.delete a . fromMaybe Set.empty) k m
 
-addToIndex :: (Ord k, Ord a) => k -> a -> Map k (Set a) -> Map k (Set a)
+addToIndex :: (Ord k, Ord a) => k -> a -> AppendMap k (Set a) -> AppendMap k (Set a)
 addToIndex k a m = Map.alter (Just . Set.insert a . fromMaybe Set.empty) k m
 
 instance (Ord (Index (f v)), Ixed (f v), Ord (Projected p (IxValue (f v))), Projection p (IxValue (f v))) => Ixed (WithIndex p f v) where

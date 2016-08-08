@@ -45,8 +45,9 @@ button' :: (DomBuilder t m, PostBuild t m) => Text -> m a -> m (Event t ())
 button' k w = buttonDynAttr (constDyn $ "class" =: k <> "type" =: "button") w
 
 buttonActive' :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> m a -> m (Event t ())
-buttonActive' k actD w = do attrs <- forDyn actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
-                            buttonDynAttr attrs w
+buttonActive' k actD w = do
+  let attrs = ffor actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
+  buttonDynAttr attrs w
 
 buttonDynAttr :: (DomBuilder t m, PostBuild t m) => Dynamic t (Map Text Text) -> m a -> m (Event t ())
 buttonDynAttr attrs w = liftM (domEvent Click . fst) $ elDynAttr' "button" attrs w
@@ -75,12 +76,12 @@ instance HasValue (NumberInput t a) where
   value = _numberInput_value
 
 numberInput :: (Num a, DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (NumberInput t a)
-numberInput initial =
-  do ti <- textInput $ def & textInputConfig_inputType .~ "number"
-                           & textInputConfig_initialValue .~ initial
-                           & attributes .~ constDyn (Map.fromList [("class", "form-control")])
-     v <- mapDyn (fmap fromInteger . readMay . T.unpack) (value ti)
-     return (NumberInput v ti)
+numberInput initial = do
+  ti <- textInput $ def & textInputConfig_inputType .~ "number"
+                        & textInputConfig_initialValue .~ initial
+                        & attributes .~ constDyn (Map.fromList [("class", "form-control")])
+  let v = fmap (fmap fromInteger . readMay . T.unpack) (value ti)
+  return (NumberInput v ti)
 
 dayInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
 dayInput d0 = do
@@ -89,22 +90,22 @@ dayInput d0 = do
       (navigate', dayClicked') <- do
         (prevButton, nextButton) <- divClass "text-center" $ do
           p <- linkClass "<<" "btn btn-sm pull-left"
-          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText =<< mapDyn (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
+          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
           n <- linkClass ">>" "btn btn-sm pull-right"
           return (p, n)
-        mc :: Event t (Event t Int) <- dyn <=< forDyn visibleMonth $ \(y, m) -> do
-          mDayOfMonth <- forDyn day $ \d ->
-            let (y', m', dom') = toGregorian d
-            in if (y', intToMonth m') == (y, m)
-               then Just dom'
-               else Nothing
+        mc :: Event t (Event t Int) <- dyn $ ffor visibleMonth $ \(y, m) -> do
+          let mDayOfMonth = ffor day $ \d ->
+                let (y', m', dom') = toGregorian d
+                in if (y', intToMonth m') == (y, m)
+                   then Just dom'
+                   else Nothing
           monthCal y m mDayOfMonth
         dayClicked <- liftM switch $ hold never mc
         let navigate = leftmost [ addMonths (-1) <$ _link_clicked prevButton
                                 , addMonths 1 <$ _link_clicked nextButton
                                 ]
         return (navigate, dayClicked)
-      day <- holdDyn d0 $ attachDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
+      day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
 monthCal :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
@@ -125,7 +126,7 @@ monthCal y m sel = do
         el "tbody" $ forM weeks $ \w -> do
           el "tr" $ forM w $ \n -> do
             let attrs = maybe mempty (const $ "style" =: "cursor: pointer;" <> "class" =: "mouseover-active") n
-            active <- forDyn sel $ \s -> "class" =: ("btn btn-xs" <> if s == n && isJust s then " btn-primary" else "")
+                active = ffor sel $ \s -> "class" =: ("btn btn-xs" <> if s == n && isJust s then " btn-primary" else "")
             (e, _) <- elAttr' "td" attrs $ elDynAttr "a" active $ text $ T.pack $ maybe "" show n
             return $ fmap (const n) $ domEvent Click e
   let selectionMade = leftmost $ concat click
@@ -142,10 +143,10 @@ timeInput t0 = do
   minute <- liftM value $ dropdown (snd3 twelveHrTime) (constDyn ms) (def & attributes .~ attrs)
   let meridian0 = thd3 twelveHrTime
   meridian :: Dynamic t Meridian <- liftM value $ enumDropdown' meridian0 showPretty (def & attributes .~ attrs)
-  milHour <- combineDyn (\h m -> case m of
-                                      AM -> if h == 12 then 0 else h
-                                      PM -> if h == 12 then 12 else h + 12) hour meridian
-  tod <- liftM (fmapMaybe id . updated) $ combineDyn (\h m -> makeTimeOfDayValid h m 0) milHour minute
+  let milHour = zipDynWith (\h m -> case m of
+        AM -> if h == 12 then 0 else h
+        PM -> if h == 12 then 12 else h + 12) hour meridian
+      tod = fmapMaybe id . updated $ zipDynWith (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
 
 mainlandUSTimeZoneMap :: (MonadIO m, HasJS x m) => m (Map Text TimeZoneSeries)
@@ -164,34 +165,34 @@ mainlandUSTimeZone tzMap _ {- cfg -} = do
   let labelMap, valueMap :: Map Int Text
       labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
       valueMap = 0 =: "Pacific" <> 1 =: "Mountain" <> 2 =: "Central" <> 3 =: "Eastern"
-  selection <- mapDyn (valueMap Map.!) =<< toggleButtonStrip "btn-xs" 3 labelMap
-  mapDyn (tzMap Map.!) selection
+  selection <- fmap (fmap (valueMap Map.!)) $ toggleButtonStrip "btn-xs" 3 labelMap
+  return $ fmap (tzMap Map.!) selection
 
-utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeZoneSeries -> m (Dynamic t TimeZoneSeries) -> UTCTime -> m (Dynamic t UTCTime)
+utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m)
+                 => TimeZoneSeries
+                 -> m (Dynamic t TimeZoneSeries)
+                 -> UTCTime
+                 -> m (Dynamic t UTCTime)
 utcTimeInputMini tz0 tzWidget t = do
-  rec timeShown <- combineDyn (\tz t' -> showDateTime' tz t') tzD timeD
+  rec let timeShown = zipDynWith (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
                              & textInputConfig_setValue .~ updated timeShown
                              & textInputConfig_initialValue .~ (showDateTime' tz0) t
         isOpen <- holdDyn False $ leftmost [fmap (const True) (domEvent Click e'), fmap (const False) close]
-        attrs' :: Dynamic t (Map Text Text) <- mapDyn (\x -> if x then "class" =: "dropdown-menu"
-                                                                        <> "style" =: "width: auto; position: absolute; display: block;"
-                                                                      else "class" =: "dropdown-menu")
-                                                          isOpen
-        return attrs'
+        return $ ffor isOpen $ \x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;"
+                                          else "class" =: "dropdown-menu"
       (timeD, tzD, close) <- elDynAttr "div" attrs $ do
         close' <- liftM (domEvent Click . fst) $ elAttr' "div" ("class" =: "modal-background" <> "style" =: "position:fixed; background-color: rgba(0,0,0,0)") $ return ()
         elAttr "div" ("style" =: "z-index:20; position:relative") $ do
           rec ltD <- divClass "form-inline text-center" $ do
                 t' <- timeInput (localTimeOfDay $ utcToLocalTime' tz0 t)
-                ltD' <- combineDyn (\day t'' -> LocalTime day t'') d t'
-                return ltD'
+                return $ zipDynWith (\day t'' -> LocalTime day t'') d t'
               tzD <- elAttr "div" ("style" =: "padding-top: 5px") $ tzWidget
               d <- dayInput (localDay $ utcToLocalTime' tz0 t)
-              timeD <- combineDyn (\tz lt -> localTimeToUTC' tz lt) tzD ltD
-          return (timeD, tzD, close')
+              let timeD' = zipDynWith (\tz lt -> localTimeToUTC' tz lt) tzD ltD
+          return (timeD', tzD, close')
   return timeD
 
 --TODO better way to sort lists
@@ -211,16 +212,16 @@ sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, Dom
 sortList items setK toString mkChild = do
   sortOrder :: Dynamic t SortOrder <- divClass "pull-right" $ alphaSortSelector
   query <- searchBox "search"
-  sorted <- combineDyn (\s vs -> Map.fromList $ map (\(k, v) -> (Just k, v)) $ Map.toList $ mapSort toString s vs) sortOrder items
-  result <- combineDyn (\q xs -> Map.filter (substringFilter q . toString) xs) query sorted
-  let setSel = attachWithMaybe (\xs k -> case k of
+  let sorted = zipDynWith (\s vs -> Map.fromList $ map (\(k, v) -> (Just k, v)) $ Map.toList $ mapSort toString s vs) sortOrder items
+      result = zipDynWith (\q xs -> Map.filter (substringFilter q . toString) xs) query sorted
+      setSel = attachWithMaybe (\xs k -> case k of
                  Nothing -> Just Nothing
                  Just k' -> case filter (\(_, mk) -> mk == k')$ catMaybes $ Map.keys xs of
                                  [] -> Nothing
                                  key:_ -> Just $ Just key) (current sorted) setK
   rec sel :: Event t (Maybe (Int, k)) <- el "div" $ divClass "list-group" $ selectViewListWithKey_ curSel result mkChild
       curSel <- holdDyn Nothing $ leftmost [setSel, sel]
-  mapDyn (fmap snd) curSel
+  return $ fmap snd <$> curSel
 
 sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
 sortListWithDeselectButton buttonLabel items toString mkChild = do
@@ -242,8 +243,8 @@ alphaSortSelector = do
         order <- holdDyn Ascending $ leftmost [fmap (const Ascending) asc, fmap (const Descending) desc]
         let active = "class" =: "btn btn-default active"
             inactive = "class" =: "btn btn-default"
-        attrsA <- forDyn order $ \x -> if x == Ascending then active else inactive
-        attrsD <- forDyn order $ \x -> if x == Descending then active else inactive
+            attrsA = ffor order $ \x -> if x == Ascending then active else inactive
+            attrsD = ffor order $ \x -> if x == Descending then active else inactive
     return order
 
 -- searchBox' :: (DomBuilder t m, PostBuild t m, Ref (Performable m) ~ Ref IO, Ref m ~ Ref IO, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, MonadRef m) => Text -> Text -> m (Dynamic t (Maybe Text))
@@ -252,8 +253,7 @@ searchBox' i p = do
   divClass "input-group" $ do
     elClass "span" "input-group-addon" $ icon i
     q <- liftM value (textInputWithPlaceholder p)
-    forDyn q $ \v -> let x = T.strip v
-                     in if x == "" then Nothing else Just x
+    return $ ffor q $ \v -> let x = T.strip v in if x == "" then Nothing else Just x
 
 searchBox :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (Dynamic t (Maybe Text))
 searchBox i = searchBox' i "Search..."
@@ -309,8 +309,8 @@ stampDefaultStyle = "style" =: "color: white; text-transform: uppercase; font-we
 
 tristateButton :: (DomBuilder t m, PostBuild t m) => Text -> Text -> Dynamic t (Maybe Bool) -> m (Event t ())
 tristateButton k l b = do
-  attrs <- mapDyn buttonAttrs b
-  buttonDynAttr attrs (dyn =<< mapDyn buttonContents b)
+  let attrs = fmap buttonAttrs b
+  buttonDynAttr attrs (dyn $ fmap buttonContents b)
   where
     buttonAttrs x = case x of
                          Nothing -> "class" =: ("btn btn-primary " <> k)
@@ -336,12 +336,13 @@ checkboxWithLabelAttrs l attrs = elAttr "label" attrs $ do
 
 progressBar :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Double -> m ()
 progressBar k w = divClass "progress" $ do
-  attrs <- forDyn w $ \w' -> "class" =: ("progress-bar progress-bar-" <> k) <> "style" =: ("width: " <> T.pack (show w') <> "%")
+  let attrs = ffor w $ \w' -> "class" =: ("progress-bar progress-bar-" <> k) <> "style" =: ("width: " <> T.pack (show w') <> "%")
   elDynAttr "div" attrs $ return ()
 
 maybeDisplay :: forall t m a b. (DomBuilder t m, PostBuild t m) => a -> (Dynamic t a -> m (Dynamic t (Maybe b))) -> (a -> b -> m ()) -> m ()
 maybeDisplay someId watcher child = do
-  _ <- dyn =<< mapDyn (maybe (text "Loading...") $ child someId) =<< watcher (constDyn someId)
+  a <- watcher (constDyn someId)
+  _ <- dyn $ fmap (maybe (text "Loading...") $ child someId) a
   return ()
 
 jumbotron :: forall t m a. DomBuilder t m => Text -> Text -> m a -> m a
@@ -483,8 +484,8 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   elAttr "h3" (Map.singleton "class" "form-signin-heading") $ text "Set Password"
   pw <- passwordInputWithPlaceholder "Password"
   confirm <- passwordInputWithPlaceholder "Confirm Password"
-  dPasswordConfirmed <- combineDyn (==) (_textInput_value pw) (_textInput_value confirm)
-  dAttrs <- mapDyn (\c -> Map.singleton "class" $ "btn btn-lg btn-primary btn-block" <> if c then "" else " disabled") dPasswordConfirmed
+  let dPasswordConfirmed = zipDynWith (==) (_textInput_value pw) (_textInput_value confirm)
+      dAttrs = fmap (\c -> Map.singleton "class" $ "btn btn-lg btn-primary btn-block" <> if c then "" else " disabled") dPasswordConfirmed
   (submitButton, _) <- elDynAttr' "a" dAttrs $ text "Set Password"
   let enterPressed = gate (current dPasswordConfirmed) $ leftmost [textInputGetEnter pw, textInputGetEnter confirm]
       submit = leftmost [domEvent Click submitButton, enterPressed]
@@ -533,27 +534,29 @@ styleTagSignin = el "style" $ text [r|
 toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
-        _ <- dyn =<< mapDyn (\sel' -> if sel' then icon "check" else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if sel' then icon "check" else return ()) sel
         text t1
       long <- buttonDynAttr selAttrB $ do
-        _ <- dyn =<< mapDyn (\sel' -> if not sel' then icon "check" else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if not sel' then icon "check" else return ()) sel
         text t2
       sel <- holdDyn b0 $ leftmost [fmap (const True) short, fmap (const False) long]
       let baseAttr :: Text -> Map Text Text
           baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: "width: 50%;"
-      selAttrA <- mapDyn (\sel' -> if sel' then baseAttr "btn-primary" else baseAttr "") sel
-      selAttrB <- mapDyn (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
+          selAttrA = fmap (\sel' -> if sel' then baseAttr "btn-primary" else baseAttr "") sel
+          selAttrB = fmap (\sel' -> if not sel' then baseAttr "btn-primary" else baseAttr "") sel
   return sel
 
 toggleButtonStrip :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Text -> k -> Map k Text -> m (Dynamic t k)
 toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
   rec selection <- holdDyn s0 changeE
       let baseAttr ksel = "class" =: ("btn " <> k <> " " <> ksel) <> "type" =: "button" <> "style" =: ("width: " <> (T.pack $ show (100 / fromIntegral (Map.size labelMap) :: Double)) <> "%;")
-      changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \_ labelDyn isSelected ->
-                   do attr <- forDyn isSelected $ \case True -> baseAttr "btn-primary"; False -> baseAttr ""
-                      buttonDynAttr attr $ do
-                         dynIcon =<< (forDyn isSelected (\case True -> "check"; False -> ""))
-                         dynText labelDyn
+      changeE <- selectViewListWithKey_ selection (constDyn labelMap) $ \_ labelDyn isSelected -> do
+        let attr = ffor isSelected $ \case
+              True -> baseAttr "btn-primary"
+              False -> baseAttr ""
+        buttonDynAttr attr $ do
+           dynIcon $ (ffor isSelected (\case True -> "check"; False -> ""))
+           dynText labelDyn
   return selection
 
 dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
@@ -565,8 +568,7 @@ dayInputMini d0 = do
                              & textInputConfig_setValue .~ fmap showDate date
                              & textInputConfig_initialValue .~ showDate d0
         isOpen <- holdDyn False $ leftmost [fmap (const False) date, fmap (const True) (domEvent Click e'), fmap (const False) close]
-        attrs' :: Dynamic t (Map Text Text) <- mapDyn (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
-        return attrs'
+        return $ fmap (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
       (date, close) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") . elDynAttr "div" attrs $ do
         d <- dayInput d0
         return (updated d, never)
@@ -578,6 +580,6 @@ checkButton b0 active inactive txt = do
         elDynAttr "i" iconClass $ return ()
         text $ " " <> txt
       selected <- toggle b0 e
-      toggleClass <- mapDyn (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
-      iconClass <- mapDyn (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
+      let toggleClass = fmap (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
+          iconClass = fmap (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected

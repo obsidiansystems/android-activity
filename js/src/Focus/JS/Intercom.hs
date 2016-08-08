@@ -49,4 +49,4 @@ setupIntercom currentIntercomSettings intercomSettingsChangeEvt = do
 shutdownIntercom :: (MonadFocusWidget app t m, HasJS x (Performable m)) => m (Event t ())
 shutdownIntercom = do
   pb <- getPostBuild
-  performEvent <=< onceE $ ffor pb $ \_ -> liftJS intercomShutdown
+  performEvent <=< headE $ ffor pb $ \_ -> liftJS intercomShutdown

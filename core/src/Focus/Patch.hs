@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
 module Focus.Patch where
 
+import Control.Applicative
 import Control.Lens
 import Data.Aeson
 import Data.Default
@@ -23,9 +24,36 @@ class Semigroup (Patch v) => Patchable v where
   default patch :: First v -> v -> v
   patch (First v) _ = v
 
+data PairPatch a b = PatchFst (Patch a)
+                   | PatchSnd (Patch b)
+                   | PatchBoth (Patch a) (Patch b)
+  deriving (Generic, Typeable)
+
+deriving instance (Show (Patch a), Show (Patch b)) => Show (PairPatch a b)
+deriving instance (Read (Patch a), Read (Patch b)) => Read (PairPatch a b)
+deriving instance (Eq (Patch a), Eq (Patch b)) => Eq (PairPatch a b)
+deriving instance (Ord (Patch a), Ord (Patch b)) => Ord (PairPatch a b)
+
+instance (Patchable a, Patchable b) => Semigroup (PairPatch a b) where
+  (PatchFst a) <> (PatchFst a') = PatchFst (a <> a')
+  (PatchFst a) <> (PatchSnd b) = PatchBoth a b
+  (PatchFst a) <> (PatchBoth a' b) = PatchBoth (a <> a') b
+  (PatchSnd b) <> (PatchFst a) = PatchBoth a b
+  (PatchSnd b) <> (PatchSnd b') = PatchSnd (b <> b')
+  (PatchSnd b) <> (PatchBoth a b') = PatchBoth a (b <> b')
+  (PatchBoth a b) <> (PatchFst a') = PatchBoth (a <> a') b
+  (PatchBoth a b) <> (PatchSnd b') = PatchBoth a (b <> b')
+  (PatchBoth a b) <> (PatchBoth a' b') = PatchBoth (a <> a') (b <> b')
+
 instance (Patchable a, Patchable b) => Patchable (a, b) where
-  type Patch (a, b) = (Patch a, Patch b)
-  patch (p, q) (x, y) = (patch p x, patch q y)
+  type Patch (a, b) = PairPatch a b
+  patch p (x, y) = case p of
+    PatchFst px -> (patch px x, y)
+    PatchSnd py -> (x, patch py y)
+    PatchBoth px py -> (patch px x, patch py y)
+
+instance (FromJSON (Patch a), FromJSON (Patch b)) => FromJSON (PairPatch a b)
+instance (ToJSON (Patch a), ToJSON (Patch b)) => ToJSON (PairPatch a b)
 
 instance Ord v => Patchable (Set v) where
   type Patch (Set v) = SetPatch v
@@ -72,9 +100,11 @@ instance (Ord a, FromJSON a) => FromJSON (SetPatch a) where
 instance ToJSON a => ToJSON (SetPatch a) where
   toJSON = toJSONMap . unSetPatch
 
-data ElemPatch a = ElemPatch_Remove
-                 | ElemPatch_Insert a
-                 | ElemPatch_Upsert (Patch a) (Maybe a)
+data ElemPatch a = ElemPatch_Remove -- ^ Remove a value.
+                 | ElemPatch_Insert a -- ^ Simply insert a value, replacing any previous one.
+                 | ElemPatch_Upsert (Patch a) (Maybe a) -- ^ A patch to be applied only in the case where there is an existing value,
+                                                        -- together with an initial value in case none is present
+                                                        -- (the initial value will not have the patch applied to it).
   deriving (Generic, Typeable)
 
 --TODO: Use our deriving JSON instead of the generic deriving after enabling it to handle instance contexts
@@ -89,7 +119,7 @@ deriving instance (Read a, Read (Patch a)) => Read (ElemPatch a)
 instance Patchable a => Semigroup (ElemPatch a) where
   p' <> q' = case p' of
     (ElemPatch_Upsert p mpv) -> case q' of
-      ElemPatch_Upsert q _ -> ElemPatch_Upsert (p <> q) mpv
+      ElemPatch_Upsert q mqv -> ElemPatch_Upsert (p <> q) (fmap (patch p) mqv <|> mpv)
       ElemPatch_Insert v -> ElemPatch_Insert (patch p v)
       ElemPatch_Remove -> case mpv of
         Nothing -> ElemPatch_Remove
@@ -133,19 +163,6 @@ instance (Ord k, Patchable a) => Semigroup (MapPatch k a) where
 instance (Ord k, Patchable a) => Monoid (MapPatch k a) where
   mempty = MapPatch Map.empty
   mappend = (<>)
-
-mapIntersectionWithKeysSet :: Ord k => Map k v -> Set k -> Map k v
-mapIntersectionWithKeysSet m s = Map.intersection m $ Map.fromSet (const ()) s
-
-mapIntersectionWithSetMap :: (Ord k) => Map k v -> Map k' (Set k) -> Map k v
-mapIntersectionWithSetMap m sm = mapIntersectionWithKeysSet m $ Set.unions $ Map.elems sm
-
-intersectTypeaheadResults :: (Ord k, Ord k')
-                          => Map k v -- All values
-                          -> Set k' -- Queries in view selector
-                          -> Map k' (Set k) -- Map of query results
-                          -> Map k v -- Filtered values
-intersectTypeaheadResults vall vsq vqr = Map.intersection vall . Map.fromSet (const ()) . Set.unions . Map.elems . Map.intersection vqr $ Map.fromSet (const ()) vsq
 
 elemUpsert :: Patchable a => Patch a -> a -> ElemPatch a
 elemUpsert p v = ElemPatch_Upsert p (Just (patch p v))

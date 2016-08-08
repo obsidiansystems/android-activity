@@ -76,8 +76,18 @@ ensureAccountExistsEmail
   => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Maybe (Id Account))
-ensureAccountExistsEmail pwEmail email = do
-  maid <- ensureAccountExists email
+ensureAccountExistsEmail = ensureAccountExistsEmail' ensureAccountExists
+
+-- Creates account if it doesn't already exist and sends pw email
+-- Allows the option for a custom "ensure account" creation function
+ensureAccountExistsEmail'
+  :: (PersistBackend m, MonadSign m)
+  => (Email -> m (Maybe (Id Account)))
+  -> (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
+  -> Email
+  -> m (Maybe (Id Account))
+ensureAccountExistsEmail' ensureAccount pwEmail email = do
+  maid <- ensureAccount email
   forM_ maid $ \aid -> do
     mNonce <- generateAndSendPasswordResetEmail pwEmail aid
     forM_ mNonce $ \nonce -> do

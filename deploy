@@ -16,7 +16,7 @@ RESULT="$(nix-build --no-out-link -A completeServer.aws.system --argstr hostName
 nix-copy-closure -v --to root@"$HOSTNAME" --gzip "$RESULT"
 
 # Work around https://www.pivotaltracker.com/story/show/109156520
-find -L result -exec readlink -f '{}' \; | sed -n 's_\(^/nix/store/[^/][^/]*\).*$_\1_p' | sort | uniq | xargs nix-copy-closure -v --to root@"$HOSTNAME" --gzip
+find -L "$RESULT" -exec readlink -f '{}' \; | sed -n 's_\(^/nix/store/[^/][^/]*\).*$_\1_p' | sort | uniq | xargs nix-copy-closure -v --to root@"$HOSTNAME" --gzip
 
 "$DIR/deploy-config" "ssh" root@"$HOSTNAME" "$CONFIG"
 

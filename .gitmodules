@@ -29,10 +29,9 @@
 [submodule "amazonka"]
 	path = amazonka
 	url = git@github.com:ryantrinkle/amazonka
-[submodule "try-reflex"]
-	path = try-reflex
-	url = git@github.com:ryantrinkle/try-reflex
-	branch = ghcjs-improved-base
+[submodule "reflex-platform"]
+	path = reflex-platform
+	url = git@github.com:reflex-frp/reflex-platform
 [submodule "http"]
 	path = http
 	url = git@github.com:obsidiansystems/focus-http.git
