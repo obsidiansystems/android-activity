@@ -363,7 +363,7 @@ withLoginWorkflow'
   -- ^ initial login information
   -> m (Event t newUser, Event t ())
   -- ^ New Account (New User, return to signin)
-  -> m (Event t (), Event t ())
+  -> m (Event t (Either Text ()), Event t ())
   -- ^ Recover (Password Reset Requested, return to signin)
   -> m (Event t loginInfo, Event t ())
   -- ^ Login (Successful login request, return to signup, password reset)
@@ -395,10 +395,10 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
   in maybe loginWorkflow' f' li0
 
 recoveryForm
-  :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t Email -> m (Event t (Either Text ())))
+  :: forall t m recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  => (Event t Email -> m (Event t recoverResult))
   -- ^ Recover password request
-  -> m (Event t (Either Text ()), Event t ())
+  -> m (Event t recoverResult, Event t ())
 recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "form-signin") $ do
   signinLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
     text "Recover or "
@@ -410,39 +410,33 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
   return (eReset, (_link_clicked signinLink))
 
 loginForm
-  :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t (Email, Text) -> m (Event t (Either Text loginInfo)))
+  :: forall t m err loginInfo. (DomBuilder t m, MonadFix m)
+  => (Event t (Email, Text) -> m (Event t (Either err loginInfo)))
   -- ^ Login request
+  -> (Event t err -> m (Event t (Email, Text), Event t ()))
+  -- ^ The widget that actually renders the login form and returns a login attempt event or an event to go to the signup page
   -> m (Event t loginInfo, Event t ())
-loginForm login = elAttr "form" (Map.singleton "class" "form-signin") $ do
-  signupLink <- elAttr "h3" (Map.singleton "class" "form-signin-heading") $ do
-    text "Sign in or "
-    linkClass "sign up" "pointer"
-  emailBox <- emailInputWithPlaceholder "Email address"
-  passwordBox <- passwordInputWithPlaceholder "Password"
-  submitButton <- linkClass "Sign in" "btn btn-lg btn-primary btn-block"
-  let bCreds = pull $ do
-        email <- sample $ current $ _textInput_value emailBox
-        password <- sample $ current $ _textInput_value passwordBox
-        return (email, password)
-  let eEmailEnter = textInputGetEnter emailBox
-      ePasswordEnter = textInputGetEnter passwordBox
-  eLoginResult <- login $ tag bCreds $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
-  _ <- widgetHold blank (either (\t -> icon "warning" >> divClass "alert alert-warning" (text t)) (const blank) <$> eLoginResult)
-  let eLoginSuccess = fmapMaybe eitherToMaybe eLoginResult
-  return (eLoginSuccess, _link_clicked signupLink)
-  where
-    eitherToMaybe :: Either a b -> Maybe b
-    eitherToMaybe (Left _) = Nothing
-    eitherToMaybe (Right b) = Just b
+loginForm login formWidget = do
+  rec (submit, signup) <- formWidget eLoginFailure
+      eLoginResult <- login submit
+      -- Maybe add a splitEvent function to Reflex of type Event t a -> (a -> Either b c) -> (Event t b, Event t c)
+      let eLoginSuccess = fmapMaybe (\case
+                                        Left _ -> Nothing
+                                        Right x -> Just x) eLoginResult
+          eLoginFailure = fmapMaybe (\case
+                                        Left x -> Just x
+                                        Right _ -> Nothing) eLoginResult
+  return (eLoginSuccess, signup)
 
 loginFormWithReset
-  :: forall t m loginInfo. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
-  => (Event t (Email, Text) -> m (Event t (Either T.Text loginInfo)))
+  :: forall t m err loginInfo. (DomBuilder t m, MonadFix m)
+  => (Event t (Email, Text) -> m (Event t (Either err loginInfo)))
   -- ^ Login request
+  -> (Event t err -> m (Event t (Email, Text), Event t ()))
+  -- ^ How to display an error message
   -> m (Event t loginInfo, Event t (), Event t ())
-loginFormWithReset login = do
-  (eLoginSuccess, signup) <- loginForm login
+loginFormWithReset login formWidget = do
+  (eLoginSuccess, signup) <- loginForm login formWidget
   forgotPasswordLink <- elAttr "h3" (Map.singleton "class" "form-reset-password-heading") $ linkClass "Forgot password?" "pointer"
   return (eLoginSuccess, signup, _link_clicked forgotPasswordLink)
 
