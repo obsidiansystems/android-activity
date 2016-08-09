@@ -354,7 +354,7 @@ jumbotron t subtitle child = divClass "jumbotron" $ do
   child
 
 withLoginWorkflow'
-  :: forall t m loginInfo newUser. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  :: forall t m loginInfo newUser recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Bool -- ^ Whether to display sign-up form first
   -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
       m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
@@ -363,7 +363,7 @@ withLoginWorkflow'
   -- ^ initial login information
   -> m (Event t newUser, Event t ())
   -- ^ New Account (New User, return to signin)
-  -> m (Event t (Either Text ()), Event t ())
+  -> m (Event t recoverResult, Event t ())
   -- ^ Recover (Password Reset Requested, return to signin)
   -> m (Event t loginInfo, Event t ())
   -- ^ Login (Successful login request, return to signup, password reset)
