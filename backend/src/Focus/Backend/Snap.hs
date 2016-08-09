@@ -60,11 +60,13 @@ serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
 serveAppAt loc app cfg = do
   route $ [ (loc, ifTop $ serveStaticIndex cfg)
           , (loc, serveAssets (app </> "assets") (app </> "static"))
-          , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
+          ]
+       ++ if _appConfig_serveJsexe cfg
+            then [(loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))]
+            else []
+       ++ [ (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
           , (loc, doNotCache >> error404)
-          ] ++ if _appConfig_serveJsexe cfg
-                  then [(loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))]
-                  else []
+          ]
 
 serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
 serveApp = serveAppAt ""
