@@ -428,6 +428,32 @@ loginForm login formWidget = do
                                         Right _ -> Nothing) eLoginResult
   return (eLoginSuccess, signup)
 
+-- | A simple default login form for applications without a custom login page design.
+defaultLoginForm
+  :: forall t m err loginInfo. (DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  => (Event t (Email, Text) -> m (Event t (Either err loginInfo)))
+  -> m (Event t loginInfo, Event t ())
+defaultLoginForm login = loginForm login defaultLoginWidget
+  where
+    defaultLoginWidget :: Event t err -> m (Event t (Email, Text), Event t ())
+    defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
+      signupLink <- elAttr "h3" ("class" =: "form-signin-heading") $ do
+        text "Sign in up or "
+        link "sign up"
+      emailBox <- emailInputWithPlaceholder "Email address"
+      passwordBox <- passwordInputWithPlaceholder "Password"
+      submitButton <- link "Sign in"
+      let credentialsD = do
+            email <- _textInput_value emailBox
+            password <- _textInput_value passwordBox
+            return (email, password)
+          eEmailEnter = textInputGetEnter emailBox
+          ePasswordEnter = textInputGetEnter passwordBox
+          submitE = tagPromptlyDyn credentialsD $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
+          showWarningE = (icon "warning" >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
+      _ <- widgetHold blank showWarningE
+      return (submitE, _link_clicked signupLink)
+
 loginFormWithReset
   :: forall t m err loginInfo. (DomBuilder t m, MonadFix m)
   => (Event t (Email, Text) -> m (Event t (Either err loginInfo)))
