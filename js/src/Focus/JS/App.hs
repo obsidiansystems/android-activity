@@ -51,6 +51,8 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeholder cfg = FocusWidget $ placeholder $ fmap1 unFocusWidget cfg
   inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
   textAreaElement cfg = FocusWidget $ textAreaElement $ fmap1 unFocusWidget cfg
+  placeRawElement = FocusWidget . placeRawElement
+  wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
 instance (HasView app, Deletable t m, MonadHold t m, MonadFix m) => Deletable t (FocusWidget app t m) where
   deletable delete (FocusWidget child) = FocusWidget $ deletable delete child

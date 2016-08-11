@@ -436,7 +436,7 @@ defaultLoginForm
 defaultLoginForm login = loginForm login defaultLoginWidget
 
 defaultLoginWidget
-  :: forall t m err loginInfo. (DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  :: forall t m err. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
   => Event t err
   -> m (Event t (Email, Text), Event t ())
 defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do

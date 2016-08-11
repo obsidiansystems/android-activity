@@ -7,6 +7,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , ToRow (..), FromRow (..)
                                    , ToField (..), FromField (..)
                                    , Query (..), sql, traceQuery
+                                   , liftWithConn
                                    ) where
 
 import Control.Exception
@@ -48,6 +49,14 @@ rethrowWithQuery conn psql qs err = do
     , _wrappedSqlError_error = err
     }
 
+rethrowWithQueryMany :: ToRow q => Connection -> Query -> [q] -> SqlError -> IO a
+rethrowWithQueryMany conn psql qs err = do
+  expr <- Sql.formatMany conn psql qs
+  throw $ WrappedSqlError
+    { _wrappedSqlError_rawQuery = fromQuery psql
+    , _wrappedSqlError_formattedQuery = expr
+    , _wrappedSqlError_error = err
+    }
 rethrowWithQuery_ :: Query -> SqlError -> IO a
 rethrowWithQuery_ psql err =
   throw $ WrappedSqlError
@@ -59,6 +68,7 @@ rethrowWithQuery_ psql err =
 class PostgresRaw m where
   execute :: ToRow q => Query -> q -> m Int64
   execute_ :: Query -> m Int64
+  executeMany :: ToRow q => Query -> [q] -> m Int64
   query :: (ToRow q, FromRow r) => Query -> q -> m [r]
   query_ :: FromRow r => Query -> m [r]
   formatQuery :: ToRow q => Query -> q -> m ByteString
@@ -73,6 +83,7 @@ instance MonadIO m => PostgresRaw (DbPersist Postgresql m) where
   execute psql qs = liftWithConn $ \conn -> do
     Sql.execute conn psql qs `catch` rethrowWithQuery conn psql qs
   execute_ psql = liftWithConn $ \conn -> Sql.execute_ conn psql `catch` rethrowWithQuery_ psql
+  executeMany psql qs = liftWithConn $ \conn -> Sql.executeMany conn psql qs `catch` rethrowWithQueryMany conn psql qs
   query psql qs = liftWithConn $ \conn -> Sql.query conn psql qs `catch` rethrowWithQuery conn psql qs
   query_ psql = liftWithConn $ \conn -> Sql.query_ conn psql `catch` rethrowWithQuery_ psql
   formatQuery psql qs = liftWithConn $ \conn -> Sql.formatQuery conn psql qs
@@ -90,6 +101,7 @@ instance Semigroup Query where
 instance (Monad m, PostgresRaw m) => PostgresRaw (StateT s m) where
   execute psql qs = lift $ execute psql qs
   execute_ = lift . execute_
+  executeMany psql qs = lift $ executeMany psql qs
   query psql qs = lift $ query psql qs
   query_ = lift . query_
   formatQuery psql qs = lift $ formatQuery psql qs
@@ -97,6 +109,7 @@ instance (Monad m, PostgresRaw m) => PostgresRaw (StateT s m) where
 instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
   execute psql qs = lift $ execute psql qs
   execute_ = lift . execute_
+  executeMany psql qs = lift $ executeMany psql qs
   query psql qs = lift $ query psql qs
   query_ = lift . query_
   formatQuery psql qs = lift $ formatQuery psql qs

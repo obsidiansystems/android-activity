@@ -279,6 +279,8 @@ instance (DomBuilder t m, Ref (Performable m) ~ Ref m, MonadAtomicRef m, MonadFi
   placeholder cfg = liftRequestTAsync $ \run -> placeholder $ fmap1 run cfg
   inputElement cfg = liftRequestTAsync $ \run -> inputElement $ fmap1 run cfg
   textAreaElement cfg = liftRequestTAsync $ \run -> textAreaElement $ fmap1 run cfg
+  placeRawElement = lift . placeRawElement
+  wrapRawElement e cfg = liftRequestTAsync $ \run -> wrapRawElement e $ fmap1 run cfg
 
 instance (Deletable t m, MonadHold t m, MonadFix m) => Deletable t (RequestT t req m) where
   deletable delete = RequestT . liftThrough (liftThrough (deletable delete)) . unRequestT
