@@ -196,7 +196,7 @@ googleMap :: forall t m k x. (HasJS x m, HasJS x (WidgetHost m), MonadWidget t m
           => Dynamic t (Map k MapMarkerInfo) -> WebMapConfig t -> m (WebMap t x)
 googleMap dTargetMarkers (WebMapConfig (lat0, lng0) zoom0 attrs resize fitToCoords center zoom) = do
   (e,_) :: (El t, ()) <- elDynAttr' "div" attrs $ return ()
-  m <- liftJS $ newGoogleMap (toNode $ _el_element e) lat0 lng0 zoom0
+  m <- liftJS $ newGoogleMap (toNode $ _element_raw e) lat0 lng0 zoom0
   _ <- liftJS $ googleMapTriggerResize m
   let dMyGoogleMap = constDyn $ Just m
   let updateMarkers :: Maybe (GoogleMap x, (Map k MapMarkerInfo, Map k (GoogleMapMarker x))) -> WidgetHost m (Map k (GoogleMapMarker x), Any)
