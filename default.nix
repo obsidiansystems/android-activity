@@ -70,23 +70,40 @@ in rec {
 
       libraryHeader = ''
         library
-          exposed-modules: $(cd src ; find * -iname '[A-Z]*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
+          exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
-      executableHeader = executableName: ''
+      executableHeader = executableName: mainFile: ''
         executable ${executableName}
-          main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
+          main-is: ${if mainFile == null
+                     then ''$(ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
+                     else mainFile
+                    }
       '';
-      mkCabalFile = haskellPackages: pname: executableName: depends: ''
+      mkCabalFile = haskellPackages: pname: executableName: depends:
+        let mkCabalTarget = header: ''
+              ${header}
+                hs-source-dirs: .
+                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+                other-extensions: TemplateHaskell
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
+                if impl(ghcjs)
+                  cpp-options: -DGHCJS_GC_INTERVAL=60000
+            '';
+        in ''
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
-        ${if executableName != null then executableHeader executableName else libraryHeader}
-          hs-source-dirs: .
-          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
-          other-extensions: TemplateHaskell
-          ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
-          if impl(ghcjs)
-            cpp-options: -DGHCJS_GC_INTERVAL=60000
+
+        ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
+
+        ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
+
+        $(for x in $(ls | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
+            cat <<INNER_EOF
+        ${mkCabalTarget (executableHeader "$x" "$x.hs")}
+        INNER_EOF
+        done
+        )
       '';
 
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
@@ -96,6 +113,7 @@ in rec {
         ${mkCabalFile haskellPackages pname executableName depends}
         EOF
         fi
+        cat *.cabal
       '';
 
       mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
@@ -162,7 +180,7 @@ in rec {
           if ! [ -z "''${marketing+x}" ] ; then
             ln -s "$marketing" "$out/marketing"
           fi
-          ln -s "$backend/bin/backend" "$out"
+          ln -s "$backend/bin/"* "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
@@ -198,7 +216,7 @@ in rec {
               buildCommand = ''
                 mkdir "$out"
                 ln -s "${../common}"/src/* "$out"/
-                ln -s "${../backend}"/src/* "$out"/
+                ln -s "${../backend}"/src{,-bin}/* "$out"/
 
                 shopt -s nullglob
                 frontendFiles=("${../frontend}"/src/*)
@@ -363,6 +381,9 @@ in rec {
                     postRun = ''
                       systemctl reload-or-restart nginx.service
                     '';
+                    extraDomains = {
+                      "www.${hostName}" = null;
+                    };
                   };
                 });
                 nixos = import "${nixpkgs.path}/nixos";
