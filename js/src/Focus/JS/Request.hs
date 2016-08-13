@@ -16,8 +16,6 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Trans.Control
 import Foreign.JavaScript.TH
-import Focus.AppendMap (AppendMap)
-import Focus.JS.Env
 import Focus.Request
 import Control.Arrow
 import Control.Monad.Exception
@@ -158,23 +156,23 @@ instance MonadReader r m => MonadReader r (RequestT t req m) where
   local f (RequestT a) = RequestT $ mapStateT (mapReaderT $ local f) a
   reader = lift . reader
 
-runRequestT :: (Reflex t, Monad m, MonadFix m, MonadHold t m, Ref (Performable m) ~ Ref IO, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m, HasJS x m, HasJS x (WidgetHost m), FromJSON notification, ToJSON token, ToJSON vs, FromJSON token, Ord token, Request req)
-            => Event t (AppendMap token vs)
-            -> RequestT t req m a
-            -> m (a, Event t (AppendMap token notification))
-runRequestT eViewSelectorWithAuth (RequestT m) = do
+runRequestT :: (MonadFix m, MonadHold t m, Request req, MonadIO m, Ref (Performable m) ~ Ref IO, Reflex t)
+            => RequestT t req m a
+            -> Event t (Value, Either Text Value)
+            -> m (a, Event t [(Value, Value)])
+runRequestT (RequestT a) eResponse = do
   nextInvocation <- liftIO $ newRef (minId + 1)
-  rec (eNotification, eResponse) <- openAndListenWebsocket (fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq) eViewSelectorWithAuth
-      let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
-                            , _requestEnv_currentInvocation = minId
-                            , _requestEnv_nextInvocation = nextInvocation
-                            }
-      ((a, _), dReq) <- runDynamicWriterT (runReaderT (runStateT m minId) rEnv)
-  return (a, eNotification)
+  let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
+                        , _requestEnv_currentInvocation = minId
+                        , _requestEnv_nextInvocation = nextInvocation
+                        }
+  ((result, _), dReq) <- runDynamicWriterT (runReaderT (runStateT a minId) rEnv)
+  return (result, fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq)
   where
+    valueToMaybe :: FromJSON a => Value -> Maybe a
     valueToMaybe r = case fromJSON r of
       Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r
-      Success a -> Just a
+      Success x -> Just x
 
 withRequestT :: forall t m a (req :: * -> *) (req' :: * -> *).
                 (Reflex t, MonadHold t m, MonadFix m)
@@ -298,7 +296,7 @@ instance TriggerEvent t m => TriggerEvent t (RequestT t req m) where
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (MonadFix (WidgetHost m), DomBuilder t m, Request req) => MonadRequest t req (RequestT t req m) where
+instance (Monad m, Reflex t, MonadFix (Performable m), Request req) => MonadRequest t req (RequestT t req m) where
   requesting e = do
     rid <- RequestT $ state $ \s -> (s, s + 1)
     c <- RequestT $ asks _requestEnv_currentInvocation

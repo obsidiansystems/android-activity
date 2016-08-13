@@ -38,6 +38,7 @@ library
     mtl,
     dependent-map,
     dependent-sum,
+    prim-uniq,
     data-default,
     constraints,
     safe,
@@ -55,7 +56,6 @@ library
     Focus.JS.AltInput
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
-    Focus.JS.Env
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Listen
