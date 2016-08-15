@@ -94,7 +94,6 @@ class ( MonadWidget' t m
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
 type MonadFocusFrontendWidget app t m =
     ( MonadFocusWidget app t m
-    , DomBuilderSpace m ~ GhcjsDomSpace
     , MonadAsyncException m
     , MonadAsyncException (Performable m)
     )
@@ -148,7 +147,6 @@ asksView f = fmap f <$> getView
 --TODO: HasDocument is still not accounted for
 type MonadWidget' t m =
   ( DomBuilder t m
-  -- , DomBuilderSpace m ~ GhcjsDomSpace
   , MonadFix m
   , MonadHold t m
   , MonadSample t (Performable m)

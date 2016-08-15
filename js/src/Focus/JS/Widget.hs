@@ -99,7 +99,7 @@ extensibleListWidget n x0 xs0 itemWidget =
                 valuesD = fmap Map.elems valuesMapD
         return valuesD
 
-typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearch :: (MonadFocusWidget app t m)
                 => Text
                 -- ^ text input placeholder
                 -> (Text -> ViewSelector app ())
@@ -109,7 +109,7 @@ typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
                 -> m (Dynamic t s, Dynamic t Text)
                 -- ^ results and the search string
 typeaheadSearch ph vsQuery extractor = do
-  search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
+  search <- inputElement $ def & initialAttributes .~ (Nothing, "placeholder") =: ph
   aspenView <- watchViewSelector $ vsQuery <$> value search
   let result = fmap extractor aspenView
   return (result, value search)
@@ -129,7 +129,7 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   let options = ffor xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k)
                            => Text
                            -- ^ text input placeholder
                            -> (Text -> ViewSelector app ())
