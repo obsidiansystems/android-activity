@@ -10,6 +10,7 @@ rec {
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
+  filterGitSource = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ]));
   mkDerivation =
     { name
     , version
@@ -32,13 +33,13 @@ rec {
       appVersion = version;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
-        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult ./core) {});
-             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult ./emojione) {});
-             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult ./emojione/data) {});
-             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult ./http/th) {});
-             focus-js = dontHaddock (self.callPackage (cabal2nixResult ./js) {});
-             focus-serve = dontHaddock (self.callPackage (cabal2nixResult ./http/serve) {});
-             focus-th = dontHaddock (self.callPackage (cabal2nixResult ./th) {});
+        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
+             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
+             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
+             focus-js = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./js)) {});
+             focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
+             focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
