@@ -14,50 +14,56 @@ library
   hs-source-dirs: src
 
   build-depends:
-    base,
-    focus-core,
-    focus-http-th,
     aeson,
     attoparsec,
+    base,
     bifunctors,
-    template-haskell,
-    text,
-    vector,
+    binary,
     bytestring,
+    constraints,
     containers,
-    time,
+    cookie,
+    data-default,
+    dependent-map,
+    dependent-sum,
+    exception-transformers,
+    filepath,
+    focus-core,
+    focus-http-th,
     ghcjs-dom,
+    http-types,
+    lens,
     loch-th,
+    mmorph,
+    monad-control,
+    mtl,
+    raw-strings-qq,
     ref-tf,
     reflex,
     reflex-dom,
-    semigroups,
-    transformers,
-    lens,
-    these,
-    mtl,
-    dependent-map,
-    dependent-sum,
-    data-default,
-    constraints,
     safe,
-    timezone-series,
+    semigroups,
+    template-haskell,
+    text,
+    these,
+    time,
     timezone-olson,
-    binary,
-    raw-strings-qq,
-    http-types,
-    exception-transformers,
-    filepath,
-    monad-control,
-    mmorph
+    timezone-series,
+    transformers,
+    vector
 
   exposed-modules:
+    Focus.JS.Account
     Focus.JS.AltInput
+    Focus.JS.App
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
     Focus.JS.Env
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
+    Focus.JS.Highlight
+    Focus.JS.Hotkeys
+    Focus.JS.Intercom
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Pretty
@@ -69,11 +75,7 @@ library
     Focus.JS.Transition
     Focus.JS.WebSocket
     Focus.JS.Widget
-    Focus.JS.App
-    Focus.JS.Highlight
     Focus.JS.Window
-    Focus.JS.Hotkeys
-    Focus.JS.Intercom
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
