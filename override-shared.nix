@@ -33,6 +33,9 @@ self: super: {
       editedCabalFile = "0p5apya7gd8kbkknpzamvnc902jdlp8kdmwrqzrj6gvxkr9ss2br";
       jailbreak = true;
     });
+    mustache = overrideCabal super.mustache (drv: {
+      doCheck = false;
+    });
     groundhog = self.mkDerivation ({
       pname = "groundhog";
       version = "0.7.0.3";
