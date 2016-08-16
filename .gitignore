@@ -20,3 +20,6 @@ tags
 hsenv.log
 \#*#
 .#*
+node_modules
+prebuild
+static/assets

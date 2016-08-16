@@ -97,7 +97,6 @@ rec {
                 ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000
-                  ghcjs-options: -dedupe
             '';
         in ''
         name: ${pname}
@@ -183,6 +182,7 @@ rec {
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
         frontend_ = frontend;
+        emails = (import ./emails {}).build;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -195,6 +195,7 @@ rec {
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
+          ln -s "$emails" "$out/emails"
         '';
         # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
         # androidApp = nixpkgs.androidenv.buildApp {
