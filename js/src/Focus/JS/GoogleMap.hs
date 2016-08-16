@@ -227,10 +227,10 @@ searchInputResult r = el "li" $ do
   return $ tag (current r) (domEvent Click li)
 
 -- TODO: A lot of this stuff seems like it belongs either in Focus.JS.Bootstrap or Focus.JS.Widget as it has little to do with Google Maps
-searchInput :: forall t m a k. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> m (Event t Text, Event t (Text, a))
+searchInput :: forall t m a k. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> m (Event t Text, Event t (Text, a), Dynamic t Text)
 searchInput attrs results = searchInput' "" never attrs results searchInputResultsList
 
-searchInput' :: forall t m a k. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Text -> Event t Text -> Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> (Dynamic t (Map k (Text, a)) -> m (Event t (Text, a))) -> m (Event t Text, Event t (Text, a))
+searchInput' :: forall t m a k. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Text -> Event t Text -> Dynamic t (Map Text Text) -> Event t (Map k (Text, a)) -> (Dynamic t (Map k (Text, a)) -> m (Event t (Text, a))) -> m (Event t Text, Event t (Text, a), Dynamic t Text)
 searchInput' v0 setV attrs results listBuilder = do
   rec input <- textInput $ def & textInputConfig_setValue .~ eSetValue
                                & attributes .~ attrs
@@ -245,7 +245,7 @@ searchInput' v0 setV attrs results listBuilder = do
           eInputChanged = fmapMaybe id $ leftmost [eSelectionMade, fmap Just (_textInput_input input), fmap Just (tag (current $ value input) enter)]
           eInputEmpty = fmapMaybe id $ fmap (\i -> if i == "" then Just Map.empty else Nothing) eInputChanged
           eClearResults = leftmost [eInputEmpty, fmap (const Map.empty) eMadeChoice]
-  return (eInputChanged, eMadeChoice)
+  return (eInputChanged, eMadeChoice, value input)
 
 searchInputResultsList :: forall t m a k. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k) => Dynamic t (Map k (Text, a)) -> m (Event t (Text, a))
 searchInputResultsList results = searchInputResultsList' results (flip list searchInputResult)
@@ -266,7 +266,7 @@ twoSourceSearch :: forall t x m a b. (HasJS x m, MonadWidget t m)
                 -> (Event t (Int, Text) -> m (Event t (Int, [(Text, b)])))
                 -> m (Dynamic t (Maybe (Either a b)))
 twoSourceSearch placeholderText al bl searchAs searchBs = do
-  rec (queryChange, selection) <- divClass "input-group" $ do
+  rec (queryChange, selection, _) <- divClass "input-group" $ do
         elClass "span" "input-group-addon" $ icon "globe"
         searchInput' "" never (constDyn $ "class" =: "form-control" <> "placeholder" =: placeholderText) results (resultsList al bl)
       counter :: Dynamic t Int <- foldDyn (+) 0 $ fmap (const 1) queryChange
@@ -403,7 +403,7 @@ geocodeSearch googleLogoPath googleLogoClass l0 setL inputAttrs = do
         l <- list r searchInputResult
         elAttr "img" (Map.fromList [("src", googleLogoPath), ("class", googleLogoClass)]) $ return () --https://developers.google.com/places/policies#logo_requirements
         return l
-  rec (eInputChanged, eChoice) <- searchInput' (maybe "" fst l0) (fmap (maybe "" $ fst) setL) inputAttrs eResults geoResults
+  rec (eInputChanged, eChoice, _) <- searchInput' (maybe "" fst l0) (fmap (maybe "" $ fst) setL) inputAttrs eResults geoResults
       eResults :: Event t (Map Integer (Text, PlacesAutocompletePredictionReference x)) <-
         liftM (fmap (Map.fromList . zip [(1::Integer)..]))
           . performEventAsync
