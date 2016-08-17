@@ -192,6 +192,7 @@ instance MonadRequest t req m => MonadRequest t req (QueryT t q m) where
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
 type MonadFocusFrontendWidget app t m =
     ( MonadFocusWidget app t m
+    , DomBuilderSpace m ~ GhcjsDomSpace
     , MonadAsyncException m
     , MonadAsyncException (Performable m)
     )
