@@ -46,7 +46,7 @@ mkPersist defaultCodegenConfig [groundhog|
         uniques:
           - name: emailUnique
             type: index
-            fields: [{expr: "LOWER(account_email)"}]
+            fields: [{expr: "lower(account_email::text)"}]
 |]
 
 makeDefaultKeyIdInt64 ''Account 'AccountKey

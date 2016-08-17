@@ -1,21 +1,18 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts, OverloadedStrings, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts, OverloadedStrings, TypeFamilies, LambdaCase, DataKinds #-}
 module Focus.JS.Widget where
 
 import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
-import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid
+import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
--- import qualified Data.Text as T
 import Reflex.Dom hiding (Delete)
-import qualified GHCJS.DOM.Element as E
-import qualified GHCJS.DOM.EventM as EM
 
 import Focus.App
 import Focus.Highlight
@@ -29,7 +26,7 @@ elDynAttrHide :: forall t m a. (DomBuilder t m, PostBuild t m) => Text -> Dynami
 elDynAttrHide elementTag attrs child = do
   modifyAttrs <- dynamicAttributesToModifyAttributes attrs
   let cfg = def
-        & initialAttributes .~ (Nothing, "style") =: "display: none;"
+        & initialAttributes .~ "style" =: "display: none;"
         & elementConfig_namespace .~ Nothing
         & modifyAttributes .~ modifyAttrs
   snd <$> element elementTag cfg child
@@ -51,10 +48,10 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    spinner sp request response
                                    return response
 
-enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown = enumDropdown' minBound
 
-enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
@@ -101,7 +98,7 @@ extensibleListWidget n x0 xs0 itemWidget =
                 valuesD = fmap Map.elems valuesMapD
         return valuesD
 
-typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearch :: (MonadFocusWidget app t m)
                 => Text
                 -- ^ text input placeholder
                 -> (Text -> ViewSelector app ())
@@ -111,12 +108,12 @@ typeaheadSearch :: (MonadFocusWidget app t m, DomBuilderSpace m ~ GhcjsDomSpace)
                 -> m (Dynamic t s, Dynamic t Text)
                 -- ^ results and the search string
 typeaheadSearch ph vsQuery extractor = do
-  search <- textInput $ def & attributes .~ (constDyn $ "placeholder" =: ph)
+  search <- inputElement $ def & initialAttributes .~ "placeholder" =: ph
   aspenView <- watchViewSelector $ vsQuery <$> value search
   let result = fmap extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k)
                         => Text
                         -- ^ text input placeholder
                         -> (Text -> ViewSelector app ())
@@ -131,7 +128,7 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   let options = ffor xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k)
                            => Text
                            -- ^ text input placeholder
                            -> (Text -> ViewSelector app ())
@@ -171,49 +168,48 @@ data ComboBoxAction = ComboBoxAction_Up
                     | ComboBoxAction_Right
   deriving (Show, Read, Eq, Ord)
 
+{-# DEPRECATED keycodeUp "Use 'ArrowUp' from the keycode package instead" #-}
 keycodeUp :: Int
 keycodeUp = 38
 
+{-# DEPRECATED keycodeLeft "Use 'ArrowLeft' from the keycode package instead" #-}
 keycodeLeft :: Int
 keycodeLeft = 37
 
+{-# DEPRECATED keycodeRight "Use 'ArrowRight' from the keycode package instead" #-}
 keycodeRight :: Int
 keycodeRight = 39
 
+{-# DEPRECATED keycodeDown "Use 'ArrowDown' from the keycode package instead" #-}
 keycodeDown :: Int
 keycodeDown = 40
 
+{-# DEPRECATED keycodeBackspace "Use 'Backspace' from the keycode package instead" #-}
 keycodeBackspace :: Int
 keycodeBackspace = 8
 
-textInputGetKeycode :: Reflex t => TextInput t -> Key -> Event t Int
-textInputGetKeycode t key = ffilter (\v -> keyCodeLookup v == key) $ _textInput_keydown t
-
-textInputGetKeycodeAbsorb :: (MonadIO m, Reflex t, TriggerEvent t m)
-                          => TextInput t
-                          -> Key
-                          -> m (Event t Int)
-textInputGetKeycodeAbsorb t key = fmap (fmapMaybe id) $ wrapDomEvent (_textInput_element t) (`EM.on` E.keyDown) $ do
-  e <- getKeyEvent
-  if key == keyCodeLookup e
-     then do
-       EM.preventDefault
-       return $ Just e
-     else return Nothing
-
-comboBoxInput :: (DomBuilder t m, PostBuild t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m)
-              => TextInputConfig t
-              -> m (TextInput t, Event t ComboBoxAction)
+comboBoxInput :: forall t m. (DomBuilder t m)
+              => InputElementConfig EventResult t m
+              -> m (InputElement EventResult (DomBuilderSpace m) t, Event t ComboBoxAction)
 comboBoxInput cfg = do
-  t <- textInput cfg
-  let enter = ComboBoxAction_Select <$ textInputGetEnter t
-      esc = ComboBoxAction_Dismiss <$ textInputGetKeycode t Escape
-      bs = ComboBoxAction_Backspace <$ textInputGetKeycode t Backspace
-      left = ComboBoxAction_Left <$ textInputGetKeycode t ArrowLeft
-      right = ComboBoxAction_Right <$ textInputGetKeycode t ArrowRight
-  up <- fmap (ComboBoxAction_Up <$) $ textInputGetKeycodeAbsorb t ArrowUp
-  down <- fmap (ComboBoxAction_Down <$) $ textInputGetKeycodeAbsorb t ArrowDown
-  return (t, leftmost [enter, up, down, esc, bs, left, right])
+  let keydownFlags = \case
+        Just (EventResult k) -> case keyCodeLookup k of
+          ArrowUp -> preventDefault
+          ArrowDown -> preventDefault
+          _ -> mempty
+        Nothing -> mempty
+  t <- inputElement $ cfg
+    & inputElementConfig_elementConfig . elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Keydown keydownFlags
+  let keypressAction = ComboBoxAction_Select <$ ffilter ((== Enter) . keyCodeLookup) (domEvent Keypress t)
+      keydownAction = fforMaybe (domEvent Keydown t) $ \k -> case keyCodeLookup k of
+        Escape -> Just ComboBoxAction_Dismiss
+        Backspace -> Just ComboBoxAction_Backspace
+        ArrowLeft -> Just ComboBoxAction_Left
+        ArrowRight -> Just ComboBoxAction_Right
+        ArrowUp -> Just ComboBoxAction_Up
+        ArrowDown -> Just ComboBoxAction_Down
+        _ -> Nothing
+  return (t, leftmost [keypressAction, keydownAction])
 
 comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
              => Dynamic t (Map k v)
@@ -237,24 +233,24 @@ comboBoxList xs li query externalActions = do
       focus <- foldDyn (\a _ -> a) Nothing $ leftmost [ actionToFocus, selectOnUpdate ]
   return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
 
-comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m)
-         => TextInputConfig t
+comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+         => InputElementConfig EventResult t m
          -> (Dynamic t Text -> m (Dynamic t (Map k v)))
          -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction))
          -> (k -> v -> Text)
          -> (forall a. m a -> m a)
          -> m (Event t k)
 comboBox cfg getOptions li toStr wrapper = do
-  rec (t, inputActions) <- comboBoxInput $ cfg & setValue .~ leftmost [ _textInputConfig_setValue cfg, selectionString ]
-      userInput <- holdDyn "" $ leftmost [ _textInput_input t
+  rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, selectionString]
+      userInput <- holdDyn "" $ leftmost [ _inputElement_input t
                                          , "" <$ selectionE
                                          ]
       options <- getOptions userInput
-      selectionE <- wrapper $ comboBoxList options li (value t) inputActions
+      selectionE <- wrapper $ comboBoxList options li (_inputElement_value t) inputActions
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
 
-simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
+simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k)
                => (Text -> ViewSelector app ()) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display
@@ -302,12 +298,12 @@ collapsibleSectionWithDefault collapsedByDefault header content = divClass "coll
       "class" =: "collapsible-content"
 
 -- | Typeahead that displays selected items using pills, handles backspace and clicking to remove items
-typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, TriggerEvent t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadFix m, Ord k)
+typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k)
                => Text -- ^ Placeholder text for input
                -> (Dynamic t Text -> m (Dynamic t (Map k Text))) -- ^ Query to search results function
                -> m (Dynamic t (Set k)) -- ^ Selections
 typeaheadMulti ph getter = divClass "typeahead-multi" $ do
-  rec let attrs = def & attributes .~ constDyn ("placeholder" =: ph)
+  rec let attrs = def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ "placeholder" =: ph
           getter' q = do
             results <- getter q
             return $ Map.difference <$> results <*> (Map.fromList <$> selections)
@@ -327,13 +323,13 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
   where
     noHighlight _ x = (:[]) $ Highlight_Off x
     comboBox' cfg getOptions li wrapper = do
-      rec (t, inputActions) <- comboBoxInput $ cfg & setValue .~ leftmost [ _textInputConfig_setValue cfg, "" <$ selectionE' ]
-          options <- getOptions $ value t
-          selectionE <- wrapper $ comboBoxList options li (value t) inputActions
+      rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, "" <$ selectionE']
+          options <- getOptions $ _inputElement_value t
+          selectionE <- wrapper $ comboBoxList options li (_inputElement_value t) inputActions
           let selectionE' = attachWithMaybe (\opts k -> fmap (\v -> (k, v)) $ Map.lookup k opts) (current options) selectionE
           let bsAction = () <$ ffilter (== ComboBoxAction_Backspace) inputActions
           bs :: Dynamic t Int <- foldDyn ($) 0 $ leftmost [ (+1) <$ bsAction
-                                                          , (const 0) <$ (updated $ value t)
+                                                          , const 0 <$ updated (_inputElement_value t)
                                                           ]
       return (selectionE', bs)
 

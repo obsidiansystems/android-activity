@@ -144,6 +144,7 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeholder cfg = FocusWidget $ placeholder $ fmap1 unFocusWidget cfg
   inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
   textAreaElement cfg = FocusWidget $ textAreaElement $ fmap1 unFocusWidget cfg
+  selectElement cfg (FocusWidget child) = FocusWidget $ selectElement (fmap1 unFocusWidget cfg) child
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
@@ -190,7 +191,6 @@ instance MonadRequest t req m => MonadRequest t req (QueryT t q m) where
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
 type MonadFocusFrontendWidget app t m =
     ( MonadFocusWidget app t m
-    , DomBuilderSpace m ~ GhcjsDomSpace
     , MonadAsyncException m
     , MonadAsyncException (Performable m)
     )
@@ -254,7 +254,6 @@ watchViewSelector = queryDyn
 --TODO: HasDocument is still not accounted for
 type MonadWidget' t m =
   ( DomBuilder t m
-  -- , DomBuilderSpace m ~ GhcjsDomSpace
   , MonadFix m
   , MonadHold t m
   , MonadSample t (Performable m)

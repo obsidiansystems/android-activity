@@ -163,4 +163,13 @@ self: super: {
     websockets = doJailbreak super.websockets;
     zlib-enum = doJailbreak super.zlib-enum;
     reflex-jsx = self.callPackage ./reflex-jsx.nix {};
+    pontarius-xmpp =
+      let p = overrideCabal super.pontarius-xmpp (drv: {
+                src = nixpkgs.fetchgit {
+                  url = git://github.com/pontarius/pontarius-xmpp;
+                  rev = "446f11ea70b3921ad44fee6d532135fb9b775d7d";
+                  sha256 = "1l6r8wbjqpamvw4zsjb95q5wj5xf5wlx57lgrv0blfrqz7svjfjr";
+                };
+              });
+      in dontCheck p;
   }

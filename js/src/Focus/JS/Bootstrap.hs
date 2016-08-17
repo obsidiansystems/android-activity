@@ -68,22 +68,24 @@ panelFooter = divClass "panel-footer"
 dl :: forall t m a. DomBuilder t m => m a -> m a
 dl = elAttr "dl" (Map.singleton "class" "dl-horizontal")
 
-data NumberInput t a = NumberInput { _numberInput_value :: Dynamic t (Maybe a)
-                                   , _numberInput_textInput :: TextInput t }
+data NumberInput er d t a = NumberInput
+  { _numberInput_value :: Dynamic t (Maybe a)
+  , _numberInput_textInput :: InputElement er d t
+  }
 
-instance HasValue (NumberInput t a) where
-  type Value (NumberInput t a) = Dynamic t (Maybe a)
+instance HasValue (NumberInput er d t a) where
+  type Value (NumberInput er d t a) = Dynamic t (Maybe a)
   value = _numberInput_value
 
-numberInput :: (Num a, DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (NumberInput t a)
+numberInput :: (Num a, DomBuilder t m) => Text -> m (NumberInput EventResult (DomBuilderSpace m) t a)
 numberInput initial = do
-  ti <- textInput $ def & textInputConfig_inputType .~ "number"
-                        & textInputConfig_initialValue .~ initial
-                        & attributes .~ constDyn (Map.fromList [("class", "form-control")])
+  ti <- inputElement $ def
+    & inputElementConfig_initialValue .~ initial
+    & initialAttributes .~ ("class" =: "form-control" <> "type" =: "number")
   let v = fmap (fmap fromInteger . readMay . T.unpack) (value ti)
   return (NumberInput v ti)
 
-dayInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
+dayInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Day -> m (Dynamic t Day)
 dayInput d0 = do
   let (year0, month0, _ {- dayOfMonth0 -} ) = toGregorian d0
   rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
@@ -108,7 +110,7 @@ dayInput d0 = do
       day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
-monthCal :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
+monthCal :: forall t m. (DomBuilder t m, PostBuild t m, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
 monthCal y m sel = do
   let som = fromGregorian y (monthToInt m) 1
       wd = dayToWeekDay som
@@ -132,7 +134,7 @@ monthCal y m sel = do
   let selectionMade = leftmost $ concat click
   return $ fmapMaybe id selectionMade
 
-timeInput :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), MonadFix m) => TimeOfDay -> m (Dynamic t TimeOfDay)
+timeInput :: forall t m. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => TimeOfDay -> m (Dynamic t TimeOfDay)
 timeInput t0 = do
   let hs = Map.map (T.pack . show) $ Map.fromList $ zip [(1::Int)..12] [(1::Int)..12]
       ms = Map.fromList $ zip [(0::Int)..59] (map paddingZero [(0::Int)..59])
@@ -156,7 +158,7 @@ mainlandUSTimeZoneMap = do
                return (n,s)
   return (Map.fromList [(n,s) | (n,Just s) <- kvs])
 
-mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
+mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
 mainlandUSTimeInput tzMap t0 =
   utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
 
@@ -168,7 +170,7 @@ mainlandUSTimeZone tzMap _ {- cfg -} = do
   selection <- fmap (fmap (valueMap Map.!)) $ toggleButtonStrip "btn-xs" 3 labelMap
   return $ fmap (tzMap Map.!) selection
 
-utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadIO m, MonadIO (Performable m), MonadFix m)
+utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
                  => TimeZoneSeries
                  -> m (Dynamic t TimeZoneSeries)
                  -> UTCTime
@@ -177,9 +179,10 @@ utcTimeInputMini tz0 tzWidget t = do
   rec let timeShown = zipDynWith (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
-        _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
-                             & textInputConfig_setValue .~ updated timeShown
-                             & textInputConfig_initialValue .~ (showDateTime' tz0) t
+        _ <- inputElement $ def
+          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & inputElementConfig_setValue .~ updated timeShown
+          & inputElementConfig_initialValue .~ showDateTime' tz0 t
         isOpen <- holdDyn False $ leftmost [fmap (const True) (domEvent Click e'), fmap (const False) close]
         return $ ffor isOpen $ \x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;"
                                           else "class" =: "dropdown-menu"
@@ -208,7 +211,7 @@ data SortOrder = Ascending
                | Descending
                deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
+sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
 sortList items setK toString mkChild = do
   sortOrder :: Dynamic t SortOrder <- divClass "pull-right" $ alphaSortSelector
   query <- searchBox "search"
@@ -223,7 +226,7 @@ sortList items setK toString mkChild = do
       curSel <- holdDyn Nothing $ leftmost [setSel, sel]
   return $ fmap snd <$> curSel
 
-sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, Ord k) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
+sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
 sortListWithDeselectButton buttonLabel items toString mkChild = do
   b <- button buttonLabel
   let deselect = fmap (const Nothing) b
@@ -247,40 +250,38 @@ alphaSortSelector = do
             attrsD = ffor order $ \x -> if x == Descending then active else inactive
     return order
 
--- searchBox' :: (DomBuilder t m, PostBuild t m, Ref (Performable m) ~ Ref IO, Ref m ~ Ref IO, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m, MonadRef m) => Text -> Text -> m (Dynamic t (Maybe Text))
-searchBox' :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> m (Dynamic t (Maybe Text))
+searchBox' :: DomBuilder t m => Text -> Text -> m (Dynamic t (Maybe Text))
 searchBox' i p = do
   divClass "input-group" $ do
     elClass "span" "input-group-addon" $ icon i
-    q <- liftM value (textInputWithPlaceholder p)
+    q <- value <$> textInputWithPlaceholder p
     return $ ffor q $ \v -> let x = T.strip v in if x == "" then Nothing else Just x
 
-searchBox :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (Dynamic t (Maybe Text))
+searchBox :: DomBuilder t m => Text -> m (Dynamic t (Maybe Text))
 searchBox i = searchBox' i "Search..."
 
-readonlyInput :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> Text -> Event t Text -> m (TextInput t)
-readonlyInput inputType initial _ eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
-                                                            & textInputConfig_initialValue .~  initial
-                                                            & setValue .~ eSetVal
-                                                            & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("readonly", "readonly")])
+readonlyInput :: forall t m. DomBuilder t m => Text -> Text -> Text -> Event t Text -> m (InputElement EventResult (DomBuilderSpace m) t)
+readonlyInput inputType initial _ eSetVal = inputElement $ def
+  & inputElementConfig_initialValue .~ initial
+  & inputElementConfig_setValue .~ eSetVal
+  & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "readonly" <> "type" =: inputType)
 
+inputWithPlaceholder' :: forall t m. DomBuilder t m => Text -> Text -> Text -> Event t Text -> m (InputElement EventResult (DomBuilderSpace m) t)
+inputWithPlaceholder' inputType initial p eSetVal = inputElement $ def
+  & inputElementConfig_initialValue .~  initial
+  & inputElementConfig_setValue .~ eSetVal
+  & initialAttributes .~ ("class" =: "form-control" <> "placeholder" =: p <> "type" =: inputType)
 
-inputWithPlaceholder' :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> Text -> Event t Text -> m (TextInput t)
-inputWithPlaceholder' inputType initial p eSetVal = textInput $ def & textInputConfig_inputType .~ inputType
-                                                                    & textInputConfig_initialValue .~  initial
-                                                                    & setValue .~ eSetVal
-                                                                    & attributes .~ constDyn (Map.fromList [("class", "form-control"), ("placeholder", p)])
-
-inputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> Text -> m (TextInput t)
+inputWithPlaceholder :: forall t m. DomBuilder t m => Text -> Text -> m (InputElement EventResult (DomBuilderSpace m) t)
 inputWithPlaceholder inputType p = inputWithPlaceholder' inputType "" p never
 
-textInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
+textInputWithPlaceholder :: forall t m. DomBuilder t m => Text -> m (InputElement EventResult (DomBuilderSpace m) t)
 textInputWithPlaceholder p = inputWithPlaceholder "text" p
 
-passwordInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
+passwordInputWithPlaceholder :: forall t m. DomBuilder t m => Text -> m (InputElement EventResult (DomBuilderSpace m) t)
 passwordInputWithPlaceholder p = inputWithPlaceholder "password" p
 
-emailInputWithPlaceholder :: forall t m. (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace) => Text -> m (TextInput t)
+emailInputWithPlaceholder :: forall t m. DomBuilder t m => Text -> m (InputElement EventResult (DomBuilderSpace m) t)
 emailInputWithPlaceholder p = inputWithPlaceholder "email" p
 
 labelledInput :: forall t m a. DomBuilder t m => Text -> m a -> m a
@@ -394,7 +395,7 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
   in maybe loginWorkflow' f' li0
 
 recoveryForm
-  :: forall t m recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  :: forall t m recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m)
   => (Event t Email -> m (Event t recoverResult))
   -- ^ Recover password request
   -> m (Event t recoverResult, Event t ())
@@ -404,7 +405,7 @@ recoveryForm requestPasswordResetEmail = elAttr "form" (Map.singleton "class" "f
     linkClass "sign in" "pointer"
   emailBox <- emailInputWithPlaceholder "Email address"
   submitButton <- linkClass "Recover" "btn btn-lg btn-primary btn-block"
-  eReset <- requestPasswordResetEmail $ tag (current $ _textInput_value emailBox) (_link_clicked submitButton)
+  eReset <- requestPasswordResetEmail $ tag (current $ value emailBox) (_link_clicked submitButton)
   el "div" $ elAttr "p" (Map.singleton "class" "text-center") $ dynText =<< holdDyn "" (fmap (const "An email with account recovery instructions has been sent.") eReset)
   return (eReset, (_link_clicked signinLink))
 
@@ -429,13 +430,13 @@ loginForm login formWidget = do
 
 -- | A simple default login form for applications without a custom login page design.
 defaultLoginForm
-  :: forall t m err loginInfo. (DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  :: forall t m err loginInfo. (DomBuilder t m, MonadFix m, MonadHold t m)
   => (Event t (Email, Text) -> m (Event t (Either err loginInfo)))
   -> m (Event t loginInfo, Event t ())
 defaultLoginForm login = loginForm login defaultLoginWidget
 
 defaultLoginWidget
-  :: forall t m err. (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  :: forall t m err. (DomBuilder t m, MonadHold t m)
   => Event t err
   -> m (Event t (Email, Text), Event t ())
 defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
@@ -446,11 +447,11 @@ defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
   passwordBox <- passwordInputWithPlaceholder "Password"
   submitButton <- link "Sign in"
   let credentialsD = do
-        email <- _textInput_value emailBox
-        password <- _textInput_value passwordBox
+        email <- value emailBox
+        password <- value passwordBox
         return (email, password)
-      eEmailEnter = textInputGetEnter emailBox
-      ePasswordEnter = textInputGetEnter passwordBox
+      eEmailEnter = keypress Enter emailBox
+      ePasswordEnter = keypress Enter passwordBox
       submitE = tagPromptlyDyn credentialsD $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
       showWarningE = (icon "warning" >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
   _ <- widgetHold blank showWarningE
@@ -486,7 +487,7 @@ newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "fo
   return (eNewUser, (_link_clicked signinLink))
 
 passwordResetWorkflow
-  :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m)
+  :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Signed PasswordResetToken
   -> (Maybe loginInfo -> Workflow t m (Event t (Maybe loginInfo)))
   -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
@@ -498,7 +499,7 @@ passwordResetWorkflow token withLoginWorkflow reset = do
     return (eLoginResult, eLoggedIn)
 
 passwordReset
-  :: (DomBuilder t m, PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace)
+  :: (DomBuilder t m, PostBuild t m)
   => Signed PasswordResetToken
   -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
   -> m (Event t loginInfo)
@@ -506,12 +507,12 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   elAttr "h3" (Map.singleton "class" "form-signin-heading") $ text "Set Password"
   pw <- passwordInputWithPlaceholder "Password"
   confirm <- passwordInputWithPlaceholder "Confirm Password"
-  let dPasswordConfirmed = zipDynWith (==) (_textInput_value pw) (_textInput_value confirm)
+  let dPasswordConfirmed = zipDynWith (==) (value pw) (value confirm)
       dAttrs = fmap (\c -> Map.singleton "class" $ "btn btn-lg btn-primary btn-block" <> if c then "" else " disabled") dPasswordConfirmed
   (submitButton, _) <- elDynAttr' "a" dAttrs $ text "Set Password"
-  let enterPressed = gate (current dPasswordConfirmed) $ leftmost [textInputGetEnter pw, textInputGetEnter confirm]
+  let enterPressed = gate (current dPasswordConfirmed) $ leftmost [keypress Enter pw, keypress Enter confirm]
       submit = leftmost [domEvent Click submitButton, enterPressed]
-  loginInfo <- reset $ fmap (\p -> (token, p)) $ tag (current (_textInput_value pw)) submit
+  loginInfo <- reset $ fmap (\p -> (token, p)) $ tag (current (value pw)) submit
   --performEvent_ $ fmap (const $ liftIO $ windowHistoryPushState "/") loginInfo
   return loginInfo
 
@@ -581,14 +582,15 @@ toggleButtonStrip k s0 labelMap = divClass "btn-grp" $ do
            dynText labelDyn
   return selection
 
-dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, DomBuilderSpace m ~ GhcjsDomSpace, MonadFix m) => Day -> m (Dynamic t Day)
+dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Day -> m (Dynamic t Day)
 dayInputMini d0 = do
   let showDate = T.pack . formatTime defaultTimeLocale "%b %e, %Y"
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
-        _ <- textInput $ def & attributes .~ (constDyn $ "class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
-                             & textInputConfig_setValue .~ fmap showDate date
-                             & textInputConfig_initialValue .~ showDate d0
+        _ <- inputElement $ def
+          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & inputElementConfig_setValue .~ fmap showDate date
+          & inputElementConfig_initialValue .~ showDate d0
         isOpen <- holdDyn False $ leftmost [fmap (const False) date, fmap (const True) (domEvent Click e'), fmap (const False) close]
         return $ fmap (\x -> if x then "class" =: "dropdown-menu" <> "style" =: "width: auto; position: absolute; display: block;" else "class" =: "dropdown-menu") isOpen
       (date, close) <- elAttr "div" ("style" =: "position: relative; height: 0px; width: 0px") . elDynAttr "div" attrs $ do

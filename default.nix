@@ -10,6 +10,7 @@ rec {
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
+  filterGitSource = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ]));
   mkDerivation =
     { name
     , version
@@ -31,14 +32,21 @@ rec {
       appName = name;
       appVersion = version;
 
+      frontendSrc = filterGitSource ../frontend;
+      commonSrc = filterGitSource ../common;
+      backendSrc = filterGitSource ../backend;
+      marketingSrc = filterGitSource ../marketing;
+      staticSrc = filterGitSource ../static;
+      testsSrc = filterGitSource ../tests;
+
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
-        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult ./core) {});
-             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult ./emojione) {});
-             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult ./emojione/data) {});
-             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult ./http/th) {});
-             focus-js = dontHaddock (self.callPackage (cabal2nixResult ./js) {});
-             focus-serve = dontHaddock (self.callPackage (cabal2nixResult ./http/serve) {});
-             focus-th = dontHaddock (self.callPackage (cabal2nixResult ./th) {});
+        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
+             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
+             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
+             focus-js = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./js)) {});
+             focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
+             focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
@@ -71,23 +79,41 @@ rec {
 
       libraryHeader = ''
         library
-          exposed-modules: $(cd src ; find * -iname '[A-Z]*.hs' | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
+          exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
-      executableHeader = executableName: ''
+      executableHeader = executableName: mainFile: ''
         executable ${executableName}
-          main-is: $(cd src; ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)
+          main-is: ${if mainFile == null
+                     then ''$(ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
+                     else mainFile
+                    }
       '';
-      mkCabalFile = haskellPackages: pname: executableName: depends: ''
+      mkCabalFile = haskellPackages: pname: executableName: depends:
+        let mkCabalTarget = header: ''
+              ${header}
+                hs-source-dirs: .
+                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-prim" ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+                other-extensions: TemplateHaskell
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
+                if impl(ghcjs)
+                  cpp-options: -DGHCJS_GC_INTERVAL=60000
+                  ghcjs-options: -dedupe
+            '';
+        in ''
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
-        ${if executableName != null then executableHeader executableName else libraryHeader}
-          hs-source-dirs: .
-          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ ] else [ "process" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
-          other-extensions: TemplateHaskell
-          ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
-          if impl(ghcjs)
-            cpp-options: -DGHCJS_GC_INTERVAL=60000
+
+        ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
+
+        ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
+
+        $(for x in $(ls | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
+            cat <<INNER_EOF
+        ${mkCabalTarget (executableHeader "$x" "$x.hs")}
+        INNER_EOF
+        done
+        )
       '';
 
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
@@ -97,6 +123,7 @@ rec {
         ${mkCabalFile haskellPackages pname executableName depends}
         EOF
         fi
+        cat *.cabal
       '';
 
       mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
@@ -130,7 +157,7 @@ rec {
           })) {};
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend ../frontend ../common frontendHaskellPackages ../static;
+        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -149,10 +176,10 @@ rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets (fixupStatic ../static);
+        assets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
         frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
-        ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
+        ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
         frontend_ = frontend;
@@ -164,7 +191,7 @@ rec {
           if ! [ -z "''${marketing+x}" ] ; then
             ln -s "$marketing" "$out/marketing"
           fi
-          ln -s "$backend/bin/backend" "$out"
+          ln -s "$backend/bin/"* "$out"
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
@@ -199,11 +226,11 @@ rec {
             src = nixpkgs.runCommand "backend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ln -s "${../common}"/src/* "$out"/
-                ln -s "${../backend}"/src/* "$out"/
+                ln -s "${commonSrc}"/src/* "$out"/
+                ln -s "${backendSrc}"/src{,-bin}/* "$out"/
 
                 shopt -s nullglob
-                frontendFiles=("${../frontend}"/src/*)
+                frontendFiles=("${frontendSrc}"/src/*)
                 for f in ''${frontendFiles[@]} ; do
                     if echo "$f" | grep -vq "/Main.\(hs\|lhs\)$" ; then
                         ln -s "$f" "$out"/
@@ -214,7 +241,7 @@ rec {
 
             preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
             preBuild = ''
-              ln -sfT ${../static} static
+              ln -sfT ${staticSrc} static
             '';
             buildDepends = [
               vector-algorithms
@@ -234,10 +261,10 @@ rec {
                 pname = "${appName}-tests";
                 license = null;
                 version = appVersion;
-                src = ../tests;
+                src = testsSrc;
                 preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
                 preBuild = ''
-                  ln -sfT ${../static} static
+                  ln -sfT ${staticSrc} static
                 '';
                 buildDepends = [
                   vector-algorithms
@@ -252,7 +279,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
-          frontendGhc = mkFrontend ../frontend ../common backendHaskellPackages ../static;
+          frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
@@ -367,6 +394,9 @@ rec {
                     postRun = ''
                       systemctl reload-or-restart nginx.service
                     '';
+                    extraDomains = {
+                      "www.${hostName}" = null;
+                    };
                   };
                 });
                 nixos = import "${nixpkgs.path}/nixos";
