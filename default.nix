@@ -32,6 +32,13 @@ rec {
       appName = name;
       appVersion = version;
 
+      frontendSrc = filterGitSource ../frontend;
+      commonSrc = filterGitSource ../common;
+      backendSrc = filterGitSource ../backend;
+      marketingSrc = filterGitSource ../marketing;
+      staticSrc = filterGitSource ../static;
+      testsSrc = filterGitSource ../tests;
+
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
         // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
@@ -90,6 +97,7 @@ rec {
                 ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000
+                  ghcjs-options: -dedupe
             '';
         in ''
         name: ${pname}
@@ -149,7 +157,7 @@ rec {
           })) {};
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend ../frontend ../common frontendHaskellPackages ../static;
+        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -168,10 +176,10 @@ rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets (fixupStatic ../static);
+        assets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
         frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
-        ${if builtins.pathExists ../marketing then "marketing" else null} = ../marketing;
+        ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
         frontend_ = frontend;
@@ -218,11 +226,11 @@ rec {
             src = nixpkgs.runCommand "backend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ln -s "${../common}"/src/* "$out"/
-                ln -s "${../backend}"/src{,-bin}/* "$out"/
+                ln -s "${commonSrc}"/src/* "$out"/
+                ln -s "${backendSrc}"/src{,-bin}/* "$out"/
 
                 shopt -s nullglob
-                frontendFiles=("${../frontend}"/src/*)
+                frontendFiles=("${frontendSrc}"/src/*)
                 for f in ''${frontendFiles[@]} ; do
                     if echo "$f" | grep -vq "/Main.\(hs\|lhs\)$" ; then
                         ln -s "$f" "$out"/
@@ -233,7 +241,7 @@ rec {
 
             preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
             preBuild = ''
-              ln -sfT ${../static} static
+              ln -sfT ${staticSrc} static
             '';
             buildDepends = [
               vector-algorithms
@@ -253,10 +261,10 @@ rec {
                 pname = "${appName}-tests";
                 license = null;
                 version = appVersion;
-                src = ../tests;
+                src = testsSrc;
                 preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
                 preBuild = ''
-                  ln -sfT ${../static} static
+                  ln -sfT ${staticSrc} static
                 '';
                 buildDepends = [
                   vector-algorithms
@@ -271,7 +279,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
-          frontendGhc = mkFrontend ../frontend ../common backendHaskellPackages ../static;
+          frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
