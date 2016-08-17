@@ -78,6 +78,7 @@ instance (DomBuilder t m, MonadFix m, MonadHold t m, Monoid q) => DomBuilder t (
   inputElement = QueryT . inputElement . fmap1 unQueryT
   textAreaElement = QueryT . textAreaElement . fmap1 unQueryT
   placeRawElement = QueryT . placeRawElement
+  selectElement e = QueryT . selectElement (fmap1 unQueryT e) . unQueryT
   wrapRawElement r c = QueryT $ wrapRawElement r (fmap1 unQueryT c)
 
 instance MonadRef m => MonadRef (QueryT t q m) where
