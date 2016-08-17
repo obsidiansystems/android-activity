@@ -61,6 +61,7 @@ library
     , Control.Monad.TypedUnique
     , Data.Indexed
     , Data.Indexed.Projections
+    , Data.SemiMap
     , Data.SortedPair
     , Data.Min
     , Data.RequestInterval
