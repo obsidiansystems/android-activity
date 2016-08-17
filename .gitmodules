@@ -48,3 +48,6 @@
 	path = th
 	url = git@gitlab.com:obsidian.systems/focus-th.git
 
+[submodule "postie"]
+	path = postie
+	url = https://github.com/cgibbard/postie.git
