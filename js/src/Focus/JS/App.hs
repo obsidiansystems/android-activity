@@ -51,6 +51,7 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeholder cfg = FocusWidget $ placeholder $ fmap1 unFocusWidget cfg
   inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
   textAreaElement cfg = FocusWidget $ textAreaElement $ fmap1 unFocusWidget cfg
+  selectElement cfg (FocusWidget child) = FocusWidget $ selectElement (fmap1 unFocusWidget cfg) child
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 

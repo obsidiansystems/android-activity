@@ -215,39 +215,6 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t 
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
 
-{-
-instance MonadWidget t m => MonadWidget t (RequestT t req m) where
-  type WidgetHost (RequestT t req m) = WidgetHost m
-  type GuiAction (RequestT t req m) = GuiAction m
-  type WidgetOutput t (RequestT t req m) = WidgetOutput t (DynamicWriterT t (Event t [((Int64, Int64), SomeRequest req)]) m)
-  askParent = lift askParent
-  subWidget n (RequestT w) = do
-    s <- RequestT get
-    e <- RequestT ask
-    (a, ns) <- RequestT $ lift $ lift $ subWidget n $ runReaderT (runStateT w s) e
-    RequestT $ put ns
-    return a
-  subWidgetWithVoidActions n (RequestT w) = do
-    s <- RequestT get
-    e <- RequestT ask
-    ((a, ns), wo) <- RequestT $ lift $ lift $ subWidgetWithVoidActions n $ runReaderT (runStateT w s) e
-    RequestT $ put ns
-    return (a, wo)
-  liftWidgetHost = RequestT . lift . liftWidgetHost
-  schedulePostBuild = RequestT . lift . schedulePostBuild
-  addVoidAction = RequestT . lift . addVoidAction
-  getRunWidget = do
-    runWidget <- RequestT $ lift $ lift getRunWidget
-    e <- RequestT ask
-    return $ \rootElement (RequestT w) -> do
-      s <- readRef (_requestEnv_nextInvocation e)
-      writeRef (_requestEnv_nextInvocation e) (s + 1)
-      let e' = e { _requestEnv_currentInvocation = s }
-      ((a, _), postBuild, voidActions) <- runWidget rootElement $ runReaderT (runStateT w minId) e'
-      return (a, postBuild, voidActions)
-  tellWidgetOutput = RequestT . lift . tellWidgetOutput
--}
-
 class Monad m => MonadRequest t req m | m -> t where
   requesting :: (ToJSON a, FromJSON a) => Event t (req a) -> m (Event t a)
   -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
@@ -279,6 +246,7 @@ instance (DomBuilder t m, Ref (Performable m) ~ Ref m, MonadAtomicRef m, MonadFi
   placeholder cfg = liftRequestTAsync $ \run -> placeholder $ fmap1 run cfg
   inputElement cfg = liftRequestTAsync $ \run -> inputElement $ fmap1 run cfg
   textAreaElement cfg = liftRequestTAsync $ \run -> textAreaElement $ fmap1 run cfg
+  selectElement cfg child = liftRequestTAsync $ \run -> selectElement (fmap1 run cfg) $ run child
   placeRawElement = lift . placeRawElement
   wrapRawElement e cfg = liftRequestTAsync $ \run -> wrapRawElement e $ fmap1 run cfg
 

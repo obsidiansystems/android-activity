@@ -4,7 +4,6 @@ module Focus.JS.Widget where
 import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
-import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -27,7 +26,7 @@ elDynAttrHide :: forall t m a. (DomBuilder t m, PostBuild t m) => Text -> Dynami
 elDynAttrHide elementTag attrs child = do
   modifyAttrs <- dynamicAttributesToModifyAttributes attrs
   let cfg = def
-        & initialAttributes .~ (Nothing, "style") =: "display: none;"
+        & initialAttributes .~ "style" =: "display: none;"
         & elementConfig_namespace .~ Nothing
         & modifyAttributes .~ modifyAttrs
   snd <$> element elementTag cfg child
@@ -49,10 +48,10 @@ withSpinner sp asyncW request = do response <- asyncW request
                                    spinner sp request response
                                    return response
 
-enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m, Ord k, Enum k, Bounded k) => (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown = enumDropdown' minBound
 
-enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), PostBuild t m, DomBuilderSpace m ~ GhcjsDomSpace, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
+enumDropdown' :: forall t m k. (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m, Ord k, Enum k, Bounded k) => k -> (k -> Text) -> DropdownConfig t k -> m (Dropdown t k)
 enumDropdown' d f cfg = do
   let xs = [minBound .. maxBound] :: [k]
       xMap = Map.fromList $ zip xs (map f xs)
@@ -109,12 +108,12 @@ typeaheadSearch :: (MonadFocusWidget app t m)
                 -> m (Dynamic t s, Dynamic t Text)
                 -- ^ results and the search string
 typeaheadSearch ph vsQuery extractor = do
-  search <- inputElement $ def & initialAttributes .~ (Nothing, "placeholder") =: ph
+  search <- inputElement $ def & initialAttributes .~ "placeholder" =: ph
   aspenView <- watchViewSelector $ vsQuery <$> value search
   let result = fmap extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k, DomBuilderSpace m ~ GhcjsDomSpace)
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k)
                         => Text
                         -- ^ text input placeholder
                         -> (Text -> ViewSelector app ())
@@ -304,7 +303,7 @@ typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, M
                -> (Dynamic t Text -> m (Dynamic t (Map k Text))) -- ^ Query to search results function
                -> m (Dynamic t (Set k)) -- ^ Selections
 typeaheadMulti ph getter = divClass "typeahead-multi" $ do
-  rec let attrs = def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ (Nothing, "placeholder") =: ph
+  rec let attrs = def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ "placeholder" =: ph
           getter' q = do
             results <- getter q
             return $ Map.difference <$> results <*> (Map.fromList <$> selections)
