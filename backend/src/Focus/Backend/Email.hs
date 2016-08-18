@@ -55,8 +55,20 @@ instance MonadEmail m => MonadEmail (ReaderT r m) where
 runEmailT :: EmailT m a -> EmailEnv -> m a
 runEmailT = runReaderT . unEmailT
 
-sendEmailFrom :: MonadEmail m => Text -> Text -> NonEmpty Text -> Text -> Html -> m ()
-sendEmailFrom name' email recipients sub body = sendMail $ simpleMail (Address (Just name') email) (map (Address Nothing) $ toList recipients) [] [] sub [(htmlPart $ renderHtml body)]
+sendEmailFrom :: MonadEmail m
+              => Text -- ^ Sender name
+              -> Text -- ^ Sender email
+              -> NonEmpty Text -- ^ Recipients
+              -> Text -- ^ Subject line
+              -> Html -- ^ Body of message
+              -> m ()
+sendEmailFrom name' email recipients sub body =
+  sendMail $ simpleMail (Address (Just name') email)
+                        (map (Address Nothing) $ toList recipients)
+                        []
+                        []
+                        sub
+                        [(htmlPart $ renderHtml body)]
 
 sendEmailDefault :: (MonadEmail m, MonadBrand m) => NonEmpty Text -> Text -> Html -> m ()
 sendEmailDefault recipients sub body = do

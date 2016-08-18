@@ -10,6 +10,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , liftWithConn
                                    ) where
 
+import Control.Applicative
 import Control.Exception
 import Control.Monad.Reader.Class
 import Control.Monad.State
@@ -119,3 +120,19 @@ instance (FromField (IdData a)) => FromField (Id a) where
 
 instance (ToField (IdData a)) => ToField (Id a) where
   toField (Id x) = toField x
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k) where
+    fromRow = (,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
+                           <*> field <*> field <*> field <*> field <*> field
+                           <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l) where
+    fromRow = (,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
+                            <*> field <*> field <*> field <*> field <*> field
+                            <*> field <*> field
