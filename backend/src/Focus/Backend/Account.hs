@@ -124,11 +124,11 @@ resetPasswordWithToken prt password = do
       return $ Just aid
     else return Nothing
 
-login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either Text loginInfo)
+login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either LoginError loginInfo)
 login toLoginInfo email password = runExceptT $ do
-  (aid, a) <- ExceptT . fmap (maybeToEither "The user is not recognized" . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
-  ph <- ExceptT . return $ maybeToEither "This user is not recognized" $ account_passwordHash a
-  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left "Please enter a valid password"
+  (aid, a) <- ExceptT . fmap (maybeToEither LoginError_UserNotFound . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
+  ph <- ExceptT . return $ maybeToEither LoginError_UserNotFound $ account_passwordHash a
+  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left LoginError_InvalidPassword
   lift $ toLoginInfo (toId aid)
   where
     maybeToEither b Nothing = Left b
