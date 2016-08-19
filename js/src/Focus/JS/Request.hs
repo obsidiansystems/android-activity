@@ -211,6 +211,10 @@ instance HasWebView m => HasWebView (RequestT t req m) where
   type WebViewPhantom (RequestT t req m) = WebViewPhantom m
   askWebView = lift askWebView
 
+instance HasJS x m => HasJS x (RequestT t req m) where
+  type JSM (RequestT t req m) = JSM m
+  liftJS = lift . liftJS
+
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t req m) where
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f

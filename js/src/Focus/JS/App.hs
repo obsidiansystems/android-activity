@@ -134,7 +134,7 @@ watchViewSelector s = do
 --   s <- mapDyn (\s' -> mempty & l .~ s') sdyn
 --   tellInterest s
 --   combineDyn cropView s =<< getView
--- 
+--
 -- watchViewSelectorLensSet :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) b (Set.Set c) -> Dynamic t c -> m (Dynamic t (View app))
 -- watchViewSelectorLensSet l sdyn = watchViewSelectorLens l =<< mapDyn Set.singleton sdyn
 

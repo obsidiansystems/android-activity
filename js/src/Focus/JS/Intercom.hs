@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances #-}
+{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, FunctionalDependencies, AllowAmbiguousTypes, TypeApplications #-}
 module Focus.JS.Intercom
        ( IntercomUserHash (..)
        , IntercomVisitor (..)
@@ -13,6 +13,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Focus.Intercom.Common
 import Focus.JS.App
+import Focus.JS.Prerender
 import Reflex
 import Reflex.Dom
 
@@ -43,8 +44,8 @@ importJS Unsafe "(function() {console.log('shutdown'); window['Intercom']('shutd
 --
 -- WARNING: You may only have one of these on the page at time; otherwise they
 -- will interfere with each other.
-intercom :: (PostBuild t m, PerformEvent t m, HasJS x (Performable m)) => Dynamic t (Maybe IntercomVisitor) -> m (Event t ())
-intercom visitor = do
+intercom :: (PostBuild t m, PerformEvent t m, Prerender js m) => Dynamic t (Maybe IntercomVisitor) -> m (Event t ())
+intercom visitor = prerender (return never) $ do
   pb <- getPostBuild
   let setIntercomSettings = leftmost
         [ updated visitor
@@ -63,9 +64,9 @@ intercom visitor = do
 
 -- TODO: Make this automatic when the 'intercom' widget disappears
 {-# DEPRECATED shutdownIntercom "Use 'intercom (constDyn Nothing)' instead" #-}
-shutdownIntercom :: (PostBuild t m, PerformEvent t m, HasJS x (Performable m)) => m (Event t ())
+shutdownIntercom :: (PostBuild t m, PerformEvent t m, Prerender js m) => m (Event t ())
 shutdownIntercom = intercom $ constDyn Nothing
 
 {-# DEPRECATED setupIntercom "Use 'void . intercom . fmap Just =<< holdDyn v0 newV' instead of 'setupIntercom v0 newV'" #-}
-setupIntercom :: (MonadFocusWidget app t m, HasJS x (Performable m)) => IntercomVisitor -> Event t IntercomVisitor -> m ()
+setupIntercom :: (MonadFocusWidget app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
 setupIntercom v0 v' = void . intercom . fmap Just =<< holdDyn v0 v'

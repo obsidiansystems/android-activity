@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, TypeFamilies, OverloadedStrings, QuasiQuotes, TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies, OverloadedStrings #-}
 module Focus.JS.Time where
 
 import Focus.JS.Request
@@ -30,11 +30,4 @@ createDynamicTime = do
   pb <- getPostBuild
   tn <- performEventAsync $ fmap (\_ cb -> liftIO $ void $ forkIO $ forever $ threadDelay 1000000 >> getCurrentTime >>= cb) pb
   holdDyn t tn
-
-importJS Unsafe "(function() { return new Date().toJSON(); })()" "newDateToJSON_" [t| forall x m. (MonadJS x m) => m String |]
-
-jsCurrentTime :: HasJS x m => m (Maybe UTCTime)
-jsCurrentTime = do
-  j <- liftJS newDateToJSON_
-  return $ parseTimeM True defaultTimeLocale (iso8601DateFormat (Just "%T%QZ")) j
 

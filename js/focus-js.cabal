@@ -66,6 +66,7 @@ library
     Focus.JS.Intercom
     Focus.JS.Listen
     Focus.JS.LocalStorage
+    Focus.JS.Prerender
     Focus.JS.Pretty
     Focus.JS.Request
     Focus.JS.Route
