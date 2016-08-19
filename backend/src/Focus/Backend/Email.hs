@@ -1,9 +1,13 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, GeneralizedNewtypeDeriving, ScopedTypeVariables, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, UndecidableInstances, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Focus.Backend.Email where
+module Focus.Backend.Email
+( module Focus.Backend.Email
+, module Focus.Email
+) where
 
 import Focus.Brand
 import Focus.Sign
+import Focus.Email
 import Focus.Route
 import Focus.Backend.TH
 import Network.Mail.Mime (Mail (..), htmlPart)
@@ -28,9 +32,6 @@ import Data.Text.Encoding
 import Data.String (fromString)
 import Data.Default
 
-class Monad m => MonadEmail m where
-  sendMail :: Mail -> m ()
-
 type EmailEnv = (HostName, PortNumber, UserName, Password)
 
 instance FromJSON PortNumber where
@@ -48,9 +49,6 @@ instance MonadIO m => MonadEmail (EmailT m) where
     (server, port, username, password) <- EmailT ask
     liftIO $ putStrLn $ "Sending email " <> show (map snd $ filter ((=="Subject") . fst) $ mailHeaders mail) <> " to " <> show (map addressEmail $ mailTo mail)
     liftIO $ sendMailWithLogin' server port username password mail
-
-instance MonadEmail m => MonadEmail (ReaderT r m) where
-  sendMail = lift . sendMail
 
 runEmailT :: EmailT m a -> EmailEnv -> m a
 runEmailT = runReaderT . unEmailT
@@ -82,10 +80,10 @@ emailTemplate mStyleHtml titleHtml leadHtml contentHtml = do
         H.tr $ H.td $ H.p ! class_ "lead" $ leadHtml
         H.hr
         H.tr $ H.td $ contentHtml
-      H.tr $ H.td $ H.table $ H.tr $ H.td $ do 
+      H.tr $ H.td $ H.table $ H.tr $ H.td $ do
         H.hr
         H.p $ do
-          "Brought to you by " 
+          "Brought to you by "
           H.a ! A.href (fromString $ show indexLink) $ H.toHtml pn
 
 tableSection :: Html -> [(Html, Html)] -> Html

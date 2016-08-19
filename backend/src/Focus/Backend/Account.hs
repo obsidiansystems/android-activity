@@ -13,6 +13,7 @@ import Focus.Backend.DB
 import Focus.Backend.Email
 import Focus.Backend.Schema.TH
 import Focus.Backend.Listen
+import Focus.Backend.Mustache
 
 import Focus.Account
 import Focus.Brand
@@ -29,14 +30,15 @@ import Data.String
 import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
-import Database.Groundhog
-import Database.Groundhog.Core
+import Database.Groundhog hiding ((~>))
+import Database.Groundhog.Core hiding ((~>))
 import Database.Groundhog.TH
 import Database.Groundhog.Generic.Sql.Functions
 import qualified Data.Text as T
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes as A
+import Text.Mustache.Types
 import Data.List.NonEmpty
 
 mkPersist defaultCodegenConfig [groundhog|
@@ -124,11 +126,11 @@ resetPasswordWithToken prt password = do
       return $ Just aid
     else return Nothing
 
-login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either Text loginInfo)
+login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either LoginError loginInfo)
 login toLoginInfo email password = runExceptT $ do
-  (aid, a) <- ExceptT . fmap (maybeToEither "The user is not recognized" . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
-  ph <- ExceptT . return $ maybeToEither "This user is not recognized" $ account_passwordHash a
-  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left "Please enter a valid password"
+  (aid, a) <- ExceptT . fmap (maybeToEither LoginError_UserNotFound . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
+  ph <- ExceptT . return $ maybeToEither LoginError_UserNotFound $ account_passwordHash a
+  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left LoginError_InvalidPassword
   lift $ toLoginInfo (toId aid)
   where
     maybeToEither b Nothing = Left b
@@ -167,10 +169,19 @@ sendNewAccountEmail f prt email = do
   body <- newAccountEmail f prt
   sendEmailDefault (email :| []) (pn <> " Verification Email") body
 
-sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> Email -> m ()
-sendPasswordResetEmail f prt email = do
+sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m, Default r) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetEmail f baseUrl unsubscribeUrl needHelpUrl privacyPolicyUrl prt email = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
+  let resetPasswordUrl = T.pack $ show passwordResetLink
   pn <- getProductName
-  let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
-      body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
-  sendEmailDefault (email :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
+  let emailTitle = ("Password Reset" :: Text)
+  Just compiledTemplate <- compileMustache "reset-password.html"
+  let emailBody = H.preEscapedToHtml $ substituteValue compiledTemplate $ mustacheObject
+              [ "subject" ~> emailTitle
+              , "baseUrl" ~> baseUrl
+              , "resetPasswordUrl" ~> resetPasswordUrl
+              , "unsubscribeUrl" ~> unsubscribeUrl
+              , "needHelpUrl" ~> needHelpUrl
+              , "privacyPolicyUrl" ~> privacyPolicyUrl
+              ]
+  sendEmailDefault (email :| []) emailTitle emailBody
