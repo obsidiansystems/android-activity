@@ -355,10 +355,9 @@ jumbotron t subtitle child = divClass "jumbotron" $ do
   child
 
 withLoginWorkflow'
-  :: forall t m loginInfo newUser recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  :: forall a t m loginInfo newUser recoverResult. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Monoid a)
   => Bool -- ^ Whether to display sign-up form first
-  -> (m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))) ->
-      m (Event t (Maybe loginInfo), Event t (Workflow t m (Event t (Maybe loginInfo)))))
+  -> (forall x. m x -> m x)
   -- ^ wrapper widget
   -> Maybe loginInfo
   -- ^ initial login information
@@ -368,9 +367,9 @@ withLoginWorkflow'
   -- ^ Recover (Password Reset Requested, return to signin)
   -> m (Event t loginInfo, Event t ())
   -- ^ Login (Successful login request, return to signup, password reset)
-  -> (loginInfo -> m (Event t ()))
+  -> (loginInfo -> m (Event t (), Dynamic t a))
   -- ^ Post-login, returns a logout event
-  -> Workflow t m (Event t (Maybe loginInfo))
+  -> Workflow t m (Event t (Maybe loginInfo), Dynamic t a)
 withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f =
   let loginWorkflow' = Workflow . wrapper $ do
         let newAccountWorkflow = Workflow $ do
@@ -389,10 +388,10 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
               let eChange = leftmost [eNewAccount, eRecoverAccount]
               return (eLoginSuccess, eChange)
         eLoginInfo <- liftM switch $ hold never =<< workflowView (if signUp then newAccountWorkflow else loginWorkflow)
-        return (fmap Just eLoginInfo, fmap f' eLoginInfo)
+        return ((fmap Just eLoginInfo, constDyn mempty), fmap f' eLoginInfo)
       f' x = Workflow $ do
-        eLogout <- f x
-        return (fmap (const Nothing) eLogout, fmap (const loginWorkflow') eLogout)
+        (eLogout, a) <- f x
+        return ((fmap (const Nothing) eLogout, a), fmap (const loginWorkflow') eLogout)
   in maybe loginWorkflow' f' li0
 
 recoveryForm

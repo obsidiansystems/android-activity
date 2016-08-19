@@ -410,4 +410,8 @@ deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSO
 
 makeWrapped ''AppendMap
 
+-- | Operator for creating a singleton 'Map'
+(=:) :: k -> a -> AppendMap k a
+k =: v = singleton k v
+infixr 7 =:
 

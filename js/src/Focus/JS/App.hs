@@ -1,32 +1,126 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings #-}
 module Focus.JS.App where
 
+import Control.Lens ((^?), _Right)
 import Control.Monad.Exception
 import Control.Monad.Reader
 import Control.Monad.Ref
+import Data.Aeson
+import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
+import Data.Monoid
+import Data.Text (Text)
 import Focus.Account
 import Focus.Api
 import Focus.App
-import Focus.AppendMap hiding (delete)
+import Focus.AppendMap (AppendMap (..))
+import qualified Focus.AppendMap as AppendMap
 import Focus.JS.Request
+import Focus.JS.WebSocket
 import Focus.Request
 import Focus.Sign
-import Reflex.Dom hiding (MonadWidget)
+import Focus.WebSocket
+import Reflex.Dom hiding (MonadWidget, webSocket)
 import Reflex.Host.Class
-import qualified Data.Map as Map
 
-type FocusWidgetInternal app t m = RequestT t (AppRequest app) (DynamicWriterT t (AppendMap (Signed AuthToken) (ViewSelector app ())) (ReaderT (Env app t) m))
+class (Monoid q, Query q) => MonadQuery t q m | m -> q t where
+  tellQueryDyn :: Dynamic t q -> m ()
+  askQueryResult :: m (Dynamic t (QueryResult q))
+  queryDyn :: Dynamic t q -> m (Dynamic t (QueryResult q))
+
+newtype QueryT t q m a = QueryT { unQueryT :: DynamicWriterT t q (ReaderT (Dynamic t (QueryResult q)) m) a } deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
+
+instance MonadTrans (QueryT t q) where
+  lift = QueryT . lift . lift
+
+instance PostBuild t m => PostBuild t (QueryT t q m) where
+  getPostBuild = lift getPostBuild
+
+instance (MonadAsyncException m) => MonadAsyncException (QueryT t q m) where
+  mask f = QueryT $ mask $ \unMask -> unQueryT $ f $ QueryT . unMask . unQueryT
+
+instance TriggerEvent t m => TriggerEvent t (QueryT t q m) where
+  newTriggerEvent = lift newTriggerEvent
+  newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
+  newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
+
+instance (Monad m, Monoid q, Query q, Reflex t) => MonadQuery t q (QueryT t q m) where
+  tellQueryDyn = QueryT . tellDyn
+  askQueryResult = QueryT ask
+  queryDyn q = do
+    tellQueryDyn q
+    r <- askQueryResult
+    return $ zipDynWith crop q r
+
+instance (Monad m, MonadQuery t q m) => MonadQuery t q (ReaderT r m) where
+  tellQueryDyn = lift . tellQueryDyn
+  askQueryResult = lift askQueryResult
+  queryDyn = lift . queryDyn
+
+instance PerformEvent t m => PerformEvent t (QueryT t q m) where
+  type Performable (QueryT t q m) = Performable m
+  performEvent_ = lift . performEvent_
+  performEvent = lift . performEvent
+
+instance HasJS x m => HasJS x (QueryT t q m) where
+  type JSM (QueryT t q m) = JSM m
+  liftJS = lift . liftJS
+
+instance (Deletable t m, MonadFix m, MonadHold t m, Monoid q) => Deletable t (QueryT t q m) where
+  deletable e = QueryT . deletable e . unQueryT
+
+instance (DomBuilder t m, MonadFix m, MonadHold t m, Monoid q) => DomBuilder t (QueryT t q m) where
+  type DomBuilderSpace (QueryT t q m) = DomBuilderSpace m
+  textNode = QueryT . textNode
+  element t e = QueryT . element t (fmap1 unQueryT e) . unQueryT
+  placeholder = QueryT . placeholder . fmap1 unQueryT
+  inputElement = QueryT . inputElement . fmap1 unQueryT
+  textAreaElement = QueryT . textAreaElement . fmap1 unQueryT
+  placeRawElement = QueryT . placeRawElement
+  selectElement e = QueryT . selectElement (fmap1 unQueryT e) . unQueryT
+  wrapRawElement r c = QueryT $ wrapRawElement r (fmap1 unQueryT c)
+
+instance MonadRef m => MonadRef (QueryT t q m) where
+  type Ref (QueryT t q m) = Ref m
+  newRef = QueryT . newRef
+  readRef = QueryT . readRef
+  writeRef r = QueryT . writeRef r
+
+instance HasWebView m => HasWebView (QueryT t q m) where
+  type WebViewPhantom (QueryT t q m) = WebViewPhantom m
+  askWebView = QueryT askWebView
+
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (QueryT t q m) where
+  newEventWithTrigger = QueryT . newEventWithTrigger
+  newFanEventWithTrigger a = QueryT . lift $ newFanEventWithTrigger a
+
+runQueryT :: (MonadFix m, MonadHold t m, Monoid q, Reflex t) => QueryT t q m a -> Dynamic t (QueryResult q) -> m (a, Dynamic t q)
+runQueryT (QueryT a) = runReaderT (runDynamicWriterT a)
+
+mapQuery :: QueryMorphism q q' -> q -> q'
+mapQuery = _queryMorphism_mapQuery
+
+mapQueryResult :: QueryMorphism q q' -> QueryResult q' -> QueryResult q
+mapQueryResult = _queryMorphism_mapQueryResult
+
+withQueryT :: (MonadFix m, MonadHold t m, Monoid q, Monoid q', Query q', Reflex t)
+           => QueryMorphism q q' 
+           -> QueryT t q m a
+           -> QueryT t q' m a
+withQueryT f a = do
+  r' <- askQueryResult
+  (result, q) <- lift $ runQueryT a $ mapQueryResult f <$> r'
+  tellQueryDyn $ mapQuery f <$> q
+  return result
+
+type FocusWidgetInternal app t m = QueryT t (ViewSelector app ()) (RequestT t (AppRequest app)  m)
 
 newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
 
-instance (MonadAsyncException m) => MonadAsyncException (FocusWidget app t m) where
-  mask f = FocusWidget $ mask $ \unMask -> unFocusWidget $ f $ FocusWidget . unMask . unFocusWidget
-
 instance MonadTrans (FocusWidget app t) where
-  lift = FocusWidget . lift . lift . lift
+  lift = FocusWidget . lift . lift
 
 instance HasJS x m => HasJS x (FocusWidget app t m) where
   type JSM (FocusWidget app t m) = JSM m
@@ -83,18 +177,22 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
-class ( MonadWidget' t m
-      , MonadFix (WidgetHost m)
-      , MonadRequest t (AppRequest app) m
-      , HasFocus app
-      ) => MonadFocusWidget app t m | m -> app t where
-  askEnv :: m (Env app t)
-  tellInterest :: Dynamic t (ViewSelector app ()) -> m ()
-  getView :: m (Dynamic t (View app))
+instance MonadRequest t req m => MonadRequest t req (QueryT t q m) where
+  requesting = lift . requesting
+
+-- class ( MonadWidget' t m
+--       , MonadFix (WidgetHost m)
+--       , MonadRequest t (AppRequest app) m
+--       , HasFocus app
+--       ) => MonadFocusWidget app t m | m -> app t where
+--   askEnv :: m (Env app t)
+--   tellInterest :: Dynamic t (ViewSelector app ()) -> m ()
+--   getView :: m (Dynamic t (View app))
 
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
 type MonadFocusFrontendWidget app t m =
     ( MonadFocusWidget app t m
+    , DomBuilderSpace m ~ GhcjsDomSpace
     , MonadAsyncException m
     , MonadAsyncException (Performable m)
     )
@@ -104,30 +202,40 @@ class (HasView app) => HasEnv app where
   getToken :: Env app t -> Dynamic t (Maybe (Signed AuthToken)) -- This is a Maybe to handle logged-out interactions
   getViews :: Env app t -> Dynamic t (Map (Signed AuthToken) (View app))
 
-class (HasEnv app, HasRequest app, HasView app) => HasFocus app
+class (HasRequest app, HasView app) => HasFocus app
 
-instance ( HasFocus app
+
+class ( MonadWidget' t m
+      , MonadFix (WidgetHost m)
+      , MonadRequest t (AppRequest app) m
+      , HasFocus app
+      , MonadQuery t (ViewSelector app ()) m
+      ) => MonadFocusWidget app t m | m -> app t
+
+instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
-         , MonadWidget' t m
-         , MonadAtomicRef m
-         , MonadRequest t (AppRequest app) (FocusWidget app t m)
-         ) => MonadFocusWidget app t (FocusWidget app t m) where
-  askEnv = FocusWidget $ lift ask
-  tellInterest is = do
-    token <- asksEnv getToken
-    tellDyn $ zipDynWith (\mt is' -> maybe mempty (\t -> AppendMap (Map.singleton t is')) mt) token is
-  getView = do
-    token <- asksEnv getToken
-    views <- asksEnv getViews
-    return $ zipDynWith (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
+         , MonadRequest t (AppRequest app) m
+         , HasFocus app
+         , MonadQuery t (ViewSelector app ()) m
+         ) => MonadFocusWidget app t m 
 
-instance (Reflex t, HasEnv app, Monad m, a ~ ViewSelector app ()) => MonadDynamicWriter t (AppendMap (Signed AuthToken) a) (FocusWidget app t m) where
-  tellDyn = FocusWidget . lift . tellDyn
+--instance ( HasFocus app
+--         , MonadFix (WidgetHost m)
+--         , MonadWidget' t m
+--         , MonadAtomicRef m
+--         , MonadRequest t (AppRequest app) (FocusWidget app t m)
+--         ) => MonadFocusWidget app t (FocusWidget app t m) where
+--  askEnv = FocusWidget $ lift ask
+--  tellInterest is = do
+--    token <- asksEnv getToken
+--    tellDyn $ zipDynWith (\mt is' -> maybe mempty (\t -> AppendMap (Map.singleton t is')) mt) token is
+--  getView = do
+--    token <- asksEnv getToken
+--    views <- asksEnv getViews
+--    return $ zipDynWith (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
 watchViewSelector :: MonadFocusWidget app t m => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
-watchViewSelector s = do
-  tellInterest s
-  zipDynWith cropView s <$> getView
+watchViewSelector = queryDyn
 
 -- watchViewSelectorLens :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) c b -> Dynamic t b -> m (Dynamic t (View app))
 -- watchViewSelectorLens l sdyn = do
@@ -138,11 +246,11 @@ watchViewSelector s = do
 -- watchViewSelectorLensSet :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) b (Set.Set c) -> Dynamic t c -> m (Dynamic t (View app))
 -- watchViewSelectorLensSet l sdyn = watchViewSelectorLens l =<< mapDyn Set.singleton sdyn
 
-asksEnv :: MonadFocusWidget app t m => (Env app t -> a) -> m a
-asksEnv f = fmap f askEnv
-
-asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
-asksView f = fmap f <$> getView
+-- asksEnv :: MonadFocusWidget app t m => (Env app t -> a) -> m a
+-- asksEnv f = fmap f askEnv
+-- 
+-- asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
+-- asksView f = fmap f <$> getView
 
 
 --TODO: HasDocument is still not accounted for
@@ -167,34 +275,55 @@ type MonadWidget' t m =
   , Ref (Performable m) ~ Ref IO
   )
 
+
 runFocusWidget :: forall t m a x app. ( MonadWidget' t m
                                       , HasJS x m
-                                      , HasJS x (WidgetHost m)
                                       , HasFocus app
                                       , Eq (ViewSelector app ())
                                       )
-               => Dynamic t (Maybe (Signed AuthToken))
-               -> (Dynamic t (Maybe (Signed AuthToken)) -> Dynamic t (Map (Signed AuthToken) (View app)) -> Env app t)
+               => Signed AuthToken
                -> FocusWidget app t m a
-               -> m (a, Dynamic t (AppendMap (Signed AuthToken) (ViewSelector app ())))
-runFocusWidget tokenDyn mkEnv child = do
-  let child' = do
-        let is0 = ffor tokenDyn $ maybe mempty (\t -> AppendMap (Map.singleton t mempty))
-        tellDyn is0
-        child
+               -> m a
+runFocusWidget token child = do
   pb <- getPostBuild
-  rec ((a, patches), vs) <- runReaderT (runDynamicWriterT (runRequestT (leftmost [updated nubbedVs, tag (current nubbedVs) pb]) (unFocusWidget child'))) e
+  rec (notification, response) <- openWebSocket "/listen" request updatedVS
+      ((a, vs), request) <- flip runRequestT response $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
       let nubbedVs = uniqDyn vs
-      e <- fromNotifications nubbedVs patches
-  return (a, vs)
+          updatedVS = leftmost [updated nubbedVs, tag (current nubbedVs) pb]
+      e :: Dynamic t (AppendMap (Signed AuthToken) (QueryResult (ViewSelector app ()))) <- fromNotifications nubbedVs notification
+  return a
+
+fromNotifications :: forall m t k vs. (Query vs, MonadHold t m, Reflex t, MonadFix m, Ord k)
+                  => Dynamic t (AppendMap k vs)
+                  -> Event t (AppendMap k (QueryResult vs))
+                  -> m (Dynamic t (AppendMap k (QueryResult vs)))
+fromNotifications vs ePatch = do
+  views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) AppendMap.empty $ attach (current vs) ePatch
+  return views
   where
-    applyPatch' :: Ord k => AppendMap k (ViewPatch app) -> Map k (View app) -> Map k (View app)
-    applyPatch' (AppendMap m0) m1 = Map.mergeWithKey (\_ x y -> Just (patchView x y)) (fmap (\p -> patchView p emptyView)) (const Map.empty) m0 m1
-    cropView' :: Ord k => AppendMap k (ViewSelector app ()) -> Map k (View app) -> Map k (View app)
-    cropView' (AppendMap m0) m1 = Map.mergeWithKey (\_ x y -> Just (cropView x y)) (fmap (\c -> cropView c emptyView)) (const Map.empty) m0 m1
-    applyAndCrop :: Ord k => AppendMap k (ViewPatch app) -> AppendMap k (ViewSelector app ()) -> Map k (View app) -> Map k (View app)
-    applyAndCrop p vs v = cropView' vs $ applyPatch' p v
-    fromNotifications vs (ePatch :: Event t (AppendMap (Signed AuthToken) (ViewPatch app))) = do
-      views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) Map.empty $ attach (current vs) ePatch
-      return $ mkEnv tokenDyn views
+    applyPatch' m0 m1 = AppendMap.mergeWithKey (\_ x y -> Just (x <> y)) id (const AppendMap.empty) m0 m1
+    cropView' m0 m1 = AppendMap.mergeWithKey (\_ x y -> Just (cropView x y)) (fmap (\_ -> mempty)) (const AppendMap.empty) m0 m1
+    applyAndCrop p vs' v = cropView' vs' $ applyPatch' p v
+
+-- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
+openWebSocket :: forall t x m vs v.
+                 ( Reflex t, MonadIO m, MonadIO (Performable m), PostBuild t m, TriggerEvent t m, PerformEvent t m, HasWebView m, HasJS x m
+                 , FromJSON v, ToJSON vs
+                 )
+              => Text -- ^ URL
+              -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
+              -> Event t (AppendMap (Signed AuthToken) vs) -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> m ( Event t (AppendMap (Signed AuthToken) v)
+                   , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+                   )
+openWebSocket url request updatedVs = do
+      (eMessages :: Event t (Either Text (WebSocketData (AppendMap (Signed AuthToken) v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+        webSocket url $ WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat
+          [ fmap (map (uncurry WebSocketData_Api)) request
+          , fmap ((:[]) . WebSocketData_Listen) updatedVs
+          ]
+      --TODO: Handle parse errors returned by the backend
+      let notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
+          response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
+      return (notification, response)
 

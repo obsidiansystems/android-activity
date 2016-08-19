@@ -46,6 +46,13 @@ library
     template-haskell,
     text,
     these,
+    mtl,
+    dependent-map,
+    dependent-sum,
+    prim-uniq,
+    data-default,
+    constraints,
+    safe,
     time,
     timezone-olson,
     timezone-series,
@@ -58,7 +65,6 @@ library
     Focus.JS.App
     Focus.JS.Bootstrap
     Focus.JS.DesktopNotification
-    Focus.JS.Env
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap
     Focus.JS.Highlight

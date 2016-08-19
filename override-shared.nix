@@ -175,4 +175,8 @@ self: super: {
                 };
               });
       in dontCheck p;
+    postie = overrideCabal super.postie (drv: {
+      version = "0.5.0.1";
+      src = ./postie;
+    });
   }

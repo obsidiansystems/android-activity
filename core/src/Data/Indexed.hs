@@ -1,11 +1,11 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies, UndecidableInstances, ScopedTypeVariables, EmptyDataDecls, FlexibleInstances, StandaloneDeriving, DefaultSignatures #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies, UndecidableInstances, ScopedTypeVariables, EmptyDataDecls, FlexibleInstances, StandaloneDeriving, DefaultSignatures, LambdaCase #-}
 
 module Data.Indexed where
 
-import Control.Applicative
 import Control.Lens.At
 import Control.Lens (ifoldl, FoldableWithIndex(..), (.~), (%~), (&), itoList)
 import Control.Monad.Writer
+import Data.Aeson
 import Data.Foldable hiding (find, toList)
 import Data.Maybe
 import Data.Proxy
@@ -13,8 +13,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Focus.AppendMap (AppendMap)
 import qualified Focus.AppendMap as Map
-
-import Focus.Patch
 
 -- | This type adds a secondary index to a data structure. The first type parameter p is a phantom used to indicate the instance of 'Projection' to use
 -- in order to obtain keys for the additional index. The second type parameter f is intended to be some FoldableWithIndex data structure, such as some Map k or another
@@ -25,6 +23,22 @@ data WithIndex p f v = WithIndex { _withIndex_index :: AppendMap (Projected p (I
 
 deriving instance (Show (f v), Show (Projected p (IxValue (f v))), Show (Index (f v))) => Show (WithIndex p f v)
 deriving instance (Read (f v), Read (Projected p (IxValue (f v))), Ord (Projected p (IxValue (f v))), Ord (Index (f v)), Read (Index (f v))) => Read (WithIndex p f v)
+
+instance (FromJSON (f v), IxValue (f v) ~ v, Ord (Index (f v)), Ord (Projected p v), FoldableWithIndex (Index (f v)) f, Projection p v) => FromJSON (WithIndex p f v) where
+  parseJSON v = withIndex (Proxy :: Proxy p) <$> parseJSON v
+
+instance (ToJSON (f v)) => ToJSON (WithIndex p f v) where
+  toJSON = toJSON . _withIndex_data
+
+-- | WARNING: The mappend here mappends each value in the underlying data, even if this is not what the underlying Monoid instance would do
+--   WARNING: The mappend here will entirely rebuild the index of the left argument, so it must ALWAYS be invoked with the smaller argument on the left
+instance (IxValue (f v) ~ v, Monoid v, Ord (Index (f v)), Ord (Projected p v), FoldableWithIndex (Index (f v)) f, Projection p v, Monoid (f v), At (f v)) => Monoid (WithIndex p f v) where
+  mempty = withIndex (Proxy :: Proxy p) mempty
+  mappend w w' = merge' f w w'
+    where
+      f b = \case
+        Nothing -> Just b
+        Just a -> Just (b <> a)
 
 {-
 merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a
@@ -144,12 +158,8 @@ class Projection a v where
 merge :: (At a, FoldableWithIndex (Index a) f) => f (Maybe (IxValue a)) -> a -> a
 merge ps wi = ifoldl (\i b a -> b & at i .~ a) wi ps
 
-merge' :: (At a, FoldableWithIndex (Index a) f, Patchable (IxValue a)) => f (ElemPatch (IxValue a)) -> a -> a
-merge' ps wi = ifoldl (\i b a -> b & at i %~ aux a) wi ps
- where aux p mx = case p of
-         ElemPatch_Remove -> Nothing
-         ElemPatch_Insert v -> Just v
-         ElemPatch_Upsert p' mv -> fmap (patch p') mx <|> mv
+merge' :: (At a, FoldableWithIndex (Index a) f) => (b -> Maybe (IxValue a) -> Maybe (IxValue a)) -> f b -> a -> a
+merge' aux ps wi = ifoldl (\i b a -> b & at i %~ aux a) wi ps
 
 differenceByKey :: (Foldable t, At a) => t (Index a) -> a -> a
 differenceByKey ks wi = foldl (\b a -> b & at a .~ Nothing) wi ks
