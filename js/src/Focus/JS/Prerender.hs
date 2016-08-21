@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, TypeApplications, ConstraintKinds, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances, UndecidableInstances, Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables, TypeApplications, ConstraintKinds, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances, UndecidableInstances, Rank2Types, TypeFamilies, EmptyDataDecls #-}
 module Focus.JS.Prerender
        ( Prerender (..)
        , prerender
@@ -9,6 +9,7 @@ import Focus.JS.Request
 
 import Control.Monad.Reader
 import Data.Constraint
+import Reflex.Host.Class
 import Reflex.Dom
 
 type PrerenderClientConstraint js m = (HasJS js m, HasJS js (Performable m), MonadFix m, MonadFix (Performable m))
@@ -24,13 +25,18 @@ prerender server client = case prerenderClientDict :: Maybe (Dict (PrerenderClie
   Nothing -> server
   Just Dict -> client
 
-instance (HasJS js (Widget x), HasJS js (Performable (Widget x))) => Prerender js (Widget x) where
+instance (HasJS js m, HasJS js (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
   prerenderClientDict = Just Dict
 
-instance (HasJS js (Widget x), HasJS js (Performable (Widget x))) => Prerender js (StaticWidget x) where
+data NoJavaScript -- This type should never have a HasJS instance
+
+instance js ~ NoJavaScript => Prerender js (StaticDomBuilderT t m) where
   prerenderClientDict = Nothing
 
 instance Prerender js m => Prerender js (FocusWidget env t m) where
+  prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
+
+instance (Prerender js m, ReflexHost t) => Prerender js (PostBuildT t m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
 instance Prerender js m => Prerender js (DynamicWriterT t w m) where
