@@ -27,6 +27,9 @@ prerender server client = case prerenderClientDict :: Maybe (Dict (PrerenderClie
 instance (HasJS js (Widget x), HasJS js (Performable (Widget x))) => Prerender js (Widget x) where
   prerenderClientDict = Just Dict
 
+instance (HasJS js (Widget x), HasJS js (Performable (Widget x))) => Prerender js (StaticWidget x) where
+  prerenderClientDict = Nothing
+
 instance Prerender js m => Prerender js (FocusWidget env t m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
@@ -37,4 +40,7 @@ instance Prerender js m => Prerender js (ReaderT w m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
 instance Prerender js m => Prerender js (RequestT t req m) where
+  prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
+
+instance Prerender js m => Prerender js (QueryT t q m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)

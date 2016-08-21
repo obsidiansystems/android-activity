@@ -147,7 +147,7 @@ type RequestOutput t req = Event t [((Int64, Int64), SomeRequest req)]
 minId :: Int64
 minId = 1
 
-newtype RequestT t req m a = 
+newtype RequestT t req m a =
   RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a }
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException)
 
@@ -212,10 +212,6 @@ instance HasJS x m => HasJS x (RequestT t req m) where
 instance HasWebView m => HasWebView (RequestT t req m) where
   type WebViewPhantom (RequestT t req m) = WebViewPhantom m
   askWebView = lift askWebView
-
-instance HasJS x m => HasJS x (RequestT t req m) where
-  type JSM (RequestT t req m) = JSM m
-  liftJS = lift . liftJS
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t req m) where
   newEventWithTrigger = lift . newEventWithTrigger
