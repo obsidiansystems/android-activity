@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+VERSION="$1"
+shift
+
+# TODO: Find a way to avoid redownloading chrome every time
+BINARY_PATH="$(nix-prefetch-url "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_$VERSION-1_amd64.deb" --print-path 2>/dev/null | tail -n 1)"
+
+TMPDIR=$(mktemp -d 2>/dev/null || mktemp -d -t "google-chrome-$(echo "$VERSION" | sed 's/\..*$//')")
+trap "rm -rf \"$TMPDIR\"" EXIT
+
+# Prevent chrome from asking to make itself the default browser
+touch "$TMPDIR/First Run"
+
+nix-shell -p "((import $DIR/reflex-platform {}).nixpkgs.google-chrome.override { chromium.upstream-info = { version = \"$VERSION\"; binary = \"/nix/store/vcjj17n2nkf8bnf4hgkqhqbvcg2b3kr3-google-chrome-stable_$VERSION-1_amd64.deb\"; channel = \"stable\"; }; })" --run "google-chrome-stable --user-data-dir=$TMPDIR"
