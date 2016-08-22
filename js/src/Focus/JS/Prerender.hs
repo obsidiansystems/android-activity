@@ -57,3 +57,6 @@ instance Prerender js m => Prerender js (RequestT t req m) where
 
 instance Prerender js m => Prerender js (QueryT t q m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
+
+instance Prerender js m => Prerender js (InputDisabledT m) where
+  prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
