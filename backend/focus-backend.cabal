@@ -67,7 +67,10 @@ library
     data-default,
     raw-strings-qq,
     these,
-    attoparsec
+    attoparsec,
+    mustache,
+    parsec,
+    vector
 
   exposed-modules:
       Focus.Backend
@@ -75,6 +78,7 @@ library
     , Focus.Backend.DB
     , Focus.Backend.Listen
     , Focus.Backend.Email
+    , Focus.Backend.Mustache
     , Focus.Backend.Schema.TH
     , Focus.Backend.Subscription
     , Focus.Backend.TH
