@@ -12,7 +12,14 @@ import Data.Constraint
 import Reflex.Host.Class
 import Reflex.Dom
 
-type PrerenderClientConstraint js m = (HasJS js m, HasJS js (Performable m), MonadFix m, MonadFix (Performable m))
+type PrerenderClientConstraint js m =
+  ( HasJS js m
+  , HasJS js (Performable m)
+  , HasWebView m
+  , HasWebView (Performable m)
+  , MonadFix m
+  , MonadFix (Performable m)
+  )
 
 class Prerender js m | m -> js where
   prerenderClientDict :: Maybe (Dict (PrerenderClientConstraint js m))
@@ -25,7 +32,7 @@ prerender server client = case prerenderClientDict :: Maybe (Dict (PrerenderClie
   Nothing -> server
   Just Dict -> client
 
-instance (HasJS js m, HasJS js (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
+instance (HasJS js m, HasJS js (Performable m), HasWebView m, HasWebView (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
   prerenderClientDict = Just Dict
 
 data NoJavaScript -- This type should never have a HasJS instance
