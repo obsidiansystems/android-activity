@@ -25,6 +25,7 @@ import qualified Data.Map as Map
 import Data.Constraint
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 
 import Debug.Trace.LocationTH
 
@@ -37,7 +38,7 @@ instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t -> m (WebSocket t)
+webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (WebSocket t)
 webSocket path config = do
   pageHost <- liftIO . getLocationHost =<< askWebView
   pageProtocol <- liftIO . getLocationProtocol =<< askWebView
@@ -100,5 +101,5 @@ apiSocket path batches = do
                 return (finishedResponses, at (n, m) .~ Nothing)
               GT -> $undef
           result = fmapMaybe fst change
-          encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
+          encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> decodeUtf8 $  LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)

@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8)
 import Focus.Account
 import Focus.Api
 import Focus.App
@@ -227,7 +228,7 @@ instance ( MonadWidget' t m
          , MonadRequest t (AppRequest app) m
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
-         ) => MonadFocusWidget app t m 
+         ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
 --         , MonadFix (WidgetHost m)
@@ -258,7 +259,7 @@ watchViewSelector = queryDyn
 
 -- asksEnv :: MonadFocusWidget app t m => (Env app t -> a) -> m a
 -- asksEnv f = fmap f askEnv
--- 
+--
 -- asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
 -- asksView f = fmap f <$> getView
 
@@ -340,7 +341,7 @@ openWebSocket :: forall t x m vs v k.
                    )
 openWebSocket url request updatedVs = do
       (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-        webSocket url $ WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat
+        webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
           [ fmap (map (uncurry WebSocketData_Api)) request
           , fmap ((:[]) . WebSocketData_Listen) updatedVs
           ]
@@ -348,4 +349,3 @@ openWebSocket url request updatedVs = do
       let notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
           response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
       return (notification, response)
-
