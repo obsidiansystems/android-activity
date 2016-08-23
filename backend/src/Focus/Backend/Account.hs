@@ -38,7 +38,6 @@ import qualified Data.Text as T
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes as A
-import Text.Mustache.Types
 import Data.List.NonEmpty
 
 mkPersist defaultCodegenConfig [groundhog|
@@ -169,7 +168,7 @@ sendNewAccountEmail f prt email = do
   body <- newAccountEmail f prt
   sendEmailDefault (email :| []) (pn <> " Verification Email") body
 
-sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m, Default r) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
 sendPasswordResetEmail f baseUrl unsubscribeUrl needHelpUrl privacyPolicyUrl prt email = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
   let resetPasswordUrl = T.pack $ show passwordResetLink

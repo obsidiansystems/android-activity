@@ -10,7 +10,6 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , liftWithConn
                                    ) where
 
-import Control.Applicative
 import Control.Exception
 import Control.Monad.Reader.Class
 import Control.Monad.State
