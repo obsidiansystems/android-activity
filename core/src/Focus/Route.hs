@@ -7,8 +7,8 @@ import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
-import qualified Data.Text as T
 import Data.Monoid
+import qualified Data.Text as T
 import Data.Text.Encoding
 import Network.URI
 
@@ -26,9 +26,12 @@ instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
   routeToUrl r = do
     (baseProto, baseHost, basePort) <- RouteT ask
     let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
-    return $ if r == def
-             then base "" ""
-             else base ("?x=" <> (T.unpack $ decodeUtf8 $ LBS.toStrict $ encode r)) "" --TODO: https
+    return $ base (routeToQuery r) "" --TODO: https
+
+routeToQuery :: (ToJSON r, Default r, Eq r) => r -> String
+routeToQuery r = if r == def
+  then ""
+  else "?x=" <> (T.unpack $ decodeUtf8 $ LBS.toStrict $ encode r)
 
 instance MonadRoute r m => MonadRoute r (ReaderT a m) where
   routeToUrl r = lift $ routeToUrl r
