@@ -337,6 +337,7 @@ rec {
                 system = "x86_64-linux";
                 configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
                   environment.systemPackages = with pkgs; [
+                    rsync
                     emacs24-nox
                     git
                     rxvt_unicode.terminfo
