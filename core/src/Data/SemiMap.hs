@@ -20,6 +20,11 @@ data SemiMap k v
    | SemiMap_Partial (AppendMap k (First (Maybe v)))
    deriving (Show, Read, Eq, Ord, Foldable, Generic)
 
+getComplete :: SemiMap k v -> Maybe (AppendMap k v)
+getComplete = \case
+  SemiMap_Complete m -> Just m
+  SemiMap_Partial _ -> Nothing
+
 knownKeysSet :: SemiMap k v -> Set k
 knownKeysSet = \case
   SemiMap_Complete x -> Map.keysSet x
