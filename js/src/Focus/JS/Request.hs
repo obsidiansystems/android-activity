@@ -147,7 +147,7 @@ type RequestOutput t req = Event t [((Int64, Int64), SomeRequest req)]
 minId :: Int64
 minId = 1
 
-newtype RequestT t req m a = 
+newtype RequestT t req m a =
   RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a }
  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException)
 

@@ -1,0 +1,39 @@
+0 info it worked if it ends with ok
+1 verbose cli [ '/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/bin/node',
+1 verbose cli   '/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/bin/npm',
+1 verbose cli   'start' ]
+2 info using npm@2.14.12
+3 info using node@v4.3.1
+4 verbose run-script [ 'prestart', 'start', 'poststart' ]
+5 info prestart emails@0.0.1
+6 info start emails@0.0.1
+7 verbose unsafe-perm in lifecycle true
+8 info emails@0.0.1 Failed to exec start script
+9 verbose stack Error: emails@0.0.1 start: `gulp`
+9 verbose stack Exit status 1
+9 verbose stack     at EventEmitter.<anonymous> (/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/lib/node_modules/npm/lib/utils/lifecycle.js:214:16)
+9 verbose stack     at emitTwo (events.js:87:13)
+9 verbose stack     at EventEmitter.emit (events.js:172:7)
+9 verbose stack     at ChildProcess.<anonymous> (/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/lib/node_modules/npm/lib/utils/spawn.js:24:14)
+9 verbose stack     at emitTwo (events.js:87:13)
+9 verbose stack     at ChildProcess.emit (events.js:172:7)
+9 verbose stack     at maybeClose (internal/child_process.js:821:16)
+9 verbose stack     at Process.ChildProcess._handle.onexit (internal/child_process.js:211:5)
+10 verbose pkgid emails@0.0.1
+11 verbose cwd /mnt/important/home/ryan/lanehoney/lanehoney-email-generator/focus/emails-test
+12 error Linux 4.4.14
+13 error argv "/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/bin/node" "/nix/store/vpb5b3j0yj1ikmn1di9yrl2sax3czb43-nodejs-4.3.1/bin/npm" "start"
+14 error node v4.3.1
+15 error npm  v2.14.12
+16 error code ELIFECYCLE
+17 error emails@0.0.1 start: `gulp`
+17 error Exit status 1
+18 error Failed at the emails@0.0.1 start script 'gulp'.
+18 error This is most likely a problem with the emails package,
+18 error not with npm itself.
+18 error Tell the author that this fails on your system:
+18 error     gulp
+18 error You can get their info via:
+18 error     npm owner ls emails
+18 error There is likely additional logging output above.
+19 verbose exit [ 1, true ]

@@ -182,6 +182,7 @@ rec {
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
         frontend_ = frontend;
+        emails = (import ./emails {}).build;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
@@ -194,6 +195,7 @@ rec {
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
+          ln -s "$emails" "$out/emails"
         '';
         # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
         # androidApp = nixpkgs.androidenv.buildApp {

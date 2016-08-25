@@ -30,6 +30,7 @@ library
                , lens
                , loch-th
                , mtl
+               , mime-mail
                , network-uri
                , old-locale
                , reflex
@@ -49,6 +50,7 @@ library
     , Focus.Replaceable
     , Focus.Api
     , Focus.Brand
+    , Focus.Email
     , Focus.Misc
     , Focus.Pretty
     , Focus.Request

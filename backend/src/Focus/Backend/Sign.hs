@@ -4,9 +4,9 @@ module Focus.Backend.Sign where
 
 import Focus.Sign
 import Focus.Brand
+import Focus.Email
 import Focus.Route
 import Focus.Request
-import Focus.Backend.Email
 import Focus.Backend.TH
 
 import Control.Monad.Base

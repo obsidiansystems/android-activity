@@ -35,20 +35,20 @@ ensureSecure port h = do
     host <- getsRequest rqServerName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
 
-data AppConfig
+data AppConfig m
    = AppConfig { _appConfig_logo :: Diagram SVG
                , _appConfig_extraHeadMarkup :: Html ()
                , _appConfig_initialStyles :: Maybe Text
-               , _appConfig_initialBody :: Maybe ByteString
+               , _appConfig_initialBody :: Maybe (m ByteString)
                , _appConfig_initialHead :: Maybe ByteString
                , _appConfig_serveJsexe :: Bool
                }
 
-instance Default AppConfig where
+instance Default (AppConfig m) where
   def = AppConfig { _appConfig_logo = mempty
                   , _appConfig_extraHeadMarkup = mempty
                   , _appConfig_initialStyles = mempty
-                  , _appConfig_initialBody = mempty
+                  , _appConfig_initialBody = Nothing
                   , _appConfig_initialHead = mempty
                   , _appConfig_serveJsexe = True
                   }
@@ -56,7 +56,7 @@ instance Default AppConfig where
 frontendJsexeAssets :: FilePath
 frontendJsexeAssets = "frontend.jsexe.assets"
 
-serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig -> m ()
+serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig m -> m ()
 serveAppAt loc app cfg = do
   route $ [ (loc, ifTop $ serveStaticIndex cfg)
           , (loc, serveAssets (app </> "assets") (app </> "static"))
@@ -68,13 +68,13 @@ serveAppAt loc app cfg = do
           , (loc, doNotCache >> error404)
           ]
 
-serveApp :: MonadSnap m => FilePath -> AppConfig -> m ()
+serveApp :: MonadSnap m => FilePath -> AppConfig m -> m ()
 serveApp = serveAppAt ""
 
-serveStaticIndex :: MonadSnap m => AppConfig -> m ()
+serveStaticIndex :: MonadSnap m => AppConfig m -> m ()
 serveStaticIndex cfg = do
   appJsPath <- liftIO $ getAssetPath frontendJsexeAssets "all.js"
-  let initialBody = fromMaybe "" $ _appConfig_initialBody cfg
+  initialBody <- fromMaybe (return "") $ _appConfig_initialBody cfg
   let initialHead = fromMaybe "" $ _appConfig_initialHead cfg
   let initialStyles = fromMaybe "" $ _appConfig_initialStyles cfg
 
@@ -91,7 +91,7 @@ serveStaticIndex cfg = do
       return ()
 
 
-serveIndex :: MonadSnap m => AppConfig -> m ()
+serveIndex :: MonadSnap m => AppConfig m -> m ()
 serveIndex cfg = do
   appJsPath <- liftIO $ getAssetPath frontendJsexeAssets "all.js"
   writeLBS $ renderBS $ doctypehtml_ $ do

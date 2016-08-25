@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8)
 import Focus.Account
 import Focus.Api
 import Focus.App
@@ -105,13 +106,23 @@ mapQueryResult :: QueryMorphism q q' -> QueryResult q' -> QueryResult q
 mapQueryResult = _queryMorphism_mapQueryResult
 
 withQueryT :: (MonadFix m, MonadHold t m, Monoid q, Monoid q', Query q', Reflex t)
-           => QueryMorphism q q' 
+           => QueryMorphism q q'
            -> QueryT t q m a
            -> QueryT t q' m a
 withQueryT f a = do
   r' <- askQueryResult
   (result, q) <- lift $ runQueryT a $ mapQueryResult f <$> r'
   tellQueryDyn $ mapQuery f <$> q
+  return result
+
+dynWithQueryT :: (MonadFix m, MonadHold t m, Monoid q, Monoid q', Query q', Reflex t)
+           => Dynamic t (QueryMorphism q q')
+           -> QueryT t q m a
+           -> QueryT t q' m a
+dynWithQueryT f a = do
+  r' <- askQueryResult
+  (result, q) <- lift $ runQueryT a $ zipDynWith mapQueryResult f r'
+  tellQueryDyn $ zipDynWith mapQuery f q
   return result
 
 type FocusWidgetInternal app t m = QueryT t (ViewSelector app ()) (RequestT t (AppRequest app)  m)
@@ -217,7 +228,7 @@ instance ( MonadWidget' t m
          , MonadRequest t (AppRequest app) m
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
-         ) => MonadFocusWidget app t m 
+         ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
 --         , MonadFix (WidgetHost m)
@@ -242,13 +253,13 @@ watchViewSelector = queryDyn
 --   s <- mapDyn (\s' -> mempty & l .~ s') sdyn
 --   tellInterest s
 --   combineDyn cropView s =<< getView
--- 
+--
 -- watchViewSelectorLensSet :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) b (Set.Set c) -> Dynamic t c -> m (Dynamic t (View app))
 -- watchViewSelectorLensSet l sdyn = watchViewSelectorLens l =<< mapDyn Set.singleton sdyn
 
 -- asksEnv :: MonadFocusWidget app t m => (Env app t -> a) -> m a
 -- asksEnv f = fmap f askEnv
--- 
+--
 -- asksView :: MonadFocusWidget app t m => ((View app) -> a) -> m (Dynamic t a)
 -- asksView f = fmap f <$> getView
 
@@ -265,8 +276,8 @@ type MonadWidget' t m =
   , MonadIO m
   , MonadIO (Performable m)
   , TriggerEvent t m
-  , HasWebView m
-  , HasWebView (Performable m)
+  -- , HasWebView m
+  -- , HasWebView (Performable m)
   -- , MonadAsyncException m
   -- , MonadAsyncException (Performable m)
   , MonadRef m
@@ -277,6 +288,7 @@ type MonadWidget' t m =
 
 
 runFocusWidget :: forall t m a x app. ( MonadWidget' t m
+                                      , HasWebView m
                                       , HasJS x m
                                       , HasFocus app
                                       , Eq (ViewSelector app ())
@@ -306,19 +318,30 @@ fromNotifications vs ePatch = do
     applyAndCrop p vs' v = cropView' vs' $ applyPatch' p v
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
-openWebSocket :: forall t x m vs v.
-                 ( Reflex t, MonadIO m, MonadIO (Performable m), PostBuild t m, TriggerEvent t m, PerformEvent t m, HasWebView m, HasJS x m
-                 , FromJSON v, ToJSON vs
+openWebSocket :: forall t x m vs v k.
+                 ( Reflex t
+                 , MonadIO m
+                 , MonadIO (Performable m)
+                 , PostBuild t m
+                 , TriggerEvent t m
+                 , PerformEvent t m
+                 , HasWebView m
+                 , HasJS x m
+                 , FromJSON v
+                 , ToJSON vs
+                 , Ord k
+                 , ToJSON k
+                 , FromJSON k
                  )
               => Text -- ^ URL
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
-              -> Event t (AppendMap (Signed AuthToken) vs) -- ^ Authenticated listen requests (e.g., ViewSelector updates)
-              -> m ( Event t (AppendMap (Signed AuthToken) v)
+              -> Event t (AppendMap k vs) -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> m ( Event t (AppendMap k v)
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
 openWebSocket url request updatedVs = do
-      (eMessages :: Event t (Either Text (WebSocketData (AppendMap (Signed AuthToken) v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-        webSocket url $ WebSocketConfig $ fmap (map (LBS.toStrict . encode)) $ mconcat
+      (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
+        webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
           [ fmap (map (uncurry WebSocketData_Api)) request
           , fmap ((:[]) . WebSocketData_Listen) updatedVs
           ]
@@ -326,4 +349,3 @@ openWebSocket url request updatedVs = do
       let notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
           response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
       return (notification, response)
-
