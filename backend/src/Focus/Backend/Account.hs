@@ -56,44 +56,44 @@ migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
 -- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m, SqlDb (PhantomDb m)) => Email -> m (Maybe (Id Account))
+ensureAccountExists :: (PersistBackend m, SqlDb (PhantomDb m)) => Email -> m (Bool, Id Account)
 ensureAccountExists email = do
   nonce <- getTime
-  mExists <- fmap listToMaybe $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
-  case mExists of
-    Just _ -> return Nothing
+  mPrevId <- fmap (listToMaybe . fmap toId) $ project AutoKeyField (lower Account_emailField ==. T.toLower email)
+  case mPrevId of
+    Just prevId -> return (False, prevId)
     Nothing -> do
       result <- insertByAll $ Account email Nothing (Just nonce)
       case result of
-        Left _ -> return Nothing
+        -- TODO: Better way to handle errors?
+        Left _ -> error "ensureAccountExists: Creating account failed"
         Right aid -> do
           let aid' = toId aid
           notifyEntityId NotificationType_Insert aid'
-          return (Just aid')
+          return (True, aid')
 
 -- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
   :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m))
   => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
-  -> m (Maybe (Id Account))
+  -> m (Bool, Id Account)
 ensureAccountExistsEmail = ensureAccountExistsEmail' ensureAccountExists
 
 -- Creates account if it doesn't already exist and sends pw email
 -- Allows the option for a custom "ensure account" creation function
 ensureAccountExistsEmail'
   :: (PersistBackend m, MonadSign m)
-  => (Email -> m (Maybe (Id Account)))
+  => (Email -> m (Bool, Id Account))
   -> (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
   -> Email
-  -> m (Maybe (Id Account))
+  -> m (Bool, Id Account)
 ensureAccountExistsEmail' ensureAccount pwEmail email = do
-  maid <- ensureAccount email
-  forM_ maid $ \aid -> do
-    mNonce <- generateAndSendPasswordResetEmail pwEmail aid
-    forM_ mNonce $ \nonce -> do
-      update [Account_passwordResetNonceField =. Just nonce] (Account_emailField ==. email)
-  return maid
+  ret@(_, aid) <- ensureAccount email
+  mNonce <- generateAndSendPasswordResetEmail pwEmail aid
+  forM_ mNonce $ \nonce -> do
+    update [Account_passwordResetNonceField =. Just nonce] (Account_emailField ==. email)
+  return ret
 
 generatePasswordResetToken :: (PersistBackend m, MonadSign m) => Id Account -> m (Signed PasswordResetToken)
 generatePasswordResetToken aid = do
