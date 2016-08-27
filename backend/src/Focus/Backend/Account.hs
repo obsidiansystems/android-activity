@@ -168,8 +168,16 @@ sendNewAccountEmail f prt email = do
   body <- newAccountEmail f prt
   sendEmailDefault (email :| []) (pn <> " Verification Email") body
 
-sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
-sendPasswordResetEmail f baseUrl unsubscribeUrl needHelpUrl privacyPolicyUrl prt email = do
+sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetEmail f prt email = do
+  passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
+  pn <- getProductName
+  let lead = "You have received this message because you requested that your " <> pn <> " password be reset. Click the link below to create a new password."
+      body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
+  sendEmailDefault (email :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
+
+sendPasswordResetMustacheEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetMustacheEmail f baseUrl unsubscribeUrl needHelpUrl privacyPolicyUrl prt email = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
   let resetPasswordUrl = T.pack $ show passwordResetLink
   pn <- getProductName
