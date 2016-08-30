@@ -235,7 +235,7 @@ searchInput' v0 setV attrs results listBuilder = do
   modAttrs <- dynamicAttributesToModifyAttributes attrs
   rec input <- inputElement $ def
         & inputElementConfig_setValue .~ eSetValue
-        & modifyAttributes .~ modAttrs
+        & modifyAttributes .~ fmap mapKeysToAttributeName modAttrs
         & inputElementConfig_initialValue .~ v0
       let enter = ffilter ((== Enter) . keyCodeLookup) $ domEvent Keypress input
       dResults <- holdDyn mempty $ leftmost [eClearResults, results]

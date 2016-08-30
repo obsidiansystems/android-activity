@@ -28,7 +28,7 @@ elDynAttrHide elementTag attrs child = do
   let cfg = def
         & initialAttributes .~ "style" =: "display: none;"
         & elementConfig_namespace .~ Nothing
-        & modifyAttributes .~ modifyAttrs
+        & modifyAttributes .~ fmap mapKeysToAttributeName modifyAttrs
   snd <$> element elementTag cfg child
 
 -- | refreshWidget w is a widget which acts like w, except it restarts whenever the Event that w produces is fired. This is useful for blanking forms on submit, for instance.
