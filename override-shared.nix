@@ -1,4 +1,4 @@
-{ nixpkgs }:
+{ nixpkgs, filterGitSource }:
 
 with nixpkgs.haskell.lib;
 let inherit (nixpkgs) stdenv;
@@ -39,7 +39,7 @@ self: super: {
     groundhog = self.mkDerivation ({
       pname = "groundhog";
       version = "0.7.0.3";
-      src = ./groundhog/groundhog;
+      src = filterGitSource ./groundhog/groundhog;
       jailbreak = true;
       configureFlags = [ "--ghc-option=-XUndecidableSuperClasses" ];
       buildDepends = with self; [
@@ -52,13 +52,13 @@ self: super: {
       platforms = self.ghc.meta.platforms;
     });
     groundhog-th = overrideCabal super.groundhog-th (drv: {
-      src = ./groundhog/groundhog-th;
+      src = filterGitSource ./groundhog/groundhog-th;
       sha256 = null;
       revision = null;
       editedCabalFile = null;
     });
     groundhog-postgresql = overrideCabal super.groundhog-postgresql (drv: {
-      src = ./groundhog/groundhog-postgresql;
+      src = filterGitSource ./groundhog/groundhog-postgresql;
       sha256 = null;
       revision = null;
       editedCabalFile = null;
@@ -86,7 +86,7 @@ self: super: {
     stripe = self.mkDerivation ({
       pname = "stripe";
       license = null;
-      src = ./hs-stripe;
+      src = filterGitSource ./hs-stripe;
       buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-dom reflex-dom ];
       version = "0.8.3";
     });
@@ -105,35 +105,35 @@ self: super: {
     });
     amazonka = overrideCabal super.amazonka (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka;
+      src = filterGitSource ./amazonka/amazonka;
     });
     amazonka-core = overrideCabal super.amazonka-core (drv: {
       version = "0.3.4";
-      src = ./amazonka/core;
+      src = filterGitSource ./amazonka/core;
     });
     amazonka-ec2 = overrideCabal super.amazonka-ec2 (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-ec2;
+      src = filterGitSource ./amazonka/amazonka-ec2;
     });
     amazonka-s3 = overrideCabal super.amazonka-s3 (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-s3;
+      src = filterGitSource ./amazonka/amazonka-s3;
     });
     amazonka-route53 = overrideCabal super.amazonka-route53 (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-route53;
+      src = filterGitSource ./amazonka/amazonka-route53;
     });
     amazonka-cloudwatch = overrideCabal super.amazonka-cloudwatch (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-cloudwatch;
+      src = filterGitSource ./amazonka/amazonka-cloudwatch;
     });
     amazonka-iam = overrideCabal super.amazonka-iam (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-iam;
+      src = filterGitSource ./amazonka/amazonka-iam;
     });
     amazonka-sts = overrideCabal super.amazonka-sts (drv: {
       version = "0.3.4";
-      src = ./amazonka/amazonka-sts;
+      src = filterGitSource ./amazonka/amazonka-sts;
     });
     JuicyPixels = overrideCabal super.JuicyPixels (drv: {
       jailbreak = true;
@@ -177,6 +177,6 @@ self: super: {
       in dontCheck p;
     postie = overrideCabal super.postie (drv: {
       version = "0.5.0.1";
-      src = ./postie;
+      src = filterGitSource ./postie;
     });
   }

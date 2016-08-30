@@ -39,7 +39,7 @@ rec {
       staticSrc = filterGitSource ../static;
       testsSrc = filterGitSource ../tests;
 
-      sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs; }) self super
+      sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
         // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
@@ -178,14 +178,15 @@ rec {
         name = "${appName}-${appVersion}";
         assets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
+        frontendJsexeAssets = mkAssets "${ghcjsApp.unminified}/bin/frontend.jsexe";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
         frontend_ = frontend;
-        emails = (import ./emails {}).build;
+        emails = if builtins.pathExists ../emails then (import ./emails {}).build else null;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
+          set -x
 
           mkdir -p "$out"
           ln -s "$assets" "$out/assets"
@@ -196,7 +197,9 @@ rec {
           ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
-          ln -s "$emails" "$out/emails"
+          if [ -n "''${emails+x}" ] ; then
+            ln -s "$emails" "$out/emails"
+          fi
         '';
         # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
         # androidApp = nixpkgs.androidenv.buildApp {
