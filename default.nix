@@ -284,6 +284,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
+          inherit assets;
           frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
