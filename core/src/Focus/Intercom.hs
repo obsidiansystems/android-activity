@@ -1,6 +1,7 @@
-{-# LANGUAGE RecordWildCards, TemplateHaskell, OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards, TemplateHaskell, OverloadedStrings, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 module Focus.Intercom where
 
+import Control.Exception
 import Control.Lens (makeLenses)
 import Data.Aeson.Compat
 import Data.Aeson.Types
@@ -89,8 +90,12 @@ getIntercomUsers env = do
     getReq env' url = do
       man <- newManager tlsManagerSettings
       req <- fmap (asJson . applyBasicAuth user pass) $ parseUrlThrow url
-      res <- httpLbs req man
-      return $ responseBody res
+      res <- try $ httpLbs req man
+      case res of
+        Left (err :: HttpException) -> do
+          putStrLn $ "getIntercomUsers: " <> show err
+          return mempty
+        Right res' -> return $ responseBody res'
       where
         user = T.encodeUtf8 $ _intercomEnv_appId env'
         pass = T.encodeUtf8 $ unIntercomSecretKey $ _intercomEnv_secretKey env'
