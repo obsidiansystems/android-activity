@@ -306,7 +306,13 @@ rec {
           defaultBackendUid = 500;
           defaultBackendGid = 500;
           qemuInfoBlockDelimiter = "GUEST INFO";
-          completeServer = { hostName, ssl ? false, adminEmail ? "ops@obsidian.systems", extraRootKey ? null }:
+          countCharsWhere = f: str: builtins.length (builtins.filter f (pkgs.lib.stringToCharacters str));
+          completeServer = { hostName
+                           , ssl ? false
+                           , adminEmail ? "ops@obsidian.systems"
+                           , extraRootKey ? null
+                           , hasWwwSubdomain ? countCharsWhere (c: c == ".") hostName == 1 # We assume that domains of the form "abc.xyz" will also have a www subdomain, but domains with more components will not
+                           }:
             let acmeWebRoot = "/srv/acme/";
                 nginxService = {locations}:
                   let locationConfig = path: port: ''
@@ -401,9 +407,9 @@ rec {
                     postRun = ''
                       systemctl reload-or-restart nginx.service
                     '';
-                    extraDomains = {
+                    extraDomains = if hasWwwSubdomain then {
                       "www.${hostName}" = null;
-                    };
+                    } else {};
                   };
                 });
                 nixos = import "${nixpkgs.path}/nixos";
