@@ -64,6 +64,7 @@ library
     Focus.JS.AltInput
     Focus.JS.App
     Focus.JS.Bootstrap
+    Focus.JS.Cookie
     Focus.JS.DesktopNotification
     Focus.JS.FontAwesome
     Focus.JS.GoogleMap

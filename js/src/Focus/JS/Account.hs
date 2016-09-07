@@ -23,6 +23,8 @@ import qualified GHCJS.DOM.Storage as DOM
 import Reflex.Dom
 import Web.Cookie
 
+--TODO: A more general cookie API is in Focus.JS.Cookie and this module should use that for cookie management
+
 -- | Run a widget with an auth
 withPermanentAuthTokenFromCookie :: (MonadIO m, HasWebView m, MonadIO (Performable m), HasWebView (Performable m), PerformEvent t m)
                                     => DOM.Document
