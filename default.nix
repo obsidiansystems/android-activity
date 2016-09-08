@@ -266,7 +266,14 @@ rec {
                 pname = "${appName}-tests";
                 license = null;
                 version = appVersion;
-                src = testsSrc;
+                src = nixpkgs.runCommand "tests-src" {
+                  buildCommand = ''
+                    mkdir "$out"
+                    ln -s "${commonSrc}"/src/* "$out"/
+                    ln -s "${testsSrc}"/src/* "$out"/
+                  '';
+                } "";
+
                 preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
@@ -274,7 +281,7 @@ rec {
                 buildDepends = [
                   vector-algorithms
                   focus-core focus-backend focus-client
-                ] ++ testDepends backendHaskellPackages;
+                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages;
                 buildTools = [] ++ testTools pkgs;
                 isExecutable = true;
                 configureFlags = [ "--ghc-option=-lgcc_s" ];

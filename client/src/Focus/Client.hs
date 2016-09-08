@@ -86,16 +86,16 @@ requestEnv c = RequestEnv
   conn = _clientEnv_connection c
 
 --TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
-listener :: HasView app => ClientEnv app -> IO ()
+listener :: forall app. HasView app => ClientEnv app -> IO ()
 listener env = handleConnectionException $ forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
-  (mma :: Either Text (WebSocketData (AppendMap (Signed AuthToken) (ViewPatch app)) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
+  (mma :: Either Text (WebSocketData (AppendMap (Signed AuthToken) (View app)) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
   liftIO $ atomically $ runMaybeT $ case ma of
     WebSocketData_Listen (AppendMap pmap) -> do
       lift $ modifyTVar' (_clientEnv_viewMap env) $ Map.mergeWithKey
-        (\_ x y -> Just (patchView x y))
-        (fmap (\p -> patchView p emptyView))
+        (\_ x y -> Just (x <> y))
+        id
         (const Map.empty)
         pmap
       lift (writeTChan (_clientEnv_notifyViewChange env) ())
