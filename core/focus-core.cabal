@@ -47,7 +47,6 @@ library
   exposed-modules:
       Focus.Account
     , Focus.AppendMap
-    , Focus.Replaceable
     , Focus.Api
     , Focus.Brand
     , Focus.Email
