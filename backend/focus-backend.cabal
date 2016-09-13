@@ -20,6 +20,7 @@ library
     aeson,
     base,
     bytestring,
+    base64-bytestring,
     containers,
     groundhog,
     groundhog-th,
@@ -70,10 +71,12 @@ library
     attoparsec,
     mustache,
     parsec,
-    vector
+    vector,
+    word8
 
   exposed-modules:
       Focus.Backend
+    , Focus.Backend.Auth
     , Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen

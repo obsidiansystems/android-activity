@@ -30,10 +30,10 @@ data IntercomUserSettings = IntercomUserSettings
 
 
 -- intercom startup for logged in users
-importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; o['widget'] = {activator: '#IntercomDefaultWidget'}; o['email'] = this[0]; o['created_at'] = this[1]; o['name'] = this[2]; o['user_hash'] = this[3]; o['type'] = this[4]; window['Intercom']('boot', o)})['call'](this)" "intercomStartup" [t| forall x m. MonadJS x m => String -> Int -> String -> String -> String -> m () |] --TODO: Factor out the the 'type' custom attribute into a separate custom attributes argument
+importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; o['widget'] = []; o['widget']['activator'] = '#IntercomDefaultWidget'; o['email'] = this[0]; o['created_at'] = this[1]; o['name'] = this[2]; o['user_hash'] = this[3]; o['type'] = this[4]; window['Intercom']('boot', o)})['call'](this)" "intercomStartup" [t| forall x m. MonadJS x m => String -> Int -> String -> String -> String -> m () |] --TODO: Factor out the the 'type' custom attribute into a separate custom attributes argument
 
 -- intercom startup for an anonymous user
-importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; o['widget'] = {activator: '#IntercomDefaultWidget'}; window['Intercom']('boot', o)})['call'](this)" "intercomStartupAnon" [t| forall x m. MonadJS x m => m () |]
+importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']; o['widget'] = {}; o['widget']['activator'] = '#IntercomDefaultWidget'; window['Intercom']('boot', o)})['call'](this)" "intercomStartupAnon" [t| forall x m. MonadJS x m => m () |]
 
 -- intercom shutdown
 importJS Unsafe "(function() {window['Intercom']('shutdown');})['call'](this)" "intercomShutdown" [t| forall x m. MonadJS x m => m () |]
