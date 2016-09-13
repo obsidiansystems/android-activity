@@ -71,13 +71,16 @@ requestEnv c = RequestEnv
       viewChange <- atomically $ dupTChan onChange
       async $ do
         v <- readTVarIO (_clientEnv_viewMap c)
-        case l . cropView s =<< Map.lookup t v of
+        lResult <- case cropView s <$> Map.lookup t v of
+          Nothing -> return Nothing
+          Just theView -> l theView
+        case lResult of
           Just r -> return r
           Nothing -> fix $ \k -> do
-            mr <- atomically $ do
+            mr <- join . atomically $ do
               readTChan viewChange
               mv <- fmap (cropView s) . Map.lookup t <$> readTVar (_clientEnv_viewMap c)
-              return $ l =<< mv
+              return $ maybe (return Nothing) l mv
             case mr of
               Nothing -> k
               Just r -> return r
@@ -144,10 +147,10 @@ private req = do
 public :: (MonadRequest app m, ToJSON rsp, FromJSON rsp) => PublicRequest app rsp -> m (RequestResult rsp)
 public req = request (ApiRequest_Public req)
 
-listen :: MonadRequest app m
-       => (View app -> Maybe a)
+listenIO :: MonadRequest app m
+       => (View app -> IO (Maybe a))
        -> m (ListenResult a)
-listen l = do
+listenIO l = do
   mtoken <- gets _requestState_token
   case mtoken of
     Nothing -> return ListenResult_RequiresAuthorization
@@ -155,7 +158,8 @@ listen l = do
       mListen <- asks _requestEnv_listen
       mTimeout <- gets _requestState_timeout
       i <- Map.foldr (\sel acc -> fst sel <> acc) mempty <$> gets _requestState_interests
-      er <- liftIO $ race (timeout mTimeout >> return ()) (fmap processListen . waitCatch =<< mListen t i l)
+      let mResult = liftIO (mListen t i l)
+      er <- liftIO $ race (timeout mTimeout >> return ()) (fmap processListen . waitCatch =<< mResult)
       return $ case er of
         Left _ -> ListenResult_Timeout (fromJust mTimeout)
         Right r -> r
@@ -166,6 +170,11 @@ listen l = do
    processListen = \case
      Left e -> ListenResult_Failure $ T.pack $ show e
      Right r -> ListenResult_Success r
+
+listen :: MonadRequest app m
+       => (View app -> Maybe a)
+       -> m (ListenResult a)
+listen l = listenIO (return . l)
 
 -- | Listen for something appearing in the View unconditionally, failing with a message if the result is anything but success.
 listenOrBust :: (MonadRequest app m, Show a)

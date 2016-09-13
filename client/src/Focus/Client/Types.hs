@@ -53,7 +53,7 @@ data RequestEnv app = RequestEnv
        , _requestEnv_sendInterestSet :: IO ()
        , _requestEnv_listen :: forall a. Signed AuthToken
                             -> ViewSelector app ()
-                            -> (View app -> Maybe a)
+                            -> (View app -> IO (Maybe a))
                             -> IO (Async a)
        }
 
