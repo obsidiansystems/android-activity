@@ -1,0 +1,9 @@
+dir=$(dirname $0)
+target=$1
+if [ ! -z "$target" -a -d "$target" ]
+  then
+    ln -s -f $(nix-build "$dir" -A build --no-out-link)/* "$target"
+  else
+    echo "The target directory '$target' does not exist"
+fi
+
