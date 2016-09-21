@@ -607,3 +607,36 @@ checkButton b0 active inactive txt = do
       let toggleClass = fmap (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
           iconClass = fmap (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected
+
+sortableTable
+  :: (Ord k, Ord sv, Eq sk, Bounded sk, Enum sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  => Dynamic t (Map k v)
+  -- ^ The data set
+  -> SortKey sk
+  -- ^ Default sort key
+  -> (sk -> v -> sv)
+  -- ^ Key extractor (used for sorting)
+  -> (sk -> Either (m ()) Text)
+  -- ^ How to render the header element - Left renderFunc | Right title (title is rendered with up/down arrows as appropriate)
+  -> (sk -> Dynamic t sv -> m ())
+  -- ^ How to render the row. column sort key -> Dynamic extracted key -> renderFunc
+  -> m (Dynamic t (SortKey sk))
+sortableTable dynVals defaultSort extractKey mkHeaderElem mkRowElem = do
+  elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
+    dynSortKey <- elAttr "thead" ("class" =: "table-header") $
+      elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
+        sortableListHeader cols defaultSort mkHeaderElem'
+    el "tbody" $ sortableListWithKey dynVals dynSortKey extractKey mkRow
+    return dynSortKey
+  where
+    cols = [minBound..maxBound]
+    mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
+      Left renderHeaderElem -> renderHeaderElem >> return never
+      Right title -> do
+        let d = ffor dynSortKey $ \x -> "class" =: (if x == Asc sk then "fa fa-fw fa-sort-asc" else if x == Desc sk then "fa fa-fw fa-sort-desc" else "fa fa-fw fa-sort")
+        fmap (domEvent Click . fst) $ elAttr' "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none;") $ do
+            divClass "tablesorter-header-inner" $ do
+              text title
+              elDynAttr "i" d $ return ()
+    mkRow _k dynVal = elAttr "tr" ("role"=:"row") $ mapM (mkRowElem' dynVal) cols
+    mkRowElem' dynVal sk = el "td" $ mkRowElem sk (fmap (extractKey sk) dynVal)
