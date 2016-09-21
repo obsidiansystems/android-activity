@@ -13,6 +13,7 @@ import Data.Set (Set)
 import Data.Typeable
 import GHC.Generics (Generic)
 import Focus.Patch
+import Reflex (FunctorMaybe(..))
 
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable, Align)
@@ -25,6 +26,26 @@ instance Ord k => Ixed (AppendMap k m) where
 
 instance Ord k => At (AppendMap k m) where
   at i = _Wrapped . at i
+
+instance FunctorMaybe (AppendMap k) where
+  fmapMaybe f (AppendMap as) = AppendMap (Map.mapMaybe f as)
+
+-- | Deletes a key, returning 'Nothing' if the result is empty.
+nonEmptyDelete :: Ord k => k -> AppendMap k v -> Maybe (AppendMap k v)
+nonEmptyDelete k vs =
+  let deleted = delete k vs
+  in if Focus.AppendMap.null deleted
+       then Nothing
+       else Just deleted
+
+mapMaybeNoNull :: (a -> Maybe b)
+               -> AppendMap token a
+               -> Maybe (AppendMap token b)
+mapMaybeNoNull f as =
+  let bs = fmapMaybe f as
+  in if Focus.AppendMap.null bs
+       then Nothing
+       else Just bs
 
 instance FunctorWithIndex k (AppendMap k) where
   imap f = AppendMap . imap f . _unAppendMap

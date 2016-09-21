@@ -24,6 +24,10 @@ class Semigroup (Patch v) => Patchable v where
   default patch :: First v -> v -> v
   patch (First v) _ = v
 
+instance Patchable () where
+  type Patch () = ()
+  patch () () = ()
+
 data PairPatch a b = PatchFst (Patch a)
                    | PatchSnd (Patch b)
                    | PatchBoth (Patch a) (Patch b)

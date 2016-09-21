@@ -72,7 +72,8 @@ library
     mustache,
     parsec,
     vector,
-    word8
+    word8,
+    reflex
 
   exposed-modules:
       Focus.Backend
