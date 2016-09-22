@@ -609,9 +609,11 @@ checkButton b0 active inactive txt = do
   return selected
 
 sortableTable
-  :: (Ord k, Ord sv, Eq sk, Bounded sk, Enum sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Dynamic t (Map k v)
   -- ^ The data set
+  -> [sk]
+  -- ^ The columns to display
   -> SortKey sk
   -- ^ Default sort key
   -> (sk -> v -> sv)
@@ -621,7 +623,7 @@ sortableTable
   -> (sk -> Dynamic t sv -> m ())
   -- ^ How to render the row. column sort key -> Dynamic extracted key -> renderFunc
   -> m (Dynamic t (SortKey sk))
-sortableTable dynVals defaultSort extractKey mkHeaderElem mkRowElem = do
+sortableTable dynVals cols defaultSort extractKey mkHeaderElem mkRowElem = do
   elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
     dynSortKey <- elAttr "thead" ("class" =: "table-header") $
       elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
@@ -629,7 +631,6 @@ sortableTable dynVals defaultSort extractKey mkHeaderElem mkRowElem = do
     el "tbody" $ sortableListWithKey dynVals dynSortKey extractKey mkRow
     return dynSortKey
   where
-    cols = [minBound..maxBound]
     mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
       Left renderHeaderElem -> renderHeaderElem >> return never
       Right title -> do
