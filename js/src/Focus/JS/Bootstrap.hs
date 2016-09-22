@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings, DeriveFunctor #-}
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
@@ -641,3 +641,76 @@ sortableTable dynVals cols defaultSort extractKey mkHeaderElem mkRowElem = do
               elDynAttr "i" d $ return ()
     mkRow _k dynVal = elAttr "tr" ("role"=:"row") $ mapM (mkRowElem' dynVal) cols
     mkRowElem' dynVal sk = el "td" $ mkRowElem sk (fmap (extractKey sk) dynVal)
+
+-- Key to sort a table
+data SortKey a = Asc a | Desc a
+  deriving (Eq, Functor, Show, Read)
+
+instance Ord a => Ord (SortKey a) where
+  compare (Asc a) (Asc b) = compare a b
+  compare (Desc a) (Desc b) = compare b a
+  compare (Asc _) (Desc _) = LT
+  compare (Desc _) (Asc _) = GT
+
+-- | A Dynamic list which can be sorted
+sortableListWithKey
+  :: forall t k v m a sv sk. (Ord k, Ord sv, DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m)
+  => Dynamic t (Map k v)
+  -> Dynamic t (SortKey sk)
+  -> (sk -> v -> sv)
+  -> (k -> Dynamic t v -> m a)
+  -> m (Dynamic t (Map k a))
+sortableListWithKey dynVals dynSortKey extractKey mkChild =
+  fmap (Map.mapKeys snd) <$> listWithKey vals (mkChild . snd)
+  where
+    addSortKey valMap sortKey = Map.fromList $ map (\(k,v) -> ((fmap (`extractKey` v) sortKey, k), v)) $ Map.toList valMap
+    vals = zipDynWith addSortKey dynVals dynSortKey
+
+-- | Like `sortableListWithKey` but allows filtering with a search key
+sortableSearchableListWithKey
+  :: forall t k v m a sv sk. (Ord k, Ord sv, DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m)
+  => Dynamic t (Map k v)
+  -> Dynamic t (SortKey sk)
+  -> (sk -> v -> sv)
+  -> Dynamic t Text
+  -> (v -> Text)
+  -> (k -> Dynamic t v -> m a)
+  -> m (Dynamic t (Map k a))
+sortableSearchableListWithKey dynVals dynSortKey extractKey dynSearch toString =
+  sortableListWithKey (zipDynWith matchingSearch dynSearch dynVals) dynSortKey extractKey
+  where
+    matchingSearch search = Map.filter (hasText search . toString)
+    hasText "" _ = True
+    hasText search s = T.count (T.toLower search) (T.toLower s) > 0
+
+-- | The header of a dynamic table. This can be used, for example, to create clickable headers to sort the table
+sortableListHeader
+  :: forall t m sk. (Eq sk, DomBuilder t m, MonadFix m, MonadHold t m)
+  => [sk]
+  -> SortKey sk
+  -> (sk -> Dynamic t (SortKey sk) -> m (Event t ()))
+  -> m (Dynamic t (SortKey sk))
+sortableListHeader cols defaultSort mkHeaderElem = do
+  rec
+    evtSortKey <- leftmost <$> mapM (mkHeaderElem' dynSortKey) cols
+    dynSortKey <- foldDyn changeSort defaultSort evtSortKey
+  return dynSortKey
+  where
+    mkHeaderElem' dynSortKey sk = do
+      evt <- mkHeaderElem sk dynSortKey
+      return $ sk <$ evt
+    changeSort a (Desc b) | a == b = Asc b
+    changeSort a (Asc b) | a == b = Desc b
+    changeSort a _ = fmap (const a) defaultSort
+
+
+-- | Helper function for building the row of a dynamic table from the same `extractKey` function used for sorting the table
+--   Will usually be combined with either `sortableSearchableListWithKey` or `sortableListWithKey`, for example -
+--   `sortableListWithKey dynData dynSortKey extractKey $ sortableListRow columns extractKey mkRowElem`
+sortableListRow
+  :: forall t v m a sv sk. DomBuilder t m
+  => [sk]
+  -> (sk -> v -> sv)
+  -> (sk -> Dynamic t sv -> m a)
+  -> Dynamic t v -> m [a]
+sortableListRow cols extractKey mkRowElem dynVal = mapM (\sk -> mkRowElem sk (fmap (extractKey sk) dynVal)) cols
