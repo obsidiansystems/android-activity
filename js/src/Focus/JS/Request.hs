@@ -116,12 +116,21 @@ syncApi req = do
   liftIO $ takeMVar v
 
 asyncApi :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> (a -> IO b) -> m ()
-asyncApi r f = do
+asyncApi r f = asyncApiMaybe r $ \(Just x) -> f x
+
+asyncApiMaybe :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> (Maybe a -> IO b) -> m ()
+asyncApiMaybe r f = do
   let reqJson = encode $ SomeRequest r
   _ <- mkPost "/api" (decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
-    Just rsp <- return $ decodeValue' $ LBS.fromStrict $ encodeUtf8 rspJson
-    liftIO $ f rsp
+    let mrsp = decodeValue' $ LBS.fromStrict $ encodeUtf8 rspJson
+    liftIO $ f mrsp
   return ()
+
+syncApiMaybe :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> m (Maybe a)
+syncApiMaybe req = do
+  v <- liftIO $ newEmptyMVar
+  asyncApiMaybe req $ putMVar v
+  liftIO $ takeMVar v
 
 requestingXhr :: (Request r, ToJSON a, FromJSON a, TriggerEvent t m, PerformEvent t m, HasJS x (WidgetHost m)) => Event t (r a) -> m (Event t a)
 requestingXhr requestE = performEventAsync $ fmap (\r yield' -> liftJS $ asyncApi r yield') requestE

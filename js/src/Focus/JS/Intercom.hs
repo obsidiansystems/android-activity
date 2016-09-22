@@ -6,6 +6,7 @@ module Focus.JS.Intercom
        , intercom
        , setupIntercom
        , shutdownIntercom
+       , displayIntercomChat
        ) where
 
 import Control.Monad
@@ -37,6 +38,9 @@ importJS Unsafe "(function(){var o = {}; o['app_id'] = window['intercom_app_id']
 
 -- intercom shutdown
 importJS Unsafe "(function() {window['Intercom']('shutdown');})['call'](this)" "intercomShutdown" [t| forall x m. MonadJS x m => m () |]
+
+-- Show/hide intercom widget
+importJS Unsafe "(function() {window['Intercom'](this[0]? 'show' : 'hide');})['call'](this)" "intercomShow" [t| forall x m. MonadJS x m => Bool -> m () |]
 
 -- | Run Intercom and keep it updated with the visitor provided.  When 'Nothing'
 -- is provided, intercom will be shut down completely (i.e. not visible on the
@@ -70,3 +74,7 @@ shutdownIntercom = intercom $ constDyn Nothing
 {-# DEPRECATED setupIntercom "Use 'void . intercom . fmap Just =<< holdDyn v0 newV' instead of 'setupIntercom v0 newV'" #-}
 setupIntercom :: (MonadFocusWidget app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
 setupIntercom v0 v' = void . intercom . fmap Just =<< holdDyn v0 v'
+
+-- | Show or hide intercom chat widget
+displayIntercomChat :: (PerformEvent t m, Prerender js m) => Event t Bool -> m (Event t ())
+displayIntercomChat eTrigger = prerender (return never) $ performEvent $ ffor eTrigger $ liftJS . intercomShow
