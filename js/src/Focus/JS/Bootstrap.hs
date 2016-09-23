@@ -624,13 +624,25 @@ sortableTable
   -- ^ How to render the header element - Left renderFunc | Right title (title is rendered with up/down arrows as appropriate)
   -> (sk -> Dynamic t v -> m ())
   -- ^ How to render the row. column sort key -> Dynamic val -> renderFunc
+  -> Bool
+  -- ^ Will the sorting will be done on the server itself?
   -> m (Dynamic t (SortKey sk))
-sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem = do
+sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
   elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
     dynSortKey <- elAttr "thead" ("class" =: "table-header") $
       elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
         sortableListHeader cols defaultSort mkHeaderElem'
-    _ <- el "tbody" $ sortableListWithKey dynVals dynSortKey extractKey mkRow
+
+    -- For server side sorting we simply display all list elements without modification
+    if serverSort
+      then
+        -- `listWithKey` is buggy, we simply use dyn (performance hit isn't that big because the server replaces most rows anyways)
+        -- listWithKey dynVals mkRow
+        el "tbody" $ void $ dyn $ fmap (sequence_ . map (\(k,dv) -> mkRow k (constDyn dv)) . Map.toAscList) dynVals
+      else
+        -- For client side sorting, we use sortableListWithKey
+        el "tbody" $ void $ sortableListWithKey dynVals dynSortKey extractKey mkRow
+
     return dynSortKey
   where
     mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
