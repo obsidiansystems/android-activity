@@ -618,12 +618,14 @@ sortableTable
   -- ^ Default sort key
   -> (sk -> v -> sv)
   -- ^ Key extractor (used for sorting)
+  -> (k -> Dynamic t v -> m (Dynamic t (Map Text Text)))
+  -- ^ Each row can have different attributes based on the state of the data
   -> (sk -> Either (m ()) Text)
   -- ^ How to render the header element - Left renderFunc | Right title (title is rendered with up/down arrows as appropriate)
   -> (sk -> Dynamic t v -> m ())
   -- ^ How to render the row. column sort key -> Dynamic val -> renderFunc
   -> m (Dynamic t (SortKey sk))
-sortableTable dynVals cols defaultSort extractKey mkHeaderElem mkRowElem = do
+sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem = do
   elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
     dynSortKey <- elAttr "thead" ("class" =: "table-header") $
       elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
@@ -639,7 +641,9 @@ sortableTable dynVals cols defaultSort extractKey mkHeaderElem mkRowElem = do
             divClass "tablesorter-header-inner" $ do
               text title
               elDynAttr "i" d $ return ()
-    mkRow _k dynVal = elAttr "tr" ("role"=:"row") $ mapM (el "td" . flip mkRowElem dynVal) cols
+    mkRow k dynVal = do
+      d <- fmap (<> "role" =: "row") <$> rowAttrs k dynVal
+      elDynAttr "tr" d $ mapM (el "td" . flip mkRowElem dynVal) cols
 
 -- Key to sort a table
 data SortKey a = Asc a | Desc a
