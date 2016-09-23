@@ -635,7 +635,7 @@ sortableTable dynVals cols defaultSort extractKey mkHeaderElem mkRowElem = do
       Left renderHeaderElem -> renderHeaderElem >> return never
       Right title -> do
         let d = ffor dynSortKey $ \x -> "class" =: (if x == Asc sk then "fa fa-fw fa-sort-asc" else if x == Desc sk then "fa fa-fw fa-sort-desc" else "fa fa-fw fa-sort")
-        fmap (domEvent Click . fst) $ elAttr' "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none;") $ do
+        fmap (domEvent Click . fst) $ elAttr' "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none; cursor: pointer;") $ do
             divClass "tablesorter-header-inner" $ do
               text title
               elDynAttr "i" d $ return ()
