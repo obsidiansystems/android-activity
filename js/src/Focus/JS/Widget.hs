@@ -347,8 +347,8 @@ improvingMaybe a = do
 withFocusSelect :: (MonadWidget t m) => Event t () -> m (TextInput t) -> m (TextInput t) 
 withFocusSelect focusSelectE mkTextInput  = do
   t <- mkTextInput -- important that this is *before* the following performEvent, which is why we do it ourselves.
-  performEvent_ . ffor focusSelectE $ \n -> do
-    let el = _textInput_element t
-    IE.select el
-    E.focus el
+  performEvent_ . ffor focusSelectE $ \_ -> do
+    let e = _textInput_element t
+    IE.select e
+    E.focus e
   return t

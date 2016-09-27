@@ -3,24 +3,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Focus.JS.Cookie where
 
-import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (toLazyByteString)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Maybe
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar
 import qualified GHCJS.DOM.Document as DOM
-import qualified GHCJS.DOM.Storage as DOM
 import Reflex.Dom
 import Web.Cookie
 
@@ -63,7 +55,7 @@ getCookieJson :: (FromJSON v, MonadIO m) => DOM.Document -> Text -> m (Maybe (Ei
 getCookieJson d k =
   fmap (eitherDecode . LBS.fromStrict . encodeUtf8) <$> getCookie d k
 
-withPermanentCookieJson :: (MonadIO m, HasWebView m, MonadIO (Performable m), HasWebView (Performable m), PerformEvent t m, ToJSON v, FromJSON v)
+withPermanentCookieJson :: (MonadIO m, MonadIO (Performable m), HasWebView (Performable m), PerformEvent t m, ToJSON v, FromJSON v)
                         => DOM.Document
                         -> Text
                         -> (Maybe (Either String v) -> m (Event t (Maybe v)))
