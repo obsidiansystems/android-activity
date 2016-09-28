@@ -638,7 +638,7 @@ sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowEle
       then
         -- `listWithKey` is buggy, we simply use dyn (performance hit isn't that big because the server replaces most rows anyways)
         -- listWithKey dynVals mkRow
-        el "tbody" $ void $ dyn $ fmap (sequence_ . map (\(k,dv) -> mkRow k (constDyn dv)) . Map.toAscList) dynVals
+        el "tbody" $ void $ dyn $ fmap (\(vs,sk) -> sequence_ $ map snd $ (sortOn fst) $ map (\(k,v) -> (fmap (`extractKey` v) sk, mkRow k (constDyn v))) $ Map.toList vs) $ zipDynWith (,) dynVals dynSortKey
       else
         -- For client side sorting, we use sortableListWithKey
         el "tbody" $ void $ sortableListWithKey dynVals dynSortKey extractKey mkRow
