@@ -30,7 +30,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Language.Haskell.TH
 import Network.URI
-import Reflex hiding (HList (..))
+import Reflex hiding (HList (..), Request)
 import Data.Proxy
 
 import Debug.Trace.LocationTH
@@ -39,8 +39,10 @@ data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
 
 class Request r where
-    requestToJSON :: (ToJSON a, FromJSON a) => r a -> Value
-    requestParseJSON :: Value -> Parser (SomeRequest r)
+  requestToJSON :: r a -> Value
+  requestParseJSON :: Value -> Parser (SomeRequest r)
+  requestResponseToJSON :: r a -> Dict (ToJSON a)
+  requestResponseFromJSON :: r a -> Dict (FromJSON a)
 
 instance Request r => FromJSON (SomeRequest r) where
   parseJSON v = requestParseJSON v
@@ -168,6 +170,8 @@ makeRequestForDataInstance n n' = do
       requestParseJSON v = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
+      requestResponseToJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
+      requestResponseFromJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
     |]
 
 

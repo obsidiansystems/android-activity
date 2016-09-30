@@ -2,7 +2,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.JS.Request where
 
-import Data.Bitraversable
 import Data.Monoid
 import Data.Time.Clock
 import Data.Text (Text)
@@ -11,22 +10,14 @@ import Data.Text.Encoding
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Aeson
-import Data.Int
 import Control.Concurrent
 import Control.Monad
-import Control.Monad.Trans.Control
 import Foreign.JavaScript.TH
 import Focus.Request
-import Control.Arrow
-import Control.Monad.Exception
-import Control.Monad.Morph
 import Control.Monad.Reader
-import Control.Monad.Ref
-import Control.Monad.State
 
-import Reflex
-import Reflex.Dom hiding (Error, Value)
-import Reflex.Host.Class
+import Reflex hiding (Request)
+import Reflex.Dom hiding (Error, Value, Request)
 
 importJS Unsafe "console['log'](this[0])" "consoleLog" [t| forall x m. MonadJS x m => JSRef x -> m () |]
 
@@ -145,161 +136,3 @@ requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   return ()
 
 importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m Text |]
-
-data RequestEnv t m = RequestEnv { _requestEnv_response :: Event t ((Int64, Int64), Either Text Value)
-                                 , _requestEnv_currentInvocation :: Int64
-                                 , _requestEnv_nextInvocation :: Ref (WidgetHost m) Int64
-                                 }
-
-type RequestOutput t req = Event t [((Int64, Int64), SomeRequest req)]
-
-minId :: Int64
-minId = 1
-
-newtype RequestT t req m a =
-  RequestT { unRequestT :: StateT Int64 (ReaderT (RequestEnv t m) (DynamicWriterT t (RequestOutput t req) m)) a }
- deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadHold t, MonadSample t, MonadAsyncException, MonadException)
-
-instance MonadReader r m => MonadReader r (RequestT t req m) where
-  ask = lift ask
-  local f (RequestT a) = RequestT $ mapStateT (mapReaderT $ local f) a
-  reader = lift . reader
-
-runRequestT :: (MonadFix m, MonadHold t m, Request req, MonadIO m, Ref (Performable m) ~ Ref IO, Reflex t)
-            => RequestT t req m a
-            -> Event t (Value, Either Text Value)
-            -> m (a, Event t [(Value, Value)])
-runRequestT (RequestT a) eResponse = do
-  nextInvocation <- liftIO $ newRef (minId + 1)
-  let rEnv = RequestEnv { _requestEnv_response = fmapMaybe (bisequence . (valueToMaybe *** Just)) eResponse
-                        , _requestEnv_currentInvocation = minId
-                        , _requestEnv_nextInvocation = nextInvocation
-                        }
-  ((result, _), dReq) <- runDynamicWriterT (runReaderT (runStateT a minId) rEnv)
-  return (result, fmap (map (toJSON *** toJSON)) $ switchPromptlyDyn dReq)
-  where
-    valueToMaybe :: FromJSON a => Value -> Maybe a
-    valueToMaybe r = case fromJSON r of
-      Error _ -> error $ "runRequestTWebSocket failed to parse " <> show r
-      Success x -> Just x
-
-withRequestT :: forall t m a (req :: * -> *) (req' :: * -> *).
-                (Reflex t, MonadHold t m, MonadFix m)
-             => (forall x. req x -> req' x)
-             -> RequestT t req m a
-             -> RequestT t req' m a
-withRequestT f m = RequestT $ hoist (hoist (withDynamicWriterT f')) (unRequestT m)
-  where
-    f' :: Event t [(y, SomeRequest req)] -> Event t [(y, SomeRequest req')]
-    f' = fmap . fmap . fmap $ \(SomeRequest req) -> SomeRequest $ f req
-
-withDynamicWriterT :: (Monoid w, Reflex t, MonadHold t m, MonadFix m)
-                   => (w -> w')
-                   -> DynamicWriterT t w m a
-                   -> DynamicWriterT t w' m a
-withDynamicWriterT f dw = do
-  (r, d) <- lift $ do
-    (r, d) <- runDynamicWriterT dw
-    let d' = fmap f d
-    return (r, d')
-  tellDyn d
-  return r
-
-instance MonadTrans (RequestT t req) where
-  lift = RequestT . lift . lift . lift
-
-instance MonadRef m => MonadRef (RequestT t req m) where
-  type Ref (RequestT t req m) = Ref m
-  newRef = lift . newRef
-  readRef = lift . readRef
-  writeRef r = lift . writeRef r
-
-instance HasJS x m => HasJS x (RequestT t req m) where
-  type JSM (RequestT t req m) = JSM m
-  liftJS = lift . liftJS
-
-instance HasWebView m => HasWebView (RequestT t req m) where
-  type WebViewPhantom (RequestT t req m) = WebViewPhantom m
-  askWebView = lift askWebView
-
-instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RequestT t req m) where
-  newEventWithTrigger = lift . newEventWithTrigger
-  newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
-
-class Monad m => MonadRequest t req m | m -> t where
-  requesting :: (ToJSON a, FromJSON a) => Event t (req a) -> m (Event t a)
-  -- requestingMany :: (ToJSON a, FromJSON a, Traversable f, HasJS x (WidgetHost m)) => Event t (f (req a)) -> m (Event t (f a))
-
-requesting_ :: (ToJSON a, FromJSON a, MonadRequest t req m) => Event t (req a) -> m ()
-requesting_ a = requesting a >> return ()
-
-{-
-liftRequestTThroughSync :: Monad m => (m (a, Int64) -> DynamicWriterT t (RequestOutput t req) m (a, Int64)) -> _ -> RequestT t req m a -> RequestT t req m a
-liftRequestTThroughSync f g a = RequestT $ do
-    s <- get
-    env <- ask
-    (a, newS) <- lift $ lift $ f $ runReaderT (runStateT (g a) s) env
-    put newS
-    return a
--}
-liftRequestTAsync :: (Ref (Performable m) ~ Ref m, MonadAtomicRef m) => ((forall b. RequestT t req m b -> DynamicWriterT t (RequestOutput t req) m b) -> DynamicWriterT t (RequestOutput t req) m a) -> RequestT t req m a
-liftRequestTAsync a = RequestT $ do
-  env <- ask
-  lift $ lift $ a $ \(RequestT x) -> do
-    s <- atomicModifyRef (_requestEnv_nextInvocation env) $ \s -> (succ s, s)
-    runReaderT (evalStateT x minId) $ env { _requestEnv_currentInvocation = s }
-
---TODO: Synchronous versions of some of these things, so we can avoid screwing around with the IORef so much
-instance (DomBuilder t m, Ref (Performable m) ~ Ref m, MonadAtomicRef m, MonadFix m, MonadHold t m) => DomBuilder t (RequestT t req m) where
-  type DomBuilderSpace (RequestT t req m) = DomBuilderSpace m
-  textNode = liftTextNode
-  element elementTag cfg child = liftRequestTAsync $ \run -> element elementTag (fmap1 run cfg) $ run child
-  placeholder cfg = liftRequestTAsync $ \run -> placeholder $ fmap1 run cfg
-  inputElement cfg = liftRequestTAsync $ \run -> inputElement $ fmap1 run cfg
-  textAreaElement cfg = liftRequestTAsync $ \run -> textAreaElement $ fmap1 run cfg
-  selectElement cfg child = liftRequestTAsync $ \run -> selectElement (fmap1 run cfg) $ run child
-  placeRawElement = lift . placeRawElement
-  wrapRawElement e cfg = liftRequestTAsync $ \run -> wrapRawElement e $ fmap1 run cfg
-
-instance (Deletable t m, MonadHold t m, MonadFix m) => Deletable t (RequestT t req m) where
-  deletable delete = RequestT . liftThrough (liftThrough (deletable delete)) . unRequestT
-
-instance PerformEvent t m => PerformEvent t (RequestT t req m) where
-  type Performable (RequestT t req m) = Performable m --TODO: Should we support 'requesting' in the Performable?
-  performEvent_ = lift . performEvent_
-  performEvent = lift . performEvent
-
-instance PostBuild t m => PostBuild t (RequestT t req m) where
-  getPostBuild = lift getPostBuild
-
-instance TriggerEvent t m => TriggerEvent t (RequestT t req m) where
-  newTriggerEvent = lift newTriggerEvent
-  newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
-  newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
-
-instance (Monad m, Reflex t, MonadFix (Performable m), Request req) => MonadRequest t req (RequestT t req m) where
-  requesting e = do
-    rid <- RequestT $ state $ \s -> (s, s + 1)
-    c <- RequestT $ asks _requestEnv_currentInvocation
-    RequestT $ lift $ lift $ tellDyn $ constDyn $ fmap ((:[]) . (,) (rid, c) . SomeRequest) e
-    rsp <- RequestT $ asks _requestEnv_response
-    return $ fforMaybe rsp $ \(rspId, r) ->
-      if rspId == (rid, c)
-         then case r of
-                   Left _ -> Nothing
-                   Right a -> case fromJSON a of
-                                   Error _ -> error $ "MonadRequest: Parse failed: " <> show r
-                                   Success a' -> Just a'
-         else Nothing
-
-instance MonadRequest t req m => MonadRequest t req (ReaderT r m) where
-  requesting = lift . requesting
-
--- TODO move these to reflex
-instance MonadSample t m => MonadSample t (StateT s m) where
-  sample = lift . sample
-
-instance MonadHold t m => MonadHold t (StateT s m) where
-  hold a = lift . hold a
-  holdDyn a = lift . holdDyn a
-  holdIncremental a = lift . holdIncremental a
