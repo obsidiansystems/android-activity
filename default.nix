@@ -270,7 +270,8 @@ rec {
                   buildCommand = ''
                     mkdir "$out"
                     ln -s "${commonSrc}"/src/* "$out"/
-                    ln -s "${testsSrc}"/src/* "$out"/
+                    ln -s "${backendSrc}"/src/* "$out"/
+                    ln -sf "${testsSrc}"/src/* "$out"/
                   '';
                 } "";
 
@@ -281,7 +282,7 @@ rec {
                 buildDepends = [
                   vector-algorithms
                   focus-core focus-backend focus-client
-                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages;
+                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
                 buildTools = [] ++ testTools pkgs;
                 isExecutable = true;
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
