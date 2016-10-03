@@ -51,7 +51,6 @@ library
     , Focus.Brand
     , Focus.Email
     , Focus.Misc
-    , Focus.Pretty
     , Focus.Request
     , Focus.Route
     , Focus.Schema
