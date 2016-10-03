@@ -21,6 +21,9 @@ import Focus.JS.FontAwesome
 import Focus.JS.Highlight
 import Focus.Patch
 
+import qualified GHCJS.DOM.Element as E
+import qualified GHCJS.DOM.HTMLInputElement as IE
+
 -- | A variant of elDynAttr which sets the element's style to "display: none;" initially, until its attributes can be set properly.
 elDynAttrHide :: forall t m a. (DomBuilder t m, PostBuild t m) => Text -> Dynamic t (Map Text Text) -> m a -> m a
 elDynAttrHide elementTag attrs child = do
@@ -340,3 +343,12 @@ improvingMaybe a = do
   holdDyn Nothing $ fmapMaybe (fmap Just) $ leftmost [ updated a
                                                      , tagPromptlyDyn a pb
                                                      ]
+
+withFocusSelect :: (MonadWidget t m) => Event t () -> m (TextInput t) -> m (TextInput t) 
+withFocusSelect focusSelectE mkTextInput  = do
+  t <- mkTextInput -- important that this is *before* the following performEvent, which is why we do it ourselves.
+  performEvent_ . ffor focusSelectE $ \_ -> do
+    let e = _textInput_element t
+    IE.select e
+    E.focus e
+  return t

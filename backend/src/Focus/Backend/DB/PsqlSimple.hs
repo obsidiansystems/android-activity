@@ -135,3 +135,11 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
     fromRow = (,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
                             <*> field <*> field <*> field <*> field <*> field
                             <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m) where
+    fromRow = (,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
+                             <*> field <*> field <*> field <*> field <*> field
+                             <*> field <*> field <*> field
