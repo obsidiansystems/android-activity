@@ -72,6 +72,8 @@ library
     , Focus.GoogleAnalytics
     , Focus.Intercom
     , Focus.Intercom.Common
+    , Focus.Schema.Gitlab
+    , Focus.Schema.Pivotal
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
