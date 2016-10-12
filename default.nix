@@ -44,7 +44,10 @@ rec {
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
-             focus-js = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./js)) {});
+             focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
+               doHaddock = false;
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
+             });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
            };
