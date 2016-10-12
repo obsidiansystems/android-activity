@@ -27,6 +27,7 @@ library
                , dependent-sum
                , haskell-src-exts
                , http-conduit
+               , http-types
                , lens
                , loch-th
                , mtl
@@ -73,6 +74,7 @@ library
     , Focus.Intercom
     , Focus.Intercom.Common
     , Focus.Schema.Gitlab
+    , Focus.RightSignature
     , Focus.Schema.Pivotal
 
   other-extensions: TemplateHaskell
