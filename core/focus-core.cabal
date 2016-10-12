@@ -27,6 +27,7 @@ library
                , dependent-sum
                , haskell-src-exts
                , http-conduit
+               , http-types
                , lens
                , loch-th
                , mtl
@@ -72,6 +73,7 @@ library
     , Focus.GoogleAnalytics
     , Focus.Intercom
     , Focus.Intercom.Common
+    , Focus.RightSignature
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
