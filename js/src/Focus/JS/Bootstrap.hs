@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings, DeriveFunctor #-}
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
@@ -607,3 +607,125 @@ checkButton b0 active inactive txt = do
       let toggleClass = fmap (\s -> "type" =: "button" <> "class" =: if s then active else inactive) selected
           iconClass = fmap (\s -> "class" =: if s then "fa fa-check-square-o fa-fw" else "fa fa-square-o fa-fw") selected
   return selected
+
+sortableTable
+  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  => Dynamic t (Map k v)
+  -- ^ The data set
+  -> [sk]
+  -- ^ The columns to display
+  -> SortKey sk
+  -- ^ Default sort key
+  -> (sk -> v -> sv)
+  -- ^ Key extractor (used for sorting)
+  -> (k -> Dynamic t v -> m (Dynamic t (Map Text Text)))
+  -- ^ Each row can have different attributes based on the state of the data
+  -> (sk -> Either (m ()) Text)
+  -- ^ How to render the header element - Left renderFunc | Right title (title is rendered with up/down arrows as appropriate)
+  -> (sk -> Dynamic t v -> m ())
+  -- ^ How to render the row. column sort key -> Dynamic val -> renderFunc
+  -> Bool
+  -- ^ Will the sorting will be done on the server itself?
+  -> m (Dynamic t (SortKey sk))
+sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
+  elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
+    dynSortKey <- elAttr "thead" ("class" =: "table-header") $
+      elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
+        sortableListHeader cols defaultSort mkHeaderElem'
+
+    -- For server side sorting we simply display all list elements without modification
+    if serverSort
+      then
+        -- `listWithKey` is buggy, we simply use dyn (performance hit isn't that big because the server replaces most rows anyways)
+        -- listWithKey dynVals mkRow
+        el "tbody" $ void $ dyn $ fmap (\(vs,sk) -> sequence_ $ map snd $ (sortOn fst) $ map (\(k,v) -> (fmap (`extractKey` v) sk, mkRow k (constDyn v))) $ Map.toList vs) $ zipDynWith (,) dynVals dynSortKey
+      else
+        -- For client side sorting, we use sortableListWithKey
+        el "tbody" $ void $ sortableListWithKey dynVals dynSortKey extractKey mkRow
+
+    return dynSortKey
+  where
+    mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
+      Left renderHeaderElem -> renderHeaderElem >> return never
+      Right title -> do
+        let d = ffor dynSortKey $ \x -> "class" =: (if x == Asc sk then "fa fa-fw fa-sort-asc" else if x == Desc sk then "fa fa-fw fa-sort-desc" else "fa fa-fw fa-sort")
+        fmap (domEvent Click . fst) $ elAttr' "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none; cursor: pointer;") $ do
+            divClass "tablesorter-header-inner" $ do
+              text title
+              elDynAttr "i" d $ return ()
+    mkRow k dynVal = do
+      d <- fmap (<> "role" =: "row") <$> rowAttrs k dynVal
+      elDynAttr "tr" d $ mapM (el "td" . flip mkRowElem dynVal) cols
+
+-- Key to sort a table
+data SortKey a = Asc a | Desc a
+  deriving (Eq, Functor, Show, Read)
+
+instance Ord a => Ord (SortKey a) where
+  compare (Asc a) (Asc b) = compare a b
+  compare (Desc a) (Desc b) = compare b a
+  compare (Asc _) (Desc _) = LT
+  compare (Desc _) (Asc _) = GT
+
+-- | A Dynamic list which can be sorted
+sortableListWithKey
+  :: forall t k v m a sv sk. (Ord k, Ord sv, DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m)
+  => Dynamic t (Map k v)
+  -> Dynamic t (SortKey sk)
+  -> (sk -> v -> sv)
+  -> (k -> Dynamic t v -> m a)
+  -> m (Dynamic t (Map k a))
+sortableListWithKey dynVals dynSortKey extractKey mkChild =
+  fmap (Map.mapKeys snd) <$> listWithKey vals (mkChild . snd)
+  where
+    addSortKey valMap sortKey = Map.fromList $ map (\(k,v) -> ((fmap (`extractKey` v) sortKey, k), v)) $ Map.toList valMap
+    vals = zipDynWith addSortKey dynVals dynSortKey
+
+-- | Like `sortableListWithKey` but allows filtering with a search key
+sortableSearchableListWithKey
+  :: forall t k v m a sv sk. (Ord k, Ord sv, DomBuilder t m, PostBuild t m, MonadFix m, MonadHold t m)
+  => Dynamic t (Map k v)
+  -> Dynamic t (SortKey sk)
+  -> (sk -> v -> sv)
+  -> Dynamic t Text
+  -> (v -> Text)
+  -> (k -> Dynamic t v -> m a)
+  -> m (Dynamic t (Map k a))
+sortableSearchableListWithKey dynVals dynSortKey extractKey dynSearch toString =
+  sortableListWithKey (zipDynWith matchingSearch dynSearch dynVals) dynSortKey extractKey
+  where
+    matchingSearch search = Map.filter (hasText search . toString)
+    hasText "" _ = True
+    hasText search s = T.count (T.toLower search) (T.toLower s) > 0
+
+-- | The header of a dynamic table. This can be used, for example, to create clickable headers to sort the table
+sortableListHeader
+  :: forall t m sk. (Eq sk, DomBuilder t m, MonadFix m, MonadHold t m)
+  => [sk]
+  -> SortKey sk
+  -> (sk -> Dynamic t (SortKey sk) -> m (Event t ()))
+  -> m (Dynamic t (SortKey sk))
+sortableListHeader cols defaultSort mkHeaderElem = do
+  rec
+    evtSortKey <- leftmost <$> mapM (mkHeaderElem' dynSortKey) cols
+    dynSortKey <- foldDyn changeSort defaultSort evtSortKey
+  return dynSortKey
+  where
+    mkHeaderElem' dynSortKey sk = do
+      evt <- mkHeaderElem sk dynSortKey
+      return $ sk <$ evt
+    changeSort a (Desc b) | a == b = Asc b
+    changeSort a (Asc b) | a == b = Desc b
+    changeSort a _ = fmap (const a) defaultSort
+
+
+-- | Helper function for building the row of a dynamic table from the same `extractKey` function used for sorting the table
+--   Will usually be combined with either `sortableSearchableListWithKey` or `sortableListWithKey`, for example -
+--   `sortableListWithKey dynData dynSortKey extractKey $ sortableListRow columns extractKey mkRowElem`
+sortableListRow
+  :: forall t v m a sv sk. DomBuilder t m
+  => [sk]
+  -> (sk -> v -> sv)
+  -> (sk -> Dynamic t sv -> m a)
+  -> Dynamic t v -> m [a]
+sortableListRow cols extractKey mkRowElem dynVal = mapM (\sk -> mkRowElem sk (fmap (extractKey sk) dynVal)) cols
