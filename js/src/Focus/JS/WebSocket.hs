@@ -28,6 +28,13 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
 import Debug.Trace.LocationTH
+#ifdef __GHCJS__
+import GHCJS.Types (JSVal)
+import GHCJS.Marshal
+import Control.Exception (try, SomeException)
+import System.IO.Unsafe
+import JavaScript.JSON.Types.FromJSVal ()
+#endif
 
 newtype JSWebSocket x = JSWebSocket { unWebSocket :: JSRef x }
 
@@ -103,3 +110,42 @@ apiSocket path batches = do
           result = fmapMaybe fst change
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> decodeUtf8 $  LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)
+
+
+#ifdef __GHCJS__
+foreign import javascript unsafe "JSON.parse($1)" js_jsonParse :: JSVal -> JSVal
+
+rawDecode :: (FromJSON a) => JSVal -> Maybe a
+rawDecode jsv = do
+  -- traceM "customDecode"
+  -- TODO pFromJSVal to avoid unsafePerformIO
+  let res = unsafePerformIO $ try $ fromJSVal $ js_jsonParse jsv
+  case res of
+   Left (_e::SomeException) -> do
+     -- traceM $ "====================================================================="
+     -- traceM $ show e
+     -- traceM $ "====================================================================="
+     Nothing
+   Right (v :: (Maybe Aeson.Value)) -> do
+     -- traceM $ show $ js_jsonTypeOf jsv'
+     -- traceM $ "Success" ++ show v
+     maybe Nothing go v
+  where
+    go v = case Aeson.fromJSON v of
+      Aeson.Success a -> Just a
+      _ -> Nothing
+
+rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
+rawWebSocket path config = do
+  pageHost <- liftIO . getLocationHost =<< askWebView
+  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
+  let wsProtocol = case pageProtocol of
+        "http:" -> "ws:"
+        "https:" -> "wss:"
+        "file:" -> "ws:"
+        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
+      wsHost = case pageProtocol of
+        "file:" -> "localhost:8000"
+        _ -> pageHost
+  RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
+#endif
