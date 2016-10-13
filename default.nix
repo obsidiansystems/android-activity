@@ -1,6 +1,5 @@
-{}:
-let enableProfiling = false;
-    tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
+{ enableProfiling ? false }:
+let tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
     inherit (tryReflex) nixpkgs cabal2nixResult;
 in with nixpkgs.haskell.lib;
 rec {
