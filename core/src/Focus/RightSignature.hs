@@ -18,7 +18,7 @@ import Network.HTTP.Conduit
 import Network.HTTP.Types
 import qualified Data.Vector as V
 
-import Focus.Request (makeJson)
+import Focus.RightSignature.Common
 
 newtype RightSignatureSecretToken = RightSignatureSecretToken { unRightSignatureSecretToken :: Text } deriving (Show, Read, Eq, Ord, FromJSON, ToJSON)
 
@@ -78,6 +78,29 @@ getSignerToken tok guid = do
       case res of
         Left (err :: HttpException) -> do
           putStrLn $ "Network error: getSignerToken: " <> show err
+          return mempty
+        Right res' -> return $ responseBody res'
+
+getDocumentDetails :: RightSignatureSecretToken -> Text -> IO (Maybe W9DocumentDetails)
+getDocumentDetails tok guid = do
+  let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> ".json"
+  res <- makeReq tok url
+  return $ do
+    doc <- parseMaybe documentParser =<< decode res
+    W9DocumentDetails <$> unescapeUrl (parseMaybe (withObject "original_url" (.: "original_url")) doc)
+                      <*> unescapeUrl (parseMaybe (withObject "signed_pdf_url" (.: "signed_pdf_url")) doc)
+                      <*> unescapeUrl (parseMaybe (withObject "large_url" (.: "large_url")) doc)
+  where
+    unescapeUrl = fmap (T.decodeUtf8 . urlDecode False . T.encodeUtf8)
+    documentParser = withObject "document" (.: "document")
+    makeReq tok url = do
+      man <- newManager tlsManagerSettings
+      req' <- parseUrlThrow url
+      let req = addSecureToken tok req'
+      res <- try $ httpLbs req man
+      case res of
+        Left (err :: HttpException) -> do
+          putStrLn $ "Network error: getDocumentDetails: " <> show err
           return mempty
         Right res' -> return $ responseBody res'
 
