@@ -51,3 +51,9 @@
 [submodule "postie"]
 	path = postie
 	url = https://github.com/cgibbard/postie.git
+[submodule "websockets"]
+	path = websockets
+	url = git@github.com:obsidiansystems/websockets.git
+[submodule "websockets-snap"]
+	path = websockets-snap
+	url = git@github.com:obsidiansystems/websockets-snap
