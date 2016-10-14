@@ -180,7 +180,7 @@ rec {
         name = "${appName}-${appVersion}";
         assets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp.unminified}/bin/frontend.jsexe";
+        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
