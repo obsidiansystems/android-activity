@@ -9,8 +9,8 @@ rec {
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
-  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else p;
-  mkDerivation =
+  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
+  mkDerivation = nixpkgs.lib.makeOverridable (
     { name
     , version
     , androidPackagePrefix ? "systems.obsidian"
@@ -137,7 +137,7 @@ rec {
             src = nixpkgs.runCommand "frontend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ${if builtins.pathExists commonSrc then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                 ln -s "${frontendSrc}"/src/* "$out"/
               '';
             } "";
@@ -233,7 +233,7 @@ rec {
             src = nixpkgs.runCommand "backend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ${if builtins.pathExists commonSrc then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                 ln -s "${backendSrc}"/src{,-bin}/* "$out"/
 
                 shopt -s nullglob
@@ -271,7 +271,7 @@ rec {
                 src = nixpkgs.runCommand "tests-src" {
                   buildCommand = ''
                     mkdir "$out"
-                   ${if builtins.pathExists commonSrc then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                    ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                     ln -s "${backendSrc}"/src/* "$out"/
                     ln -sf "${testsSrc}"/src/* "$out"/
                   '';
@@ -493,5 +493,5 @@ rec {
             };
         };
       });
-    in result;
+    in result);
 }
