@@ -13,6 +13,10 @@ Cabal-version: >=1.2
 library
   hs-source-dirs: src
 
+  if impl(ghcjs)
+    build-depends: ghcjs-base,
+                   ghcjs-json
+
   build-depends:
     aeson,
     attoparsec,
