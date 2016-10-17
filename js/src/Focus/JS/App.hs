@@ -354,14 +354,19 @@ identifyTags send recv = do
                   Dict -> (n, Just (Decoder k))
                 toSend = ffor result $ \(n, _ :=> v) -> (toJSON n, requestToJSON v)
             return (newNextId, patchWaitingFor, toSend)
-      let recv' = flip push recv $ \(jsonN, Right jsonV) -> do
-            wf <- sample $ currentIncremental waitingFor
-            let Just n = parseMaybe parseJSON jsonN
-            return $ case Map.lookup n wf of
-              Just (Decoder k) -> Just $
-                let Just v = parseMaybe parseJSON jsonV
-                in (DMap.singleton k $ Identity v, PatchMap $ Map.singleton n Nothing)
-              Nothing -> Nothing
+      let recv' = flip push recv $ \(jsonN, jsonV') -> do
+            case jsonV' of
+              Left _ -> return Nothing
+              Right jsonV -> do
+                wf <- sample $ currentIncremental waitingFor
+                case parseMaybe parseJSON jsonN of
+                  Nothing -> return Nothing
+                  Just n ->
+                    return $ case Map.lookup n wf of
+                      Just (Decoder k) -> Just $
+                        let Just v = parseMaybe parseJSON jsonV
+                        in (DMap.singleton k $ Identity v, PatchMap $ Map.singleton n Nothing)
+                      Nothing -> Nothing
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
