@@ -91,7 +91,7 @@ requestEnv c = RequestEnv
 
 --TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
 listener :: forall app. HasView app => ClientEnv app -> IO ()
-listener env = handleConnectionException $ forever $ runMaybeT $ do
+listener env = handleConnectionException . forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
   (mma :: Either Text (WebSocketData (AppendMap (Signed AuthToken) (View app)) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
@@ -153,7 +153,7 @@ listenIO :: MonadRequest app m
        -> m (ListenResult a)
 listenIO l = do
   mtoken <- gets _requestState_token
-  case mtoken of
+  res <- case mtoken of
     Nothing -> return ListenResult_RequiresAuthorization
     Just t -> do
       mListen <- asks _requestEnv_listen
@@ -164,6 +164,12 @@ listenIO l = do
       return $ case er of
         Left _ -> ListenResult_Timeout (fromJust mTimeout)
         Right r -> r
+  case res of
+    ListenResult_Success {} -> return ()
+    ListenResult_Timeout t -> liftIO . putStrLn $ "listenIO: timed out (" <> show t <> ")"
+    ListenResult_Failure e -> liftIO . putStrLn $ "listenIO: failure: " <> T.unpack e
+    ListenResult_RequiresAuthorization {} -> liftIO . putStrLn $ "listenIO: required authorization"
+  return res
  where
    timeout = \case
      Nothing -> forever $ threadDelay 10000000
@@ -230,17 +236,18 @@ withInterest s a = do
             requestState_interests %= Map.delete sid
       in Just <$> bracket setup teardown (\_ -> a)
 
+
 runClientApp :: (HasView app, HasRequest app)
              => RequestM app a
              -> ClientConfig
              -> IO a
 runClientApp m cfg = withSocketsDo $ do
-
   result <- newEmptyTMVarIO
   handleConnectionClosed $ do
     result' <- runClient (T.unpack $ _clientConfig_host cfg)
                          (_clientConfig_port cfg)
                          (T.unpack $ _clientConfig_path cfg) $ \conn -> do
+      forkPingThread conn 15
       cenv <- atomically $ do
         nextReq <- newTVar 1
         pending <- newTVar Map.empty
@@ -269,7 +276,6 @@ runClientApp m cfg = withSocketsDo $ do
           _requestEnv_sendInterestSet renv
       killThread listenerThread
       takeMVar listenDone
-
       handle (\case CloseRequest {} -> return (); e -> throwM e) $ do
         sendClose conn ("Goodbye" :: Text)
         forever $ do

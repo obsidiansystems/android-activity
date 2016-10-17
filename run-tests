@@ -2,9 +2,10 @@
 set -eu -o pipefail
 
 TESTS="$(nix-build --no-out-link -A tests)"
-BACKEND="$(nix-build --no-out-link -A backend)"
+#BACKEND="$(nix-build --no-out-link -A backend)"
 
-"$TESTS/bin/tests" "$BACKEND/bin/backend" +RTS -N || pkill backend #TODO: Not needing this
+#"$TESTS/bin/tests" "$BACKEND/bin/backend" +RTS -N || pkill backend #TODO: Not needing this
+"$TESTS/bin/tests" "/bin/true" +RTS -N || pkill backend #TODO: Not needing this
 
 #TODO: Not needing this
 pkill backend
