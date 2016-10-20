@@ -50,6 +50,8 @@ import qualified Data.Text as T
 import qualified Database.PostgreSQL.Simple.Notification as PG
 import Reflex (FunctorMaybe(..), ffor)
 
+import Debug.Trace (trace)
+
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
 data NotificationType = NotificationType_Insert | NotificationType_Update | NotificationType_Delete
@@ -162,13 +164,6 @@ makeNotificationListener runGroundhog chan getPatches = do
                                 , _notificationListener_thread = thread
                                 }
 
--- | Creates a function that iterates the argument function.
-getPatchesFor :: (Applicative m, Traversable t)
-              => (vs -> StateT state m (Maybe vp))
-              -> t (vs, state) -> m (t (Maybe vp, state))
-getPatchesFor getPatch selectors = for selectors $
-  \(vs, state) -> runStateT (getPatch vs) state
-
 handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
                 , FromJSON vs, ToJSON vp, Monoid vs
@@ -254,6 +249,13 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
    encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
    encodeR = encode
 
+-- | Creates a function that iterates the argument function.
+getPatchesFor :: (Applicative m, Traversable t)
+              => (vs -> StateT state m (Maybe vp))
+              -> t (vs, state) -> m (t (Maybe vp, state))
+getPatchesFor getPatch selectors = for selectors $
+  \(vs, state) -> runStateT (getPatch vs) state
+
 -- | Like 'alignWith', except the function may return 'Maybe'. Using
 --   'FunctorMaybe', elements that return 'Nothing' will be removed.
 alignWithMaybe
@@ -319,7 +321,7 @@ getViewsForTokens getView loginHook logoutHook vs vsOld = do
 
 -- | Get the patches for authenticated view selectors.
 getPatchesForTokens
-  :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, FunctorMaybe alignedVs)
+  :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, FunctorMaybe alignedVs, Default state)
   => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
                  alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
   -> alignedVs (t ())
@@ -327,11 +329,11 @@ getPatchesForTokens
   -> m (t (Maybe (AppendMap token vp), AppendMap token state))
 getPatchesForTokens getPatches alignedVs selectors =
   -- TODO: Do something better than expecting these two to come aligned.
-  let stateWithSelectors (This _) = error "View selectors should align with state"
-      stateWithSelectors (That _) = error "State should align with view selectors"
-      stateWithSelectors (These vs state) = (vs, state)
+  let stateWithSelectors (This vs) = trace "Warning: missing state in getPatchesForTokens" $ Just (vs, def)
+      stateWithSelectors (That state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
+      stateWithSelectors (These vs state) = Just (vs, state)
       selectors' = AlignCompose $ ffor selectors (imap (\token (vs, state) -> (vs, state, token))
-                                                  . uncurry (alignWith stateWithSelectors))
+                                                  . fmapMaybe id . uncurry (alignWith stateWithSelectors))
       separateStateAndPatches vps = (AppendMap.mapMaybeNoNull fst vps, fmap snd vps)
       tokenizeAlignedVs (This (vs, _)) = Just $ fmap (const ()) vs
       tokenizeAlignedVs (That ()) = Nothing
