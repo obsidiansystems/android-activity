@@ -20,7 +20,7 @@ import Focus.WebSocket
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (handle, try, SomeException, displayException)
+import Control.Exception (handle, try, SomeException, displayException, throwIO)
 import Control.Lens
 import Control.Monad.State.Strict hiding (state)
 import qualified Control.Monad.State.Strict as State
@@ -42,6 +42,7 @@ import Database.Groundhog.Instances ()
 import Database.Groundhog.Postgresql
 import Database.PostgreSQL.Simple as PG
 import Network.WebSockets as WS
+import Network.WebSockets.Connection as WS
 import Network.WebSockets.Snap
 import Snap
 import qualified Data.ByteString.Lazy as LBS
@@ -172,7 +173,8 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
                 , FromJSON vs, ToJSON vp, Monoid vs
                 , Align alignedVs, FunctorMaybe alignedVs)
-             => (forall x. m' x -> IO x) -- runGroundhog
+             => (vs -> state -> m' ()) -- connectionCloseHook
+             -> (forall x. m' x -> IO x) -- runGroundhog
              -> (vs -> alignedVs ()) -- alignViewSelector
              -> NotificationListener alignedVs vs vp state
              -> vs
@@ -180,7 +182,7 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
              -> (vs -> vs -> StateT state m' vp) -- getView
              -> (rq -> IO rsp) -- processRequest
              -> m ()
-handleListen runGroundhog alignViewSelector notificationListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+handleListen connectionCloseHook runGroundhog alignViewSelector notificationListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
   let connections = _notificationListener_connections notificationListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
@@ -198,8 +200,11 @@ handleListen runGroundhog alignViewSelector notificationListener vs0 state0 getV
                                       & connections_alignedViewSelector %~ alignWith initialAlignment (alignViewSelector vs0)
         return stateRef)
 
-    (\_ -> do
-        modifyMVar_ connections $ \currentConnections ->
+    (\stateRef -> do
+        modifyMVar_ connections $ \currentConnections -> do
+          tryReadMVar stateRef >>= \case
+            Just (vs, state) -> runGroundhog $ connectionCloseHook vs state
+            Nothing -> return () -- TODO: The stateRef shouldn't be empty when the connection closes. This indicates an error.
           return $ currentConnections & connections_connState           %~ AppendMap.delete threadId
                                       & connections_alignedViewSelector %~ fmapMaybe (AppendMap.nonEmptyDelete threadId))
 
@@ -212,7 +217,9 @@ handleListen runGroundhog alignViewSelector notificationListener vs0 state0 getV
     
         let handleConnectionException = handle $ \e -> case e of
               ConnectionClosed -> return ()
-              _ -> print e
+              CloseRequest _ _ -> print e >> WS.pendingStreamClose pc >> throwIO e
+              _ -> do putStr "Exception: " >> print e
+                      throwIO e
         handleConnectionException $ forever $ do
           dm <- receiveDataMessage conn
           let (wrapper, r) = case dm of
@@ -285,10 +292,12 @@ diffAlign token remove add xs = let
 getViewsForTokens
   :: (Monad m, Align (AppendMap token), Monoid vs, Ord token, Default state)
   => (token -> vs -> vs -> StateT state m vp)
+  -> (token -> m ()) -- ^ login hook
+  -> (token -> m ()) -- ^ logout hook
   -> AppendMap token vs
   -> AppendMap token vs
   -> StateT (AppendMap token state) m (AppendMap token vp)
-getViewsForTokens getView vs vsOld = do
+getViewsForTokens getView loginHook logoutHook vs vsOld = do
   states <- State.get
 
   -- TODO: Do something better than expecting these two to come aligned
@@ -299,9 +308,9 @@ getViewsForTokens getView vs vsOld = do
 
   viewMap <- lift $ fmap (fmapMaybe id) $ ifor (align vs' vsOld) $ \token -> \case
     -- Logout
-    That _ -> return Nothing
+    That _ -> Nothing <$ logoutHook token
     -- Login
-    This (vsNew, state) -> Just <$> runStateT (getView token vsNew mempty) state
+    This (vsNew, state) -> loginHook token >> Just <$> runStateT (getView token vsNew mempty) state
     -- Update for a logged in user
     These (vsNew, state) vsOld' -> Just <$> runStateT (getView token vsNew vsOld') state
 
