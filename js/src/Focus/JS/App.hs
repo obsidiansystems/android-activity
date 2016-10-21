@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification #-}
 module Focus.JS.App where
 
@@ -392,8 +393,13 @@ openWebSocket :: forall t x m vs v k.
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
 openWebSocket url request updatedVs = do
+#ifndef __GHCJS__
       (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
         webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+#else
+      (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe rawDecode . _webSocket_recv) $
+        rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+#endif
           [ fmap (map (uncurry WebSocketData_Api)) request
           , fmap ((:[]) . WebSocketData_Listen) updatedVs
           ]

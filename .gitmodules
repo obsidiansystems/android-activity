@@ -47,7 +47,12 @@
 [submodule "th"]
 	path = th
 	url = git@gitlab.com:obsidian.systems/focus-th.git
-
 [submodule "postie"]
 	path = postie
 	url = https://github.com/cgibbard/postie.git
+[submodule "websockets"]
+	path = websockets
+	url = git@github.com:obsidiansystems/websockets
+[submodule "websockets-snap"]
+	path = websockets-snap
+	url = git@github.com:obsidiansystems/websockets-snap

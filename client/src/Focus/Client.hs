@@ -4,6 +4,7 @@ module Focus.Client ( module Focus.Client
                     ) where
 
 import Control.Concurrent (forkFinally, killThread, threadDelay)
+import Control.Concurrent.MVar
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Lens
@@ -90,7 +91,7 @@ requestEnv c = RequestEnv
 
 --TODO: Error reporting when the client is expecting the wrong patch type and the decode always fails
 listener :: forall app. HasView app => ClientEnv app -> IO ()
-listener env = handleConnectionException $ forever $ runMaybeT $ do
+listener env = handleConnectionException . forever $ runMaybeT $ do
   raw <- lift $ receiveData (_clientEnv_connection env)
   (mma :: Either Text (WebSocketData (AppendMap (Signed AuthToken) (View app)) (Either Text Value))) <- MaybeT . return $ decodeValue' raw
   ma <- MaybeT . return . either (\_ -> Nothing) Just $ mma
@@ -114,7 +115,7 @@ listener env = handleConnectionException $ forever $ runMaybeT $ do
    Success r' -> Just r'
   handleConnectionException = handle $ \e -> case e of
     ConnectionClosed -> return ()
-    _ -> print e
+    _ -> putStrLn $ "listener: " ++ show e
 
 request :: (MonadRequest app m, ToJSON rsp, FromJSON rsp)
         => AppRequest app rsp
@@ -152,7 +153,7 @@ listenIO :: MonadRequest app m
        -> m (ListenResult a)
 listenIO l = do
   mtoken <- gets _requestState_token
-  case mtoken of
+  res <- case mtoken of
     Nothing -> return ListenResult_RequiresAuthorization
     Just t -> do
       mListen <- asks _requestEnv_listen
@@ -163,6 +164,12 @@ listenIO l = do
       return $ case er of
         Left _ -> ListenResult_Timeout (fromJust mTimeout)
         Right r -> r
+  case res of
+    ListenResult_Success {} -> return ()
+    ListenResult_Timeout t -> liftIO . putStrLn $ "listenIO: timed out (" <> show t <> ")"
+    ListenResult_Failure e -> liftIO . putStrLn $ "listenIO: failure: " <> T.unpack e
+    ListenResult_RequiresAuthorization {} -> liftIO . putStrLn $ "listenIO: required authorization"
+  return res
  where
    timeout = \case
      Nothing -> forever $ threadDelay 10000000
@@ -229,45 +236,58 @@ withInterest s a = do
             requestState_interests %= Map.delete sid
       in Just <$> bracket setup teardown (\_ -> a)
 
+
 runClientApp :: (HasView app, HasRequest app)
              => RequestM app a
              -> ClientConfig
              -> IO a
 runClientApp m cfg = withSocketsDo $ do
   result <- newEmptyTMVarIO
-  handleConnectionException $ runClient (T.unpack $ _clientConfig_host cfg)
-                                        (_clientConfig_port cfg)
-                                        (T.unpack $ _clientConfig_path cfg) $ \conn -> do
-    cenv <- atomically $ do
-      nextReq <- newTVar 1
-      pending <- newTVar Map.empty
-      views' <- newTVar Map.empty
-      notify <- newBroadcastTChan
-      nextInterest <- newTVar 1
-      interests <- newTVar Map.empty
-      return $ ClientEnv { _clientEnv_connection = conn
-                         , _clientEnv_nextRequestId = nextReq
-                         , _clientEnv_pendingRequests = pending
-                         , _clientEnv_viewMap = views'
-                         , _clientEnv_notifyViewChange = notify
-                         , _clientEnv_nextInterestId = nextInterest
-                         , _clientEnv_interests = interests
-                         }
-    let renv = requestEnv cenv
-    listenDone <- newEmptyTMVarIO
-    bracket
-      (forkFinally (listener cenv) (\_ -> atomically (putTMVar listenDone ())))
-      (\lid -> killThread lid >> atomically (takeTMVar listenDone) >> handleConnectionException (sendClose conn ("Goodbye" :: Text) >> forever (receiveDataMessage conn))) $
-      \_ -> do
-        er <- try $ runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty)
-        case er of
-          Left (e :: SomeException) -> atomically (putTMVar result (Left e))
-          Right (a,s,_) -> atomically (forM_ (_requestState_interests s) snd >> putTMVar result (Right a)) >> (_requestEnv_sendInterestSet renv)
+  handleConnectionClosed $ do
+    result' <- runClient (T.unpack $ _clientConfig_host cfg)
+                         (_clientConfig_port cfg)
+                         (T.unpack $ _clientConfig_path cfg) $ \conn -> do
+      forkPingThread conn 15
+      cenv <- atomically $ do
+        nextReq <- newTVar 1
+        pending <- newTVar Map.empty
+        views' <- newTVar Map.empty
+        notify <- newBroadcastTChan
+        nextInterest <- newTVar 1
+        interests <- newTVar Map.empty
+        return $ ClientEnv { _clientEnv_connection = conn
+                           , _clientEnv_nextRequestId = nextReq
+                           , _clientEnv_pendingRequests = pending
+                           , _clientEnv_viewMap = views'
+                           , _clientEnv_notifyViewChange = notify
+                           , _clientEnv_nextInterestId = nextInterest
+                           , _clientEnv_interests = interests
+                           }
+      let renv = requestEnv cenv
+      listenDone <- newEmptyMVar
+      listenerThread <- forkFinally (listener cenv) (\_ -> putMVar listenDone ())
+      er <- try $ runRWST (_runRequestM m) renv (RequestState Nothing (_clientConfig_timeout cfg) Map.empty)
+      case er of
+        Left (e :: SomeException) -> do
+          liftIO (putStrLn $ "Error while running request: " <> show e)
+          atomically (putTMVar result (Left e))
+        Right (a,s,_) -> do
+          atomically (forM_ (_requestState_interests s) snd >> putTMVar result (Right a)) 
+          _requestEnv_sendInterestSet renv
+      killThread listenerThread
+      takeMVar listenDone
+      handle (\case CloseRequest {} -> return (); e -> throwM e) $ do
+        sendClose conn ("Goodbye" :: Text)
+        forever $ do
+          receiveDataMessage conn
+    case result' of
+      Left e -> throwM e
+      Right x -> return x
   er <- atomically (takeTMVar result)
   case er of
     Left e -> throwM e
     Right r -> return r
  where
-  handleConnectionException = handle $ \e -> case e of
+  handleConnectionClosed = handle $ \e -> case e of
     ConnectionClosed -> return ()
-    _ -> print e
+    _ -> throwM e

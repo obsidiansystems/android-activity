@@ -1,6 +1,5 @@
-{}:
-let enableProfiling = false;
-    tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
+{ enableProfiling ? false }:
+let tryReflex = import ./reflex-platform { enableLibraryProfiling = enableProfiling; };
     inherit (tryReflex) nixpkgs cabal2nixResult;
 in with nixpkgs.haskell.lib;
 rec {
@@ -10,8 +9,8 @@ rec {
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
-  filterGitSource = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ]));
-  mkDerivation =
+  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
+  mkDerivation = nixpkgs.lib.makeOverridable (
     { name
     , version
     , androidPackagePrefix ? "systems.obsidian"
@@ -44,7 +43,10 @@ rec {
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
-             focus-js = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./js)) {});
+             focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
+               doHaddock = false;
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
+             });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
            };
@@ -135,7 +137,7 @@ rec {
             src = nixpkgs.runCommand "frontend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ln -s "${commonSrc}"/src/* "$out"/
+                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                 ln -s "${frontendSrc}"/src/* "$out"/
               '';
             } "";
@@ -178,7 +180,7 @@ rec {
         name = "${appName}-${appVersion}";
         assets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp.unminified}/bin/frontend.jsexe";
+        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
@@ -231,7 +233,7 @@ rec {
             src = nixpkgs.runCommand "backend-src" {
               buildCommand = ''
                 mkdir "$out"
-                ln -s "${commonSrc}"/src/* "$out"/
+                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                 ln -s "${backendSrc}"/src{,-bin}/* "$out"/
 
                 shopt -s nullglob
@@ -269,7 +271,7 @@ rec {
                 src = nixpkgs.runCommand "tests-src" {
                   buildCommand = ''
                     mkdir "$out"
-                    ln -s "${commonSrc}"/src/* "$out"/
+                    ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                     ln -s "${backendSrc}"/src/* "$out"/
                     ln -sf "${testsSrc}"/src/* "$out"/
                   '';
@@ -491,5 +493,5 @@ rec {
             };
         };
       });
-    in result;
+    in result);
 }

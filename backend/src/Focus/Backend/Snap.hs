@@ -32,7 +32,7 @@ ensureSecure port h = do
   s <- getsRequest rqIsSecure
   if s then h else do
     uri <- getsRequest rqURI
-    host <- getsRequest rqServerName --TODO: It might be better to use the canonical base of the server
+    host <- getsRequest rqHostName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
 
 data AppConfig m

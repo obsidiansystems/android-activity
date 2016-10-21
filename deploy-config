@@ -8,9 +8,9 @@ shift
 CONFIG="$1"
 shift
 
-BACKEND_HOME="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.home')"
-BACKEND_UID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.uid')"
-BACKEND_GID="$(nix-instantiate --eval -E '((import ./.).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraGroups.backend.gid')"
+BACKEND_HOME="$(nix-instantiate --eval -E '((import ./. {}).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.home')"
+BACKEND_UID="$(nix-instantiate --eval -E '((import ./. {}).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraUsers.backend.uid')"
+BACKEND_GID="$(nix-instantiate --eval -E '((import ./. {}).completeServer { hostName = "'$TARGET'"; }).aws.config.users.extraGroups.backend.gid')"
 
 $SSH "$TARGET" bash <<EOF
 if [ ! -d "$BACKEND_HOME" ] ; then
