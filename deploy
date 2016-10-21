@@ -8,6 +8,9 @@ shift
 CONFIG="$1"
 shift
 
+# Check preconditions
+diff <(ls ../config) <(ls config) # We don't want to deploy if we have the wrong set of config files
+
 eval "$(ssh-agent)"
 ssh-add "$CONFIG/ssh_key"
 
