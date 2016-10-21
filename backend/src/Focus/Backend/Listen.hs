@@ -129,14 +129,12 @@ notifyEntityId nt aid = do
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeNotificationListener
-  :: forall m' notification alignedVs vs vp state.
-     Align alignedVs
-  => (forall x. m' x -> IO x) -- runGroundhog
-  -> TChan notification -- chan
-  -> (forall t. (Traversable t, Align t, FunctorMaybe t) =>
-                notification -> alignedVs (t ()) -> t (vs, state) -> m' (t (Maybe vp, state)))
-  -> IO (NotificationListener alignedVs vs vp state)
+makeNotificationListener :: forall m' notification alignedVs vs vp state. Align alignedVs
+                         => (forall x. m' x -> IO x) -- runGroundhog
+                         -> TChan notification -- chan
+                         -> (forall t. (Traversable t, Align t, FunctorMaybe t) =>
+                                       notification -> alignedVs (t ()) -> t (vs, state) -> m' (t (Maybe vp, state)))
+                         -> IO (NotificationListener alignedVs vs vp state)
 makeNotificationListener runGroundhog chan getPatches = do
   connections <- newMVar $ Connections { _connections_connState = AppendMap.empty
                                        , _connections_alignedViewSelector = nil
@@ -258,19 +256,17 @@ getPatchesFor getPatch selectors = for selectors $
 
 -- | Like 'alignWith', except the function may return 'Maybe'. Using
 --   'FunctorMaybe', elements that return 'Nothing' will be removed.
-alignWithMaybe
-  :: (Align f, FunctorMaybe f)
-  => (These a b -> Maybe c) -> f a -> f b -> f c
+alignWithMaybe :: (Align f, FunctorMaybe f)
+               => (These a b -> Maybe c) -> f a -> f b -> f c
 alignWithMaybe f a b = fmapMaybe f $ align a b
 
 -- | Diff two structures, and apply the diff to a key in a third structure.
-diffAlign
-  :: (Align f, FunctorMaybe f, Ord token)
-  => token
-  -> f a -- ^ Remove these
-  -> f b -- ^ Add these
-  -> f (AppendMap token b) -- ^ Modify these
-  -> f (AppendMap token b)
+diffAlign :: (Align f, FunctorMaybe f, Ord token)
+          => token
+          -> f a -- ^ Remove these
+          -> f b -- ^ Add these
+          -> f (AppendMap token b) -- ^ Modify these
+          -> f (AppendMap token b)
 diffAlign token remove add xs = let
   -- Remove elements that are only in the `remove` structure
   diffAlignment (This _) = AppendMap.nonEmptyDelete token
@@ -291,14 +287,13 @@ diffAlign token remove add xs = let
   -- Use 'alignWithMaybe' to remove empty maps
   in alignWithMaybe realignment diff xs
 
-getViewsForTokens
-  :: (Monad m, Align (AppendMap token), Monoid vs, Ord token, Default state)
-  => (token -> vs -> vs -> StateT state m vp)
-  -> (token -> m ()) -- ^ login hook
-  -> (token -> m ()) -- ^ logout hook
-  -> AppendMap token vs
-  -> AppendMap token vs
-  -> StateT (AppendMap token state) m (AppendMap token vp)
+getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs, Ord token, Default state)
+                  => (token -> vs -> vs -> StateT state m vp)
+                  -> (token -> m ()) -- ^ login hook
+                  -> (token -> m ()) -- ^ logout hook
+                  -> AppendMap token vs
+                  -> AppendMap token vs
+                  -> StateT (AppendMap token state) m (AppendMap token vp)
 getViewsForTokens getView loginHook logoutHook vs vsOld = do
   states <- State.get
 
@@ -320,13 +315,12 @@ getViewsForTokens getView loginHook logoutHook vs vsOld = do
   return $ fmap fst viewMap
 
 -- | Get the patches for authenticated view selectors.
-getPatchesForTokens
-  :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, FunctorMaybe alignedVs, Default state)
-  => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
-                 alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
-  -> alignedVs (t ())
-  -> t (AppendMap token vs, AppendMap token state)
-  -> m (t (Maybe (AppendMap token vp), AppendMap token state))
+getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, FunctorMaybe alignedVs, Default state)
+                    => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
+                                   alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
+                    -> alignedVs (t ())
+                    -> t (AppendMap token vs, AppendMap token state)
+                    -> m (t (Maybe (AppendMap token vp), AppendMap token state))
 getPatchesForTokens getPatches alignedVs selectors =
   -- TODO: Do something better than expecting these two to come aligned.
   let stateWithSelectors (This vs) = trace "Warning: missing state in getPatchesForTokens" $ Just (vs, def)
@@ -391,11 +385,11 @@ listenDB withConn' = do
   return (nChan, killThread daemonThread)
 
 handleRequests :: forall f m pub priv. (Monad m)
-                => (forall x. ToJSON x => f x -> m Value) -- Runs request and turns response into JSON
-                -> (forall x. pub x -> f x) -- Public request handler 
-                -> (forall x. Signed AuthToken -> priv x -> f x) -- Private request handler
-                -> SomeRequest (ApiRequest pub priv) -- Api Request
-                -> m Value -- JSON response
+               => (forall x. ToJSON x => f x -> m Value) -- Runs request and turns response into JSON
+               -> (forall x. pub x -> f x) -- Public request handler 
+               -> (forall x. Signed AuthToken -> priv x -> f x) -- Private request handler
+               -> SomeRequest (ApiRequest pub priv) -- Api Request
+               -> m Value -- JSON response
 handleRequests runRequest fpub fpriv request = case request of
   SomeRequest req -> do
     rsp <- case req of

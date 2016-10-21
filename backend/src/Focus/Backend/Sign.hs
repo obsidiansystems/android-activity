@@ -32,7 +32,7 @@ readSignedWithKey k s = do
 
 newtype SignT m a = SignT { unSignT :: ReaderT CS.Key m a } deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MonadEmail, MonadRoute r, MonadBrand)
 
-runSignT :: SignT m a  -> CS.Key -> m a
+runSignT :: SignT m a -> CS.Key -> m a
 runSignT (SignT a) r = runReaderT a r
 
 instance (MonadIO m, MonadBase IO m) => MonadBase IO (SignT m) where

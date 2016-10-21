@@ -12,6 +12,7 @@ module Focus.Backend.Account where
 import Focus.Backend.DB
 import Focus.Backend.Email
 import Focus.Backend.Schema.TH
+import Focus.Backend.Sign
 import Focus.Backend.Listen
 import Focus.Backend.Mustache
 
@@ -40,6 +41,8 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5.Attributes as A
 import Data.List.NonEmpty
 
+import qualified Web.ClientSession as CS
+
 mkPersist defaultCodegenConfig [groundhog|
   - entity: Account
     constructors:
@@ -51,6 +54,9 @@ mkPersist defaultCodegenConfig [groundhog|
 |]
 
 makeDefaultKeyIdInt64 ''Account 'AccountKey
+
+tokenToAuth :: CS.Key -> Signed AuthToken -> Maybe (Id Account)
+tokenToAuth csk = fmap unAuthToken . readSignedWithKey csk
 
 migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
