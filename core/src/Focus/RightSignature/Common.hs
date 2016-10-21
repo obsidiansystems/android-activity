@@ -2,7 +2,6 @@
 module Focus.RightSignature.Common where
 
 import Data.Text (Text)
-import Data.Aeson
 
 import Focus.Request (makeJson)
 
@@ -12,6 +11,7 @@ data W9DocumentDetails = W9DocumentDetails
   { _w9DocumentDetails_originalUrl :: Text
   , _w9DocumentDetails_signedUrl :: Text
   , _w9DocumentDetails_thumbnailUrl :: Text
+  , _w9DocumentDetails_state :: Text
   } deriving (Show, Read, Eq, Ord)
 
 makeJson ''W9DocumentDetails

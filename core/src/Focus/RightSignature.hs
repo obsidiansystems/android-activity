@@ -90,6 +90,7 @@ getDocumentDetails tok guid = do
     W9DocumentDetails <$> unescapeUrl (parseMaybe (withObject "original_url" (.: "original_url")) doc)
                       <*> unescapeUrl (parseMaybe (withObject "signed_pdf_url" (.: "signed_pdf_url")) doc)
                       <*> unescapeUrl (parseMaybe (withObject "large_url" (.: "large_url")) doc)
+                      <*> parseMaybe (withObject "state" (.: "state")) doc
   where
     unescapeUrl = fmap (T.decodeUtf8 . urlDecode False . T.encodeUtf8)
     documentParser = withObject "document" (.: "document")
@@ -103,6 +104,26 @@ getDocumentDetails tok guid = do
           putStrLn $ "Network error: getDocumentDetails: " <> show err
           return mempty
         Right res' -> return $ responseBody res'
+
+deleteDocument :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
+deleteDocument tok guid = do
+  let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> "/trash.json"
+  res <- makeReq tok url
+  return $ parseMaybe statusParser =<< parseMaybe documentParser =<< decode res
+  where
+    documentParser = withObject "document" (.: "document")
+    statusParser = withObject "status" (.: "status")
+    makeReq tok url = do
+      man <- newManager tlsManagerSettings
+      req' <- parseUrlThrow url
+      let req = addSecureToken tok $ req' { method = methodPost }
+      res <- try $ httpLbs req man
+      case res of
+        Left (err :: HttpException) -> do
+          putStrLn $ "Network error: deleteDocument: " <> show err
+          return mempty
+        Right res' -> return $ responseBody res'
+
 
 makeEmbeddedSigningUrl :: Text -> Text
 makeEmbeddedSigningUrl signerToken = "https://rightsignature.com/signatures/embedded?height=800&rt=" <> signerToken

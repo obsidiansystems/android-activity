@@ -11,6 +11,7 @@ import Focus.Time
 import Focus.Misc
 import Focus.Account
 import Focus.Sign
+import Focus.JS.Prerender
 
 import Safe
 import Control.Monad
@@ -609,7 +610,7 @@ checkButton b0 active inactive txt = do
   return selected
 
 sortableTable
-  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Prerender js m)
   => Dynamic t (Map k v)
   -- ^ The data set
   -> [sk]
@@ -628,23 +629,29 @@ sortableTable
   -- ^ Will the sorting will be done on the server itself?
   -> m (Dynamic t (SortKey sk))
 sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
-  elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
+  dynSortKey' <- elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
     dynSortKey <- elAttr "thead" ("class" =: "table-header") $
       elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
-        sortableListHeader cols defaultSort mkHeaderElem'
+        prerender (mkStaticHeader >> return (constDyn defaultSort)) $ sortableListHeader cols defaultSort mkHeaderElem'
 
     -- For server side sorting we simply display all list elements without modification
-    if serverSort
-      then
-        -- `listWithKey` is buggy, we simply use dyn (performance hit isn't that big because the server replaces most rows anyways)
-        -- listWithKey dynVals mkRow
-        el "tbody" $ void $ dyn $ fmap (\(vs,sk) -> sequence_ $ map snd $ (sortOn fst) $ map (\(k,v) -> (fmap (`extractKey` v) sk, mkRow k (constDyn v))) $ Map.toList vs) $ zipDynWith (,) dynVals dynSortKey
-      else
-        -- For client side sorting, we use sortableListWithKey
-        el "tbody" $ void $ sortableListWithKey dynVals dynSortKey extractKey mkRow
+    el "tbody" $ do
+      if serverSort
+        then do
+          -- `listWithKey` is buggy, we simply use dyn (performance hit isn't that big because the server replaces most rows anyways)
+          -- listWithKey dynVals mkRow
+          void $ dyn $ fmap (\(vs,sk) -> sequence_ $ map snd $ (sortOn fst) $ map (\(k,v) -> (fmap (`extractKey` v) sk, mkRow k (constDyn v))) $ Map.toList vs) $ zipDynWith (,) dynVals dynSortKey
+        else
+          -- For client side sorting, we use sortableListWithKey
+          void $ sortableListWithKey dynVals dynSortKey extractKey mkRow
 
     return dynSortKey
+
+  prerender mkSpinner blank
+  return dynSortKey'
+
   where
+    mkSpinner = el "center" $ elClass "i" "fa fa-gear fa-spin fa-4x shadow1 spinner" blank
     mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
       Left renderHeaderElem -> renderHeaderElem >> return never
       Right title -> do
@@ -656,6 +663,10 @@ sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowEle
     mkRow k dynVal = do
       d <- fmap (<> "role" =: "row") <$> rowAttrs k dynVal
       elDynAttr "tr" d $ mapM (el "td" . flip mkRowElem dynVal) cols
+    mkStaticHeader = forM_ cols $ \col -> do
+        case mkHeaderElem col of
+          Left m -> m
+          Right title -> void $ elAttr "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none; cursor: pointer;") $ text title
 
 -- Key to sort a table
 data SortKey a = Asc a | Desc a
