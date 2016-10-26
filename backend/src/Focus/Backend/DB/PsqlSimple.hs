@@ -14,6 +14,7 @@ import Control.Exception
 import Control.Monad.Reader.Class
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as Strict
+import Control.Monad.Trans.Maybe
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BSC
 import Data.Int
@@ -110,6 +111,15 @@ instance (Monad m, PostgresRaw m) => PostgresRaw (StateT s m) where
   returning psql qs = lift $ returning psql qs
 
 instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
+  execute psql qs = lift $ execute psql qs
+  execute_ = lift . execute_
+  executeMany psql qs = lift $ executeMany psql qs
+  query psql qs = lift $ query psql qs
+  query_ = lift . query_
+  formatQuery psql qs = lift $ formatQuery psql qs
+  returning psql qs = lift $ returning psql qs
+
+instance (Monad m, PostgresRaw m) => PostgresRaw (MaybeT m) where
   execute psql qs = lift $ execute psql qs
   execute_ = lift . execute_
   executeMany psql qs = lift $ executeMany psql qs
