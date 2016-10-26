@@ -341,7 +341,7 @@ data Decoder f = forall a. FromJSON a => Decoder (f a)
 identifyTags :: forall t k v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (DMap k v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (DMap k Identity))
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
-      waitingFor :: Incremental t PatchMap (Map Int (Decoder k)) <- holdIncremental mempty $ leftmost
+      waitingFor :: Incremental t (PatchMap Int (Decoder k)) <- holdIncremental mempty $ leftmost
         [ fmap (\(_, b, _) -> b) send'
         , fmap snd recv'
         ]
@@ -372,8 +372,7 @@ identifyTags send recv = do
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
 openWebSocket :: forall t x m vs v k.
-                 ( Reflex t
-                 , MonadIO m
+                 ( MonadIO m
                  , MonadIO (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
