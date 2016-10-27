@@ -14,11 +14,14 @@ import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.TH
 import Database.Groundhog.TH.Settings
+import Database.Groundhog.Expression
+import Database.Groundhog.Generic.Sql
 import Language.Haskell.TH
 import Data.Char
 import Data.Monoid
 import Control.Lens
 import Control.Monad.Loops
+import Data.String
 import Data.List
 import Data.Time.Clock
 import Control.Monad.Trans
@@ -28,6 +31,10 @@ import qualified Control.Monad.State as S
 import qualified Control.Monad.State.Strict as Strict
 
 import Debug.Trace
+
+-- | Groundhog 'append' only works on String values. 'tappend' works on any 'IsString'
+tappend :: (SqlDb db, ExpressionOf db r a c, ExpressionOf db r b c, IsString c) => a -> b -> Expr db r c
+tappend a b = mkExpr $ function "concat" [toExpr a, toExpr b]
 
 -- | Run Database.Groundhog.TH.mkPersist with Focus-specific defaults
 --
