@@ -315,7 +315,7 @@ getViewsForTokens getView loginHook logoutHook vs vsOld = do
   return $ fmap fst viewMap
 
 -- | Get the patches for authenticated view selectors.
-getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, FunctorMaybe alignedVs, Default state)
+getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, Default state)
                     => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
                                    alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
                     -> alignedVs (t ())
@@ -324,7 +324,7 @@ getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMay
 getPatchesForTokens getPatches alignedVs selectors =
   -- TODO: Do something better than expecting these two to come aligned.
   let stateWithSelectors (This vs) = trace "Warning: missing state in getPatchesForTokens" $ Just (vs, def)
-      stateWithSelectors (That state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
+      stateWithSelectors (That _state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
       stateWithSelectors (These vs state) = Just (vs, state)
       selectors' = AlignCompose $ ffor selectors (imap (\token (vs, state) -> (vs, state, token))
                                                   . fmapMaybe id . uncurry (alignWith stateWithSelectors))

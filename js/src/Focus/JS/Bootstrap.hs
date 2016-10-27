@@ -111,6 +111,22 @@ dayInput d0 = do
       day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
+-- Allows selecting a month/year (preserves the day of the month)
+monthInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Day -> m (Dynamic t Day)
+monthInput d0 = do
+  let (year0, month0, day0) = toGregorian d0
+  rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
+      navigate' <- do
+        (prevButton, nextButton) <- divClass "text-center" $ do
+          p <- linkClass "<<" "btn btn-sm pull-left"
+          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
+          n <- linkClass ">>" "btn btn-sm pull-right"
+          return (p, n)
+        return $ leftmost [ addMonths (-1) <$ _link_clicked prevButton
+                          , addMonths 1 <$ _link_clicked nextButton
+                          ]
+  return $ ffor visibleMonth $ \(y, m) -> fromGregorian y (monthToInt m) day0
+
 monthCal :: forall t m. (DomBuilder t m, PostBuild t m, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
 monthCal y m sel = do
   let som = fromGregorian y (monthToInt m) 1
