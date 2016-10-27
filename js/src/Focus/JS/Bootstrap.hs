@@ -181,7 +181,7 @@ utcTimeInputMini tz0 tzWidget t = do
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
-          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ updated timeShown
           & inputElementConfig_initialValue .~ showDateTime' tz0 t
         isOpen <- holdDyn False $ leftmost [fmap (const True) (domEvent Click e'), fmap (const False) close]
@@ -589,7 +589,7 @@ dayInputMini d0 = do
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
-          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ fmap showDate date
           & inputElementConfig_initialValue .~ showDate d0
         isOpen <- holdDyn False $ leftmost [fmap (const False) date, fmap (const True) (domEvent Click e'), fmap (const False) close]
