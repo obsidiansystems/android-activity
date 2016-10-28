@@ -204,7 +204,8 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
     $ \stateRef -> do
         vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
           -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
-          (vpInit, !newStateInit) <- runGroundhog (runStateT (getView vsInit mempty) stateInit)
+          (vpInit, !newStateInit) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
+            runGroundhog (runStateT (getView vsInit mempty) stateInit)
           return ((vsInit, newStateInit), vpInit)
         send' vpInit
     
@@ -233,7 +234,8 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
                 -- Now that connections are acquired, we can safely acquire the stateRef.
                 (vsOld, vp) <- modifyMVar stateRef $ \(vsOld, state) -> do
                   -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
-                  (vp, !newState) <- runGroundhog $ runStateT (getView vs vsOld) state
+                  (vp, !newState) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
+                    runGroundhog (runStateT (getView vs vsOld) state)
                   return ((vs, newState), (vsOld, vp))
 
                 -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
