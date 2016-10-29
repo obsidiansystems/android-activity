@@ -264,7 +264,7 @@ instance ( MonadWidget' t m
 --    return $ zipDynWith (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
 watchViewSelector :: (MonadFocusWidget app t m) => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
-watchViewSelector = fmap nubDyn . queryDyn
+watchViewSelector = fmap uniqDyn . queryDyn
 
 -- watchViewSelectorLens :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) c b -> Dynamic t b -> m (Dynamic t (View app))
 -- watchViewSelectorLens l sdyn = do
