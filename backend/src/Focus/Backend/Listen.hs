@@ -98,8 +98,8 @@ insertByAllAndNotifyWithBody t = do
     Right tid -> notifyEntityWithBody NotificationType_Insert tid t >> return (Just tid)
 
 --TODO: remove type hole from signature; may need to modify groundhog to make that possible
-updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionHolder v c) (DefaultKey a), PersistEntity v, PersistEntity a, PersistBackend m, GH.Unifiable (AutoKeyField v c) (DefaultKey a), DefaultKeyId a, _) 
-                => Id a 
+updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionHolder v c) (DefaultKey a), PersistEntity v, PersistEntity a, PersistBackend m, GH.Unifiable (AutoKeyField v c) (DefaultKey a), DefaultKeyId a, _)
+                => Id a
                 -> [GH.Update (PhantomDb m) (RestrictionHolder v c)]
                 -> m ()
 updateAndNotify tid dt = do
@@ -143,7 +143,7 @@ makeNotificationListener runGroundhog chan getPatches = do
 
   thread <- forkIO $ forever $ do
     notification <- atomically $ readTChan changes
-    
+
     withMVar connections $ \currentConnections -> do
       selectors <- for (_connections_connState currentConnections) $
         \(send', mvar) -> (,) (send', mvar) <$> takeMVar mvar
@@ -179,7 +179,7 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
   let connections = _notificationListener_connections notificationListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
-  
+
   threadId <- myThreadId
   bracket
     (do
@@ -208,7 +208,7 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
             runGroundhog (runStateT (getView vsInit mempty) stateInit)
           return ((vsInit, newStateInit), vpInit)
         send' vpInit
-    
+
         let handleConnectionException = handle $ \e -> case e of
               ConnectionClosed -> return ()
               CloseRequest _ _ -> print e >> WS.pendingStreamClose pc >> throwIO e
@@ -383,12 +383,12 @@ listenDB withConn' = do
           case decodeValue' $ LBS.fromStrict message of
             Just a -> atomically $ writeTChan nChan a
             _ -> putStrLn $ "listenDB: Could not parse message on updates channel: " <> show message
-        _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel 
+        _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel
   return (nChan, killThread daemonThread)
 
 handleRequests :: forall f m pub priv. (Monad m)
                => (forall x. ToJSON x => f x -> m Value) -- Runs request and turns response into JSON
-               -> (forall x. pub x -> f x) -- Public request handler 
+               -> (forall x. pub x -> f x) -- Public request handler
                -> (forall x. Signed AuthToken -> priv x -> f x) -- Private request handler
                -> SomeRequest (ApiRequest pub priv) -- Api Request
                -> m Value -- JSON response
