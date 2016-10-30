@@ -10,17 +10,34 @@ import Data.Monoid
 import qualified Data.Text as T
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Control.Monad.IO.Class
+
+import GHCJS.DOM.Element (setInnerHTML)
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
 
+{- -- Right now, this sadly crashes reflex-dom because it expects to be able to cast all elements to HTMLElements, but this will result in an SVGElement.
 svgAttr :: forall t m a. DomBuilder t m => Text -> Map Text Text -> m a -> m a
 svgAttr name attrs body = snd <$> element name (def & namespace .~ svgNS & initialAttributes .~ Map.mapKeysMonotonic (\x -> AttributeName Nothing x) attrs) body
   where svgNS = Just "http://www.w3.org/2000/svg"
+-}
 
 -- | Takes a width, and a list of pairs of (foreground, background) colour pairs, and numerical values, and constructs an SVG pie chart for those values, having the given colours.
-pie :: MonadWidget t m => (Floating a, RealFrac a, Show a) => a -> [((Text, Text), a)] -> m ()
-pie w cvs = do
+pie :: MonadWidget t m => (Floating a, RealFrac a, Show a) => Map Text Text -> a -> [((Text, Text), a)] -> m ()
+pie attrs w cvs' = do
+  (divEl, _) <- elAttr' "div" attrs blank
+  let theSVG = "<svg width=\"" <> tshow (ceiling w :: Integer) <> "\" height=\"" <> tshow (ceiling w :: Integer) <> "\">"
+               <> mconcat ["<path d=\"" <> wedge <> "\" fill=\"" <> bg <> "\"></path>" | ((_,bg),wedge) <- zip colors wedges]
+               <> "<circle cx=\"" <> tshow (w/2) <> "\" cy=\"" <> tshow (w/2) <> "\" r=\"" <> tshow (w/3) <> "\" fill=\"white\"></circle>"
+               <> mconcat ["<text x=\"" <> tshow tx <> "\" y=\"" <> tshow ty <> "\" style=\""
+                            <> "font-size:" <> tshow fontSize <> "px;" <> "fill:" <> fg <> ";"
+                            <> "font-weight: bold;"
+                            <> "text-anchor: middle; dominant-baseline: middle;\">" <> pct <> "</text>"
+                          | ((fg, _), (tx, ty), pct) <- zip3 colors textPoints pcts]
+               <> "</svg>"
+  liftIO (setInnerHTML (_element_raw divEl) (Just theSVG))
+  {-
   el "div" $ do
     svgAttr "svg" ("width" =: tshow (ceiling w :: Integer) <> "height" =: tshow (ceiling w :: Integer)) $ do
       forM_ (zip colors wedges) $ \((_, bg), wedge) -> do
@@ -29,7 +46,9 @@ pie w cvs = do
       forM_ (zip3 colors textPoints pcts) $ \((fg, _), (tx, ty), pct) -> do
         svgAttr "text" ("x" =: tshow tx <> "y" =: tshow ty
                       <> "style" =: ("font-size:" <> tshow fontSize <> "px;" <> "fill:" <> fg <> ";" <> "text-anchor: middle; dominant-baseline: middle;")) (text pct)
+  -}
   where
+    cvs = filter (\(cs,v) -> v > 0) cvs'
     colors = map fst cvs
     vs = map snd cvs
     r = w/2
