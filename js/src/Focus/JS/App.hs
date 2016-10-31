@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds, PolyKinds, GADTs, AllowAmbiguousTypes, DefaultSignatures #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification #-}
 module Focus.JS.App where
@@ -229,6 +229,15 @@ class (HasView app) => HasEnv app where
 
 class (HasRequest app, HasView app) => HasFocus app
 
+class Vacuous t m' m where
+instance Vacuous t m' m where
+
+class ConstrainsWidget app where
+  type WidgetConstraintOf app :: * -> (* -> *) -> (* -> *) -> Constraint
+  type WidgetConstraintOf app = Vacuous
+
+data WidgetConstraint app t m where
+  WidgetConstraint :: WidgetConstraintOf app t m' m => WidgetConstraint app t m
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
@@ -237,7 +246,11 @@ class ( MonadWidget' t m
       , Response m ~ Identity
       , HasFocus app
       , MonadQuery t (ViewSelector app ()) m
-      ) => MonadFocusWidget app t m | m -> app t
+      , ConstrainsWidget app
+      ) => MonadFocusWidget app t m | m -> app t where
+  widgetDict :: WidgetConstraint app t m
+  default widgetDict :: WidgetConstraintOf app ~ Vacuous => WidgetConstraint app t m
+  widgetDict = WidgetConstraint
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
@@ -246,6 +259,8 @@ instance ( MonadWidget' t m
          , Response m ~ Identity
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
+         , ConstrainsWidget app
+         , WidgetConstraintOf app ~ Vacuous
          ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
