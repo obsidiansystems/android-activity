@@ -1,9 +1,8 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances, RankNTypes, PolyKinds #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, RankNTypes #-}
 module Focus.App where
 
 import Data.Aeson
 import Data.Align
-import Data.Constraint
 import Data.Semigroup
 
 import Focus.AppendMap (AppendMap)
@@ -28,10 +27,7 @@ singletonQuery k = QueryMorphism { _queryMorphism_mapQuery = AppendMap.singleton
                                  , _queryMorphism_mapQueryResult = AppendMap.findWithDefault mempty k
                                  }
 
-class Vacuous (a :: k) where
-instance Vacuous a
 
---TODO: your days are numbered HasView
 class ( ToJSON (ViewSelector app ()), FromJSON (ViewSelector app ())
       , ToJSON (View app), FromJSON (View app)
       , Monoid (ViewSelector app ()), Semigroup (ViewSelector app ())
@@ -42,8 +38,6 @@ class ( ToJSON (ViewSelector app ()), FromJSON (ViewSelector app ())
       ) => HasView app where
   type View app
   type ViewSelector app :: * -> *
-  type WidgetConstraint app :: (* -> *) -> Constraint
-  type WidgetConstraint app = Vacuous
 
 cropView :: (Query q) => q -> QueryResult q -> QueryResult q
 cropView = crop
@@ -51,3 +45,4 @@ cropView = crop
 class (Request (PublicRequest app), Request (PrivateRequest app)) => HasRequest app where
   data PublicRequest app :: * -> *
   data PrivateRequest app :: * -> *
+
