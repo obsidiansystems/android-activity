@@ -239,6 +239,11 @@ class ConstrainsWidget app where
 data WidgetConstraint app t m where
   WidgetConstraint :: WidgetConstraintOf app t m' m => WidgetConstraint app t m
 
+class ConstrainsWidget app => WidgetDict app m where
+  widgetDict :: WidgetConstraint app t m
+  default widgetDict :: WidgetConstraintOf app ~ Vacuous => WidgetConstraint app t m
+  widgetDict = WidgetConstraint
+
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , MonadRequest t m
@@ -246,11 +251,8 @@ class ( MonadWidget' t m
       , Response m ~ Identity
       , HasFocus app
       , MonadQuery t (ViewSelector app ()) m
-      , ConstrainsWidget app
+      , WidgetDict app m
       ) => MonadFocusWidget app t m | m -> app t where
-  widgetDict :: WidgetConstraint app t m
-  default widgetDict :: WidgetConstraintOf app ~ Vacuous => WidgetConstraint app t m
-  widgetDict = WidgetConstraint
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
@@ -260,7 +262,7 @@ instance ( MonadWidget' t m
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
          , ConstrainsWidget app
-         , WidgetConstraintOf app ~ Vacuous
+         , WidgetDict app m
          ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
