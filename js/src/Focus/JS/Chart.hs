@@ -28,12 +28,12 @@ pie :: MonadWidget t m => (Floating a, RealFrac a, Show a) => Map Text Text -> a
 pie attrs w cvs' = do
   (divEl, _) <- elAttr' "div" attrs blank
   let theSVG = "<svg width=\"" <> tshow (ceiling w :: Integer) <> "\" height=\"" <> tshow (ceiling w :: Integer) <> "\">"
-               <> mconcat ["<path d=\"" <> wedge <> "\" fill=\"" <> bg <> "\"></path>" | ((_,bg),wedge) <- zip colors wedges]
+               <> mconcat [wedge bg | ((_,bg),wedge) <- zip colors wedges]
                <> "<circle cx=\"" <> tshow (w/2) <> "\" cy=\"" <> tshow (w/2) <> "\" r=\"" <> tshow (w/3) <> "\" fill=\"white\"></circle>"
                <> mconcat ["<text x=\"" <> tshow tx <> "\" y=\"" <> tshow ty <> "\" style=\""
                             <> "font-size:" <> tshow fontSize <> "px;" <> "fill:" <> fg <> ";"
                             <> "font-weight: bold;"
-                            <> "text-anchor: middle; dominant-baseline: middle;\">" <> pct <> "</text>"
+                            <> "text-anchor: middle; dominant-baseline: middle;\">" <> tshow pct <> "%</text>"
                           | ((fg, _), (tx, ty), pct) <- zip3 colors textPoints pcts]
                <> "</svg>"
   liftIO (setInnerHTML (_element_raw divEl) (Just theSVG))
@@ -57,11 +57,17 @@ pie attrs w cvs' = do
     c = (r, r)
     pair (x,y) = T.pack (show x <> "," <> show y)
     s = sum vs
+    pcts = [round ((v/s)*100) :: Integer | v <- vs]
     fractions = [v/s | v <- scanl (+) 0 vs]
-    pcts = [tshow (round ((v/s)*100) :: Integer) <> "%" | v <- vs]
     endAngles = [2*pi*f | f <- fractions]
     middles = zipWith (\u v -> (u+v)/2) endAngles (tail endAngles)
     pointsAt radius angles = [(r + radius * sin t, r + radius * cos t) | t <- angles]
     arcPoints = pointsAt r endAngles
     textPoints = pointsAt ((r + ri) / 2) middles
-    wedges = zipWith (\u v -> T.unwords ["M", pair c, "L", pair u, "A", pair c, "0", "0", "0", pair v, "L", pair c, "Z"]) arcPoints (tail arcPoints)
+    wedges = zipWith3 (\a b p ->
+                          (\bg -> if p < 100
+                                    then "<path d=\"" <> T.unwords ["M", pair c, "L", pair a, "A", pair c, "0", "0", "0", pair b, "L", pair c, "Z"]
+                                         <> "\" fill=\"" <> bg <> "\"></path>"
+                                    else "<circle cx=\"" <> tshow (w/2) <> "\" cy=\"" <> tshow (w/2) <> "\" r = \"" <> tshow r
+                                         <> "\" fill=\"" <> bg <> "\"></circle>"))
+                      arcPoints (tail arcPoints) pcts
