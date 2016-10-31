@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification, UndecidableSuperClasses #-}
 module Focus.JS.App where
 
 import Control.Lens ((^?), _Right)
@@ -237,6 +237,7 @@ class ( MonadWidget' t m
       , Response m ~ Identity
       , HasFocus app
       , MonadQuery t (ViewSelector app ()) m
+      , WidgetConstraint app m
       ) => MonadFocusWidget app t m | m -> app t
 
 instance ( MonadWidget' t m
@@ -246,6 +247,7 @@ instance ( MonadWidget' t m
          , Response m ~ Identity
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
+         , WidgetConstraint app m
          ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
