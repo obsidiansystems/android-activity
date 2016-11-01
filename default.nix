@@ -143,7 +143,7 @@ rec {
             } "";
             preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
             preBuild = ''
-              ln -sfT ${static} static
+              ${if static == null then "" else ''ln -sfT ${static} static''}
             '';
             buildDepends = [
               focus-core
@@ -248,7 +248,7 @@ rec {
 
             preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
             preBuild = ''
-              ln -sfT ${staticSrc} static
+              ${if staticSrc == null then "" else ''ln -sfT ${staticSrc} static''}
             '';
             buildDepends = [
               vector-algorithms

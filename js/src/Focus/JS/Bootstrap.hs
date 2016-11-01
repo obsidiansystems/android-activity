@@ -111,6 +111,22 @@ dayInput d0 = do
       day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
+-- Allows selecting a month/year (preserves the day of the month)
+monthInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Day -> m (Dynamic t Day)
+monthInput d0 = do
+  let (year0, month0, day0) = toGregorian d0
+  rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
+      navigate' <- do
+        (prevButton, nextButton) <- divClass "text-center" $ do
+          p <- linkClass "<<" "btn btn-sm pull-left"
+          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
+          n <- linkClass ">>" "btn btn-sm pull-right"
+          return (p, n)
+        return $ leftmost [ addMonths (-1) <$ _link_clicked prevButton
+                          , addMonths 1 <$ _link_clicked nextButton
+                          ]
+  return $ ffor visibleMonth $ \(y, m) -> fromGregorian y (monthToInt m) day0
+
 monthCal :: forall t m. (DomBuilder t m, PostBuild t m, MonadFix m) => Integer -> Month -> Dynamic t (Maybe Int) -> m (Event t Int)
 monthCal y m sel = do
   let som = fromGregorian y (monthToInt m) 1
@@ -181,7 +197,7 @@ utcTimeInputMini tz0 tzWidget t = do
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
-          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ updated timeShown
           & inputElementConfig_initialValue .~ showDateTime' tz0 t
         isOpen <- holdDyn False $ leftmost [fmap (const True) (domEvent Click e'), fmap (const False) close]
@@ -589,7 +605,7 @@ dayInputMini d0 = do
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
         elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
-          & initialAttributes .~ ("class" =: "form-control" <> "disabled" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
+          & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ fmap showDate date
           & inputElementConfig_initialValue .~ showDate d0
         isOpen <- holdDyn False $ leftmost [fmap (const False) date, fmap (const True) (domEvent Click e'), fmap (const False) close]

@@ -52,7 +52,7 @@ data DisplayPositionCoordsResponse = DisplayPositionCoordsResponse
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "displayPositionCoordsResponse_") }) ''DisplayPositionCoordsResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "displayPositionCoordsResponse_") }) ''DisplayPositionCoordsResponse
 
 data LocationResponse = LocationResponse
   { locationResponse_displayPosition :: DisplayPositionCoordsResponse
@@ -60,7 +60,7 @@ data LocationResponse = LocationResponse
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "locationResponse_") }) ''LocationResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "locationResponse_") }) ''LocationResponse
 
 data ResultLocationResponse = ResultLocationResponse
   { resultLocationResponse_location :: LocationResponse
@@ -68,28 +68,28 @@ data ResultLocationResponse = ResultLocationResponse
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "resultLocationResponse_") }) ''ResultLocationResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "resultLocationResponse_") }) ''ResultLocationResponse
 
 data ResultResponse = ResultResponse
   { resultResponse_result :: [ResultLocationResponse]
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "resultResponse_") }) ''ResultResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "resultResponse_") }) ''ResultResponse
 
 data ViewResponse = ViewResponse
   { viewResponse_view :: [ResultResponse]
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "viewResponse_") }) ''ViewResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "viewResponse_") }) ''ViewResponse
 
 data RawResponse a = RawResponse
   { rawResponse_response :: a
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop (length "rawResponse_") }) ''RawResponse
+deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "rawResponse_") }) ''RawResponse
 
 -- Returns distance between two points in meters (taking the route into account)
 distanceReq :: HereMapsCredentials -> (Double, Double) -> (Double, Double) -> IO (Maybe Int64)

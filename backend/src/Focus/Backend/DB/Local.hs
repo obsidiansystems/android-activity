@@ -99,7 +99,7 @@ serveLocalPostgres dbDir = do
   controlSocket <- socket AF_UNIX Stream defaultProtocol
   let socketPath = dbDir </> "control"
       createSocket = do
-        result <- try $ bindSocket controlSocket $ SockAddrUnix socketPath
+        result <- try $ bind controlSocket $ SockAddrUnix socketPath
         case result of
           Right () -> return ()
           Left e
@@ -157,7 +157,7 @@ withLocalPostgres dbDir a = do
                   void $ hGetLine serverOut
                   acquire -- Try again
             | otherwise -> $checkIO $ throwIO e
-  bracket_ acquire (shutdown s ShutdownBoth >> sClose s) $ do
+  bracket_ acquire (shutdown s ShutdownBoth >> close s) $ do
     dbUri <- getLocalPostgresConnectionString $ dbDir </> "db"
     a dbUri
             

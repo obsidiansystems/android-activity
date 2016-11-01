@@ -14,13 +14,14 @@ import Control.Exception
 import Control.Monad.Reader.Class
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as Strict
+import Control.Monad.Trans.Maybe
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BSC
 import Data.Int
 import Data.Semigroup
 import Database.Groundhog.Core
 import Database.Groundhog.Postgresql
-import Database.PostgreSQL.Simple hiding (query, query_, execute, execute_, executeMany, formatQuery)
+import Database.PostgreSQL.Simple hiding (query, query_, execute, execute_, executeMany, formatQuery, returning)
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.ToField
@@ -72,6 +73,7 @@ class PostgresRaw m where
   query :: (ToRow q, FromRow r) => Query -> q -> m [r]
   query_ :: FromRow r => Query -> m [r]
   formatQuery :: ToRow q => Query -> q -> m ByteString
+  returning :: (ToRow q, FromRow r) => Query -> [q] -> m [r]
 
 traceQuery :: (PostgresRaw m, MonadIO m, ToRow q, FromRow r) => Query -> q -> m [r]
 traceQuery p q = do
@@ -87,6 +89,7 @@ instance MonadIO m => PostgresRaw (DbPersist Postgresql m) where
   query psql qs = liftWithConn $ \conn -> Sql.query conn psql qs `catch` rethrowWithQuery conn psql qs
   query_ psql = liftWithConn $ \conn -> Sql.query_ conn psql `catch` rethrowWithQuery_ psql
   formatQuery psql qs = liftWithConn $ \conn -> Sql.formatQuery conn psql qs
+  returning psql qs = liftWithConn $ \conn -> Sql.returning conn psql qs `catch` rethrowWithQueryMany conn psql qs
 
 liftWithConn :: MonadIO m
              => (Connection -> IO a)
@@ -105,6 +108,7 @@ instance (Monad m, PostgresRaw m) => PostgresRaw (StateT s m) where
   query psql qs = lift $ query psql qs
   query_ = lift . query_
   formatQuery psql qs = lift $ formatQuery psql qs
+  returning psql qs = lift $ returning psql qs
 
 instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
   execute psql qs = lift $ execute psql qs
@@ -113,6 +117,16 @@ instance (Monad m, PostgresRaw m) => PostgresRaw (Strict.StateT s m) where
   query psql qs = lift $ query psql qs
   query_ = lift . query_
   formatQuery psql qs = lift $ formatQuery psql qs
+  returning psql qs = lift $ returning psql qs
+
+instance (Monad m, PostgresRaw m) => PostgresRaw (MaybeT m) where
+  execute psql qs = lift $ execute psql qs
+  execute_ = lift . execute_
+  executeMany psql qs = lift $ executeMany psql qs
+  query psql qs = lift $ query psql qs
+  query_ = lift . query_
+  formatQuery psql qs = lift $ formatQuery psql qs
+  returning psql qs = lift $ returning psql qs
 
 instance (FromField (IdData a)) => FromField (Id a) where
   fromField f mbs = fmap Id (fromField f mbs)
