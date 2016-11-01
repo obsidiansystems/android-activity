@@ -2,14 +2,11 @@
 
 module Focus.JS.Chart (pie) where
 
-import Control.Monad
-import Data.List
 import Reflex.Dom
 import Data.Text (Text)
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Control.Monad.IO.Class
 
 import GHCJS.DOM.Element (setInnerHTML)
@@ -48,7 +45,7 @@ pie attrs w cvs' = do
                       <> "style" =: ("font-size:" <> tshow fontSize <> "px;" <> "fill:" <> fg <> ";" <> "text-anchor: middle; dominant-baseline: middle;")) (text pct)
   -}
   where
-    cvs = filter (\(cs,v) -> v > 0) cvs'
+    cvs = filter (\(_,v) -> v > 0) cvs'
     colors = map fst cvs
     vs = map snd cvs
     r = w/2
