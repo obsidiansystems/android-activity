@@ -79,6 +79,7 @@ library
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Prerender
+    Focus.JS.PreprocessedCSSClasses
     Focus.JS.Request
     Focus.JS.Route
     Focus.JS.SmoothieCharts

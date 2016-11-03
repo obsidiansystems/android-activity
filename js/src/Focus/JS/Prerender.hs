@@ -12,6 +12,8 @@ import Reflex.PerformEvent.Base
 import Reflex.Host.Class
 import Reflex.Dom
 
+import Focus.JS.PreprocessedCSSClasses
+
 type PrerenderClientConstraint js m =
   ( HasJS js m
   , HasJS js (Performable m)
@@ -59,4 +61,7 @@ instance Prerender js m => Prerender js (QueryT t q m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
 instance Prerender js m => Prerender js (InputDisabledT m) where
+  prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
+
+instance Prerender js m => Prerender js (PreprocessedCSSClassesT m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
