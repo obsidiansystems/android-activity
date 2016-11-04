@@ -629,6 +629,8 @@ sortableTable
   :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Prerender js m)
   => Dynamic t (Map k v)
   -- ^ The data set
+  -> Dynamic t (Map Text Text)
+  -- ^ The table attributes
   -> [sk]
   -- ^ The columns to display
   -> SortKey sk
@@ -644,10 +646,11 @@ sortableTable
   -> Bool
   -- ^ Will the sorting will be done on the server itself?
   -> m (Dynamic t (SortKey sk))
-sortableTable dynVals cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
-  dynSortKey' <- elAttr "table" ("class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default") $ do
-    dynSortKey <- elAttr "thead" ("class" =: "table-header") $
-      elAttr "tr" ("role"=:"row" <> "class"=:"cf table-header") $
+sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
+  let classAttrs = "class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default"
+  dynSortKey' <- elDynAttr "table" (Map.union classAttrs <$> dynAttrs) $ do
+    dynSortKey <- elAttr "thead" ("class" =: "cf table-header") $
+      elAttr "tr" ("role"=:"row" <> "class"=:"tablesorter-headerRow") $
         prerender (mkStaticHeader >> return (constDyn defaultSort)) $ sortableListHeader cols defaultSort mkHeaderElem'
 
     -- For server side sorting we simply display all list elements without modification
