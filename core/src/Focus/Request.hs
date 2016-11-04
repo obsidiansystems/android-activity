@@ -145,6 +145,8 @@ makeRequest n = do
       requestParseJSON v = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|SomeRequest <$> $body|]) [|v'|]) cons ++ [wild])
+      requestResponseToJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
+      requestResponseFromJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
     |]
 
 makeRequestForDataInstance :: Name -> Name -> DecsQ

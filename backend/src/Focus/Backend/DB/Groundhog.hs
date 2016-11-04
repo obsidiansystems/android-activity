@@ -14,20 +14,28 @@ import Database.Groundhog
 import Database.Groundhog.Core
 import Database.Groundhog.TH
 import Database.Groundhog.TH.Settings
+import Database.Groundhog.Expression
+import Database.Groundhog.Generic.Sql
 import Language.Haskell.TH
 import Data.Char
 import Data.Monoid
 import Control.Lens
 import Control.Monad.Loops
+import Data.String
 import Data.List
 import Data.Time.Clock
-import Control.Monad.Trans
 import Control.Monad.Reader
 import Control.Monad.State (StateT)
+import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import qualified Control.Monad.State as S
 import qualified Control.Monad.State.Strict as Strict
 
 import Debug.Trace
+
+-- | Groundhog 'append' only works on String values. 'tappend' works on any 'IsString'
+tappend :: (SqlDb db, ExpressionOf db r a c, ExpressionOf db r b c, IsString c) => a -> b -> Expr db r c
+tappend a b = mkExpr $ function "concat" [toExpr a, toExpr b]
 
 -- | Run Database.Groundhog.TH.mkPersist with Focus-specific defaults
 --
@@ -171,5 +179,32 @@ instance PersistBackend m => PersistBackend (Strict.StateT s m) where
     k <- Strict.get
     (a, s) <- lift $ DB.queryRaw c q p $ \rp -> Strict.runStateT (f $ lift rp) k
     Strict.put s >> return a
+  insertList = lift . DB.insertList
+  getList = lift . DB.getList
+
+instance PersistBackend m => PersistBackend (MaybeT m) where
+  type PhantomDb (MaybeT m) = PhantomDb m
+  insert = lift . DB.insert
+  insert_ = lift . DB.insert_
+  insertBy u v = lift $ DB.insertBy u v
+  insertByAll = lift . DB.insertByAll
+  replace k v = lift $ DB.replace k v
+  replaceBy u v = lift $ DB.replaceBy u v
+  select = lift . DB.select
+  selectAll = lift DB.selectAll
+  get = lift . DB.get
+  getBy = lift . DB.getBy
+  update us c = lift $ DB.update us c
+  delete = lift . DB.delete
+  deleteBy = lift . DB.deleteBy
+  deleteAll = lift . DB.deleteAll
+  count = lift . DB.count
+  countAll = lift . DB.countAll
+  project p o = lift $ DB.project p o
+  migrate v = S.mapStateT (lift) $ DB.migrate v
+  executeRaw c q p = lift $ DB.executeRaw c q p
+  queryRaw c q p f = do
+    ma <- lift $ DB.queryRaw c q p $ \rp -> runMaybeT (f $ lift rp)
+    MaybeT (return ma)
   insertList = lift . DB.insertList
   getList = lift . DB.getList

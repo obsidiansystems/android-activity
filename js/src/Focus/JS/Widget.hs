@@ -344,7 +344,7 @@ improvingMaybe a = do
                                                      , tagPromptlyDyn a pb
                                                      ]
 
-withFocusSelect :: (MonadWidget t m) => Event t () -> m (TextInput t) -> m (TextInput t) 
+withFocusSelect :: (MonadWidget t m) => Event t () -> m (TextInput t) -> m (TextInput t)
 withFocusSelect focusSelectE mkTextInput  = do
   t <- mkTextInput -- important that this is *before* the following performEvent, which is why we do it ourselves.
   performEvent_ . ffor focusSelectE $ \_ -> do
