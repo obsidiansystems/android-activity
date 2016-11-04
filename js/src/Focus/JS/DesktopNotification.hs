@@ -4,10 +4,10 @@ module Focus.JS.DesktopNotification where
 import Foreign.JavaScript.TH
 import Data.Text
 
-importJS Unsafe "Notification.requestPermission()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
-importJS Unsafe "Notification.permission" "notificationPermission" [t| forall x m. MonadJS x m => m Text |]
-importJS Unsafe "new Notification(this[0], {body: this[1], icon: this[2]})" "newDesktopNotification" [t| forall x m. MonadJS x m => Text -> Text -> Text -> m () |]
-importJS Unsafe "window.Notification !== undefined" "notificationSupported" [t| forall x m. MonadJS x m => m Bool |]
+importJS Unsafe "Notification['requestPermission']()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
+importJS Unsafe "Notification['permission']" "notificationPermission" [t| forall x m. MonadJS x m => m Text |]
+importJS Unsafe "(function(that){ o = {}; o['body'] = that[1]; o['icon'] = that[2]; return new Notification(that[0], o);})(this)" "newDesktopNotification" [t| forall x m. MonadJS x m => Text -> Text -> Text -> m () |]
+importJS Unsafe "window['Notification'] !== undefined" "notificationSupported" [t| forall x m. MonadJS x m => m Bool |]
 
 desktopNotificationEnabled :: MonadJS x m => m Bool
 desktopNotificationEnabled = do
