@@ -167,6 +167,7 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 , FromJSON vs, ToJSON vp, Monoid vs
                 , Align alignedVs, FunctorMaybe alignedVs)
              => (vs -> state -> m' ()) -- connectionCloseHook
+             -> ((T.Text -> IO ()) -> IO ())
              -> (forall x. m' x -> IO x) -- runGroundhog
              -> (vs -> alignedVs ()) -- alignViewSelector
              -> NotificationListener alignedVs vs vp state
@@ -175,7 +176,7 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
              -> (vs -> vs -> StateT state m' vp) -- getView
              -> (rq -> IO rsp) -- processRequest
              -> m ()
-handleListen connectionCloseHook runGroundhog alignViewSelector notificationListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelector notificationListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
   let connections = _notificationListener_connections notificationListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
@@ -208,6 +209,13 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
             runGroundhog (runStateT (getView vsInit mempty) stateInit)
           return ((vsInit, newStateInit), vpInit)
         send' vpInit
+        let sender act wrapper wsd = do
+              er <- try act
+              sendDataMessage conn . wrapper . encodeR . Right . wsd $ case er of
+                Left (se :: SomeException) -> Left (displayException se)
+                Right rsp -> Right rsp
+        let sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
+        connectionOpenHook (sender' WS.Text)
 
         let handleConnectionException = handle $ \e -> case e of
               ConnectionClosed -> return ()
@@ -218,16 +226,14 @@ handleListen connectionCloseHook runGroundhog alignViewSelector notificationList
           dm <- receiveDataMessage conn
           let (wrapper, r) = case dm of
                 WS.Text r' -> (WS.Text, r')
-                WS.Binary r' -> (WS.Text, r') --TODO
-              sender rid act = do
-                er <- try act
-                sendDataMessage conn . wrapper . encodeR . Right . WebSocketData_Api rid $ case er of
-                  Left (se :: SomeException) -> Left (displayException se)
-                  Right rsp -> Right rsp
+                WS.Text r' -> (WS.Text, r')
 
           case eitherDecode' r of
             Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
-            Right (WebSocketData_Api rid rq) -> sender rid $ processRequest rq
+            Right (WebSocketData_Version _) -> do
+              putStrLn "Shouldn't be receiving version from frontend..."
+              return ()
+            Right (WebSocketData_Api rid rq) -> sender (processRequest rq) wrapper (WebSocketData_Api rid)
             Right (WebSocketData_Listen vs) -> do
               -- Acquire connections
               vp <- modifyMVar connections $ \currentConnections -> do
