@@ -113,7 +113,7 @@ apiSocket path batches = do
 
 
 #ifdef __GHCJS__
-foreign import javascript unsafe "JSON.parse($1)" js_jsonParse :: JSVal -> JSVal
+foreign import javascript unsafe "JSON['parse']($1)" js_jsonParse :: JSVal -> JSVal
 
 rawDecode :: (FromJSON a) => JSVal -> Maybe a
 rawDecode jsv = do
