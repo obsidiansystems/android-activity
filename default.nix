@@ -162,17 +162,19 @@ rec {
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
         unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
+        ghcjsExterns = ./ghcjs.externs.js;
+        inherit (pkgs) closurecompiler;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
           mkdir -p "$out/frontend.jsexe"
           cd "$out/frontend.jsexe"
           ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
-          closure-compiler -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+          java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
           echo "//# sourceMappingURL=all.js.map" >> all.js
         '';
         buildInputs = with pkgs; [
-          closurecompiler
+          jre
         ];
         passthru = {
           frontend = unminified;
