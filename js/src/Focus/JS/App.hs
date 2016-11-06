@@ -92,6 +92,7 @@ instance (DomBuilder t m, MonadFix m, MonadHold t m, Monoid q) => DomBuilder t (
   wrapRawElement r c = QueryT $ wrapRawElement r (fmap1 unQueryT c)
 
 instance (Reflex t, MonadFix m, Monoid q, MonadHold t m, MonadAdjust t m) => MonadAdjust t (QueryT t q m) where
+  runWithReplace a0 a' = QueryT $ runWithReplace (coerce a0) (unsafeCoerce a')
   sequenceDMapWithAdjust dm0 dm' = QueryT $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
 
 instance MonadRef m => MonadRef (QueryT t q m) where
@@ -175,6 +176,7 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
 instance (Reflex t, MonadFix m, Monoid (ViewSelector app ()), MonadHold t m, MonadAdjust t m) => MonadAdjust t (FocusWidget app t m) where
+  runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (unsafeCoerce a')
   sequenceDMapWithAdjust dm0 dm' = FocusWidget $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
 
 instance PostBuild t m => PostBuild t (FocusWidget app t m) where
