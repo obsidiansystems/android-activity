@@ -397,32 +397,35 @@ openWebSocket' :: forall t x m vs v.
                  , PerformEvent t m
                  , HasWebView m
                  , HasJS x m
+                 , MonadFix m
                  , FromJSON v
                  , ToJSON vs
                  )
               => Text -- ^ URL
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
-              -> Event t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> Dynamic t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    , Event t Text
                    )
-openWebSocket' url request updatedVs = do
-#ifndef __GHCJS__
-      (eMessages :: Event t (Either Text (WebSocketData v (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-        webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+openWebSocket' url request vs = do
+#ifdef ghcjs_HOST_OS
+  rec let platformDecode = rawDecode
+      ws <- rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
 #else
-      (eMessages :: Event t (Either Text (WebSocketData v (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe rawDecode . _webSocket_recv) $
-        rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+  rec let platformDecode = decodeValue' . LBS.fromStrict
+      ws <- webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
 #endif
           [ fmap (map (uncurry WebSocketData_Api)) request
-          , fmap ((:[]) . WebSocketData_Listen) updatedVs
+          , fmap ((:[]) . WebSocketData_Listen) $ updated vs
+          , tag (fmap ((:[]) . WebSocketData_Listen) $ current vs) $ _webSocket_open ws
           ]
-      --TODO: Handle parse errors returned by the backend
-      let notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
-          response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
-          version = fmapMaybe (^? _Right . _WebSocketData_Version) eMessages
-      return (notification, response, version)
+  let (eMessages :: Event t (Either Text (WebSocketData v (Either Text Data.Aeson.Value)))) = fmapMaybe platformDecode $ _webSocket_recv ws
+  --TODO: Handle parse errors returned by the backend
+      notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
+      response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
+      version = fmapMaybe (^? _Right . _WebSocketData_Version) eMessages
+  return (notification, response, version)
 
 openWebSocket :: forall t x m vs v.
                  ( MonadIO m
@@ -432,8 +435,11 @@ openWebSocket :: forall t x m vs v.
                  , PerformEvent t m
                  , HasWebView m
                  , HasJS x m
+                 , MonadFix m
+                 , MonadHold t m
                  , FromJSON v
                  , ToJSON vs
+                 , Monoid vs
                  )
               => Text -- ^ URL
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
@@ -442,5 +448,6 @@ openWebSocket :: forall t x m vs v.
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
 openWebSocket url request updatedVs = do
-  (f, s, _) <- openWebSocket' url request updatedVs
+  vs <- holdDyn mempty updatedVs
+  (f, s, _) <- openWebSocket' url request vs
   return (f, s)
