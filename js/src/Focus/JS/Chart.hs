@@ -59,12 +59,14 @@ pie attrs w cvs' = do
     endAngles = [2*pi*f | f <- fractions]
     middles = zipWith (\u v -> (u+v)/2) endAngles (tail endAngles)
     pointsAt radius angles = [(r + radius * sin t, r + radius * cos t) | t <- angles]
-    arcPoints = pointsAt r endAngles
+    trails = [pointsAt r [(t * u + (1-t) * v) | t <- [0, 1/5, 2/5, 3/5, 4/5, 1]] | (u,v) <- zip (tail endAngles) endAngles]
     textPoints = pointsAt ((r + ri) / 2) middles
-    wedges = zipWith3 (\a b p ->
-                          (\bg -> if p < 100
-                                    then "<path d=\"" <> T.unwords ["M", pair c, "L", pair a, "A", pair c, "0", "0", "0", pair b, "L", pair c, "Z"]
-                                         <> "\" fill=\"" <> bg <> "\"></path>"
-                                    else "<circle cx=\"" <> tshow (w/2) <> "\" cy=\"" <> tshow (w/2) <> "\" r = \"" <> tshow r
-                                         <> "\" fill=\"" <> bg <> "\"></circle>"))
-                      arcPoints (tail arcPoints) pcts
+    wedges = zipWith (\(a:bs) p ->
+                         (\bg -> if p < 100
+                                   then "<path d=\"" <> (T.unwords $ ["M", pair c, "L", pair a]
+                                                                  <> concat [["A", pair c, "0", "0", "0", pair b] | b <- bs]
+                                                                  <> ["L", pair c, "Z"])
+                                        <> "\" fill=\"" <> bg <> "\"></path>"
+                                   else "<circle cx=\"" <> tshow (w/2) <> "\" cy=\"" <> tshow (w/2) <> "\" r = \"" <> tshow r
+                                        <> "\" fill=\"" <> bg <> "\"></circle>"))
+                      trails pcts
