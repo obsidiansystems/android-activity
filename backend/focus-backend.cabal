@@ -22,6 +22,7 @@ library
     bytestring,
     base64-bytestring,
     containers,
+    exceptions,
     groundhog,
     groundhog-th,
     groundhog-postgresql,

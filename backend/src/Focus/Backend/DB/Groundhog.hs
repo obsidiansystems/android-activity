@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, TemplateHaskell, TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Various functions for making dealing with Groundhog more pleasant
 module Focus.Backend.DB.Groundhog ( module Focus.Backend.DB.Groundhog
@@ -24,6 +24,7 @@ import Control.Monad.Loops
 import Data.String
 import Data.List
 import Data.Time.Clock
+import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.State (StateT)
 import Control.Monad.Trans
@@ -208,3 +209,12 @@ instance PersistBackend m => PersistBackend (MaybeT m) where
     MaybeT (return ma)
   insertList = lift . DB.insertList
   getList = lift . DB.getList
+
+-- TODO these instances should no longer be necessary once Groundhog is upgraded.
+deriving instance MonadThrow m => MonadThrow (DbPersist conn m)
+deriving instance MonadCatch m => MonadCatch (DbPersist conn m)
+instance MonadMask m => MonadMask (DbPersist conn m) where
+  mask a = DbPersist $ ReaderT $ \e -> mask $ \u -> runReaderT (unDbPersist (a $ q u)) e
+    where q u b = DbPersist $ ReaderT $ \e -> u $ runReaderT (unDbPersist b) e
+  uninterruptibleMask a = DbPersist $ ReaderT $ \e -> uninterruptibleMask $ \u -> runReaderT (unDbPersist (a $ q u)) e
+    where q u b = DbPersist $ ReaderT $ \e -> u $ runReaderT (unDbPersist b) e
