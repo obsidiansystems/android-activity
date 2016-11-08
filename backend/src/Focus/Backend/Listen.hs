@@ -226,7 +226,7 @@ handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelect
           dm <- receiveDataMessage conn
           let (wrapper, r) = case dm of
                 WS.Text r' -> (WS.Text, r')
-                WS.Text r' -> (WS.Text, r')
+                WS.Binary r' -> (WS.Text, r')
 
           case eitherDecode' r of
             Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
