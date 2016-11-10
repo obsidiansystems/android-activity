@@ -141,7 +141,7 @@ makeNotificationListener runGroundhog chan getPatches = do
                                        }
   changes <- atomically $ dupTChan chan
 
-  thread <- forkIO $ forever $ do
+  thread <- forkIO $ forever $ handle logNotificationError $ do
     notification <- atomically $ readTChan changes
 
     withMVar connections $ \currentConnections -> do
@@ -161,6 +161,9 @@ makeNotificationListener runGroundhog chan getPatches = do
   return $ NotificationListener { _notificationListener_connections = connections
                                 , _notificationListener_thread = thread
                                 }
+  where
+    logNotificationError :: SomeException -> IO ()
+    logNotificationError e = putStrLn $ "Focus.Backend.Listen makeNotificationListener exception: " <> (show e)
 
 handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
