@@ -46,6 +46,15 @@ data RouteResponse = RouteResponse
 
 deriveJSON (defaultOptions { fieldLabelModifier = drop 14 }) ''RouteResponse
 
+data RawRouteResponse = RawRouteResponse
+  { rawRouteResponse_response :: RouteResponse
+  }
+  deriving (Show, Read, Eq, Ord)
+
+deriveJSON (defaultOptions { fieldLabelModifier = drop (length "rawRouteResponse_") }) ''RawRouteResponse
+
+
+
 data DisplayPositionCoordsResponse = DisplayPositionCoordsResponse
   { displayPositionCoordsResponse_latitude :: Double
   , displayPositionCoordsResponse_longitude :: Double
@@ -106,7 +115,7 @@ distanceReq creds (lat1, lng1) (lat2, lng2) = do
     Right routeResp -> do
       let result = do
           response <- decode routeResp
-          route <- safeHead $ routeResponse_route $ rawResponse_response response
+          route <- safeHead $ routeResponse_route $ rawRouteResponse_response response
           summary <- routeRouteResponse_summary route
           return $ routeRouteSummaryResponse_distance summary
       return $! result
