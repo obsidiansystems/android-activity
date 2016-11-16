@@ -33,6 +33,8 @@ class ( ToJSON (ViewSelector app ()), FromJSON (ViewSelector app ())
       , Monoid (ViewSelector app ()), Semigroup (ViewSelector app ())
       , Query (ViewSelector app ()), QueryResult (ViewSelector app ()) ~ View app
       , Align (ViewSelector app)
+      , Eq (View app)
+      , Show (View app)
       ) => HasView app where
   type View app
   type ViewSelector app :: * -> *

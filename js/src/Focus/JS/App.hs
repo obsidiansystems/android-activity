@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds, PolyKinds, GADTs, AllowAmbiguousTypes, DefaultSignatures #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification #-}
 module Focus.JS.App where
@@ -92,6 +92,7 @@ instance (DomBuilder t m, MonadFix m, MonadHold t m, Monoid q) => DomBuilder t (
   wrapRawElement r c = QueryT $ wrapRawElement r (fmap1 unQueryT c)
 
 instance (Reflex t, MonadFix m, Monoid q, MonadHold t m, MonadAdjust t m) => MonadAdjust t (QueryT t q m) where
+  runWithReplace a0 a' = QueryT $ runWithReplace (coerce a0) (unsafeCoerce a')
   sequenceDMapWithAdjust dm0 dm' = QueryT $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
 
 instance MonadRef m => MonadRef (QueryT t q m) where
@@ -175,6 +176,7 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
 instance (Reflex t, MonadFix m, Monoid (ViewSelector app ()), MonadHold t m, MonadAdjust t m) => MonadAdjust t (FocusWidget app t m) where
+  runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (unsafeCoerce a')
   sequenceDMapWithAdjust dm0 dm' = FocusWidget $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
 
 instance PostBuild t m => PostBuild t (FocusWidget app t m) where
@@ -229,6 +231,20 @@ class (HasView app) => HasEnv app where
 
 class (HasRequest app, HasView app) => HasFocus app
 
+class Vacuous t m' m where
+instance Vacuous t m' m where
+
+class ConstrainsWidget app where
+  type WidgetConstraintOf app :: * -> (* -> *) -> (* -> *) -> Constraint
+  type WidgetConstraintOf app = Vacuous
+
+data WidgetConstraint app t m where
+  WidgetConstraint :: WidgetConstraintOf app t m' m => WidgetConstraint app t m
+
+class ConstrainsWidget app => WidgetDict app t m where
+  widgetDict :: WidgetConstraint app t m
+  default widgetDict :: WidgetConstraintOf app ~ Vacuous => WidgetConstraint app t m
+  widgetDict = WidgetConstraint
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
@@ -237,7 +253,8 @@ class ( MonadWidget' t m
       , Response m ~ Identity
       , HasFocus app
       , MonadQuery t (ViewSelector app ()) m
-      ) => MonadFocusWidget app t m | m -> app t
+      , WidgetDict app t m
+      ) => MonadFocusWidget app t m | m -> app t where
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
@@ -246,6 +263,7 @@ instance ( MonadWidget' t m
          , Response m ~ Identity
          , HasFocus app
          , MonadQuery t (ViewSelector app ()) m
+         , WidgetDict app t m
          ) => MonadFocusWidget app t m
 
 --instance ( HasFocus app
@@ -263,8 +281,8 @@ instance ( MonadWidget' t m
 --    views <- asksEnv getViews
 --    return $ zipDynWith (maybe (const emptyView) (\t -> maybe emptyView id . Map.lookup t)) token views
 
-watchViewSelector :: MonadFocusWidget app t m => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
-watchViewSelector = queryDyn
+watchViewSelector :: (MonadFocusWidget app t m) => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
+watchViewSelector = fmap uniqDyn . queryDyn
 
 -- watchViewSelectorLens :: (Monoid a, MonadFocusWidget app t m) => ASetter a (ViewSelector app ()) c b -> Dynamic t b -> m (Dynamic t (View app))
 -- watchViewSelectorLens l sdyn = do
@@ -341,7 +359,7 @@ data Decoder f = forall a. FromJSON a => Decoder (f a)
 identifyTags :: forall t k v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (DMap k v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (DMap k Identity))
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
-      waitingFor :: Incremental t PatchMap (Map Int (Decoder k)) <- holdIncremental mempty $ leftmost
+      waitingFor :: Incremental t (PatchMap Int (Decoder k)) <- holdIncremental mempty $ leftmost
         [ fmap (\(_, b, _) -> b) send'
         , fmap snd recv'
         ]
@@ -371,39 +389,65 @@ identifyTags send recv = do
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
-openWebSocket :: forall t x m vs v k.
-                 ( Reflex t
-                 , MonadIO m
+openWebSocket' :: forall t x m vs v.
+                 ( MonadIO m
                  , MonadIO (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
                  , PerformEvent t m
                  , HasWebView m
                  , HasJS x m
+                 , MonadFix m
                  , FromJSON v
                  , ToJSON vs
-                 , Ord k
-                 , ToJSON k
-                 , FromJSON k
                  )
               => Text -- ^ URL
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
-              -> Event t (AppendMap k vs) -- ^ Authenticated listen requests (e.g., ViewSelector updates)
-              -> m ( Event t (AppendMap k v)
+              -> Dynamic t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> m ( Event t v
+                   , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+                   , Event t Text
+                   )
+openWebSocket' url request vs = do
+#ifdef ghcjs_HOST_OS
+  rec let platformDecode = rawDecode
+      ws <- rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+#else
+  rec let platformDecode = decodeValue' . LBS.fromStrict
+      ws <- webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+#endif
+          [ fmap (map (uncurry WebSocketData_Api)) request
+          , fmap ((:[]) . WebSocketData_Listen) $ updated vs
+          , tag (fmap ((:[]) . WebSocketData_Listen) $ current vs) $ _webSocket_open ws
+          ]
+  let (eMessages :: Event t (Either Text (WebSocketData v (Either Text Data.Aeson.Value)))) = fmapMaybe platformDecode $ _webSocket_recv ws
+  --TODO: Handle parse errors returned by the backend
+      notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
+      response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
+      version = fmapMaybe (^? _Right . _WebSocketData_Version) eMessages
+  return (notification, response, version)
+
+openWebSocket :: forall t x m vs v.
+                 ( MonadIO m
+                 , MonadIO (Performable m)
+                 , PostBuild t m
+                 , TriggerEvent t m
+                 , PerformEvent t m
+                 , HasWebView m
+                 , HasJS x m
+                 , MonadFix m
+                 , MonadHold t m
+                 , FromJSON v
+                 , ToJSON vs
+                 , Monoid vs
+                 )
+              => Text -- ^ URL
+              -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
+              -> Event t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
 openWebSocket url request updatedVs = do
-#ifndef __GHCJS__
-      (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe (decodeValue' . LBS.fromStrict) . _webSocket_recv) $
-        webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
-#else
-      (eMessages :: Event t (Either Text (WebSocketData (AppendMap k v) (Either Text Data.Aeson.Value)))) <- liftM (fmapMaybe rawDecode . _webSocket_recv) $
-        rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
-#endif
-          [ fmap (map (uncurry WebSocketData_Api)) request
-          , fmap ((:[]) . WebSocketData_Listen) updatedVs
-          ]
-      --TODO: Handle parse errors returned by the backend
-      let notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
-          response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
-      return (notification, response)
+  vs <- holdDyn mempty updatedVs
+  (f, s, _) <- openWebSocket' url request vs
+  return (f, s)

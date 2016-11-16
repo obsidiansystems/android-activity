@@ -96,7 +96,9 @@ rec {
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0"
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
+                default-language: Haskell2010
+                default-extensions: NoDatatypeContexts, NondecreasingIndentation
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000
                   ghcjs-options: -dedupe
@@ -160,17 +162,19 @@ rec {
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
         unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
+        ghcjsExterns = ./ghcjs.externs.js;
+        inherit (pkgs) closurecompiler;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
           mkdir -p "$out/frontend.jsexe"
           cd "$out/frontend.jsexe"
           ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
-          closure-compiler -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+          java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
           echo "//# sourceMappingURL=all.js.map" >> all.js
         '';
         buildInputs = with pkgs; [
-          closurecompiler
+          jre
         ];
         passthru = {
           frontend = unminified;

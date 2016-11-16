@@ -23,6 +23,7 @@ data WithIndex p f v = WithIndex { _withIndex_index :: AppendMap (Projected p (I
 
 deriving instance (Show (f v), Show (Projected p (IxValue (f v))), Show (Index (f v))) => Show (WithIndex p f v)
 deriving instance (Read (f v), Read (Projected p (IxValue (f v))), Ord (Projected p (IxValue (f v))), Ord (Index (f v)), Read (Index (f v))) => Read (WithIndex p f v)
+deriving instance (Eq (f v), Eq (Projected p (IxValue (f v))), Eq (Index (f v))) => Eq (WithIndex p f v)
 
 instance (FromJSON (f v), IxValue (f v) ~ v, Ord (Index (f v)), Ord (Projected p v), FoldableWithIndex (Index (f v)) f, Projection p v) => FromJSON (WithIndex p f v) where
   parseJSON v = withIndex (Proxy :: Proxy p) <$> parseJSON v
