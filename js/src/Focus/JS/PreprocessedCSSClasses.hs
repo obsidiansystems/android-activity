@@ -75,6 +75,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (Preprocesse
 
 instance MonadAdjust t m => MonadAdjust t (PreprocessedCSSClassesT m) where
   sequenceDMapWithAdjust dm0 dm' = PreprocessedCSSClassesT $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
+  runWithReplace a0 a' = lift $ runWithReplace (runPreprocessedCSSClassesT a0) (runPreprocessedCSSClassesT <$> a')
 
 
 instance DomBuilder t m => DomBuilder t (PreprocessedCSSClassesT m) where
