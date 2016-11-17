@@ -22,6 +22,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (handle, try, SomeException, displayException, throwIO)
 import Control.Lens
+import Control.Monad.Cont
 import Control.Monad.State.Strict hiding (state)
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Writer
@@ -126,6 +127,20 @@ notifyEntityId nt aid = do
   _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
+-- An elaborate control structure to do something a bit silly: we're modifying all the state MVars for all the connections at once,
+-- locking everything while we compute all the patches for a DB notification.
+-- AppendMap ThreadId (vp -> IO (), MVar (vs, state)) is the actual type of the first argument in usage.
+revise :: forall k s a. (Ord k) => AppendMap k (s, MVar a) -> (AppendMap k (s,a) -> IO (AppendMap k a)) -> IO ()
+revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
+  where
+    revise' :: [(k, (s, MVar a))] -> AppendMap k (s,a) -> IO (AppendMap k a)
+    revise' [] n = body n
+    revise' ((k,(s,v)):ms) n = modifyMVar v $ \a -> do
+      n' <- revise' ms (AppendMap.insert k (s,a) n)
+      case AppendMap.lookup k n' of
+        Nothing -> return (a,n')
+        Just a' -> return (a',n')
+
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
@@ -145,18 +160,14 @@ makeNotificationListener runGroundhog chan getPatches = do
     notification <- atomically $ readTChan changes
 
     withMVar connections $ \currentConnections -> do
-      selectors <- for (_connections_connState currentConnections) $
-        \(send', mvar) -> (,) (send', mvar) <$> takeMVar mvar
-
-      let alignedVs = _connections_alignedViewSelector currentConnections
-      patches <- runGroundhog $ getPatches notification alignedVs $ fmap snd selectors
-
-      ifor_ selectors $ \k ((send', mvar), (vsOld, stateOld)) -> do
-        case AppendMap.lookup k patches of
-          Just (patch, !newState) -> do
-            maybe (return ()) send' patch
-            putMVar mvar (vsOld, newState)
-          Nothing -> putMVar mvar (vsOld, stateOld)
+      revise (_connections_connState currentConnections) $ \selectors -> do
+        let alignedVs = _connections_alignedViewSelector currentConnections
+        (patches :: AppendMap ThreadId (Maybe vp, state)) <- liftIO . runGroundhog $ getPatches notification alignedVs (fmap snd selectors)
+        fmap (fmapMaybe id) . forM (align selectors patches) $ \case
+          These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
+          These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
+          _ -> return Nothing
+      return ()
 
   return $ NotificationListener { _notificationListener_connections = connections
                                 , _notificationListener_thread = thread
