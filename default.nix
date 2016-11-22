@@ -15,6 +15,7 @@ rec {
     , version
     , androidPackagePrefix ? "systems.obsidian"
     , backendDepends ? (p: [])
+      # Packages in backendTools are made available both at build time and at runtime for the backend
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
     , frontendTools ? (p: [])
@@ -305,6 +306,7 @@ rec {
             wantedBy = [ "multi-user.target" ];
             after = [ "network.target" ];
             restartIfChanged = true;
+            path = backendTools pkgs;
             script = ''
               ln -sft . "${result}"/*
               mkdir -p log
