@@ -372,6 +372,7 @@ rec {
                   networking = {
                     inherit hostName;
                     firewall.allowedTCPPorts = [
+                      25
                       80
                     ] ++ (if ssl then [ 443 ] else []);
                   };
@@ -403,6 +404,18 @@ rec {
                   systemd.services.backend = backendService {
                     user = "backend";
                     port = defaultBackendPort;
+                  };
+                  systemd.services.smtpProxy = {
+                    wantedBy = [ "multi-user.target" ];
+                    after = [ "network.target" ];
+                    restartIfChanged = true;
+                    script = ''
+                      exec ${nixpkgs.redir}/bin/redir --lport=25 --laddr=0.0.0.0 --cport=2525
+                    '';
+                    serviceConfig = {
+                      User = "root";
+                      KillMode = "process";
+                    };
                   };
                   users.extraUsers.backend = {
                     description = "backend server user";
