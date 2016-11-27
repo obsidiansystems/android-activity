@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -DGHCJS_GC_INTERVAL=60000 -dedupe -O2 -fexpose-all-unfoldings -funfolding-creation-threshold=1000000'
+nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -DGHCJS_GC_INTERVAL=60000'
