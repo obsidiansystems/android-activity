@@ -49,6 +49,7 @@ instance FromJSON IntercomUserInternal where
     _intercomUser_updatedAt <- fmap posixSecondsToUTCTime (o .: "updated_at")
     _intercomUser_txtId <- o .: "id"
     _intercomUser_email <- o .: "email"
+    _intercomUser_phone <- fromMaybe "Unknown" <$> o .:? "phone"
     _intercomUser_sessionCount <- o .: "session_count"
     _intercomUser_location <- do
       locationData <- o .: "location_data"

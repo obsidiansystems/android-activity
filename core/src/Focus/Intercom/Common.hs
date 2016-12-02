@@ -18,5 +18,6 @@ data IntercomUser = IntercomUser
        , _intercomUser_userAgent :: Text
        , _intercomUser_device :: Text
        , _intercomUser_browser :: Text
+       , _intercomUser_phone :: Text
        }
   deriving (Show, Read, Eq, Ord)
