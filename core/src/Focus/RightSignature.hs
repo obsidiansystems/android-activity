@@ -60,6 +60,25 @@ prefillDocument tok xmlBody = do
           return mempty
         Right res' -> return $ responseBody res'
 
+createOneOffDocument :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
+createOneOffDocument tok xmlBody = do
+  let url = "https://rightsignature.com/api/documents.json"
+  res <- makeReq tok url
+  return $ parseMaybe guidParser =<< parseMaybe documentParser =<< decode res
+  where
+    documentParser = withObject "document" (.: "document")
+    guidParser = withObject "guid" (.: "guid")
+    makeReq tok url = do
+      man <- newManager tlsManagerSettings
+      req' <- parseUrlThrow url
+      let req = addSecureToken tok $ req' { method = methodPost, requestBody = RequestBodyBS $ T.encodeUtf8 xmlBody, requestHeaders = [("Content-type", "application/xml")] }
+      res <- try $ httpLbs req man
+      case res of
+        Left (err :: HttpException) -> do
+          putStrLn $ "Network error: createOneOffDocument: " <> show err
+          return mempty
+        Right res' -> return $ responseBody res'
+
 getSignerToken :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 getSignerToken tok guid = do
   let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> "/signer_links.json"

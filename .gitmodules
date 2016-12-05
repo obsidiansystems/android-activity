@@ -56,3 +56,6 @@
 [submodule "websockets-snap"]
 	path = websockets-snap
 	url = git@github.com:obsidiansystems/websockets-snap
+[submodule "email-parse"]
+	path = email-parse
+	url = git@gitlab.com:obsidian.systems/email-parse

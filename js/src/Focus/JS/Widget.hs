@@ -352,3 +352,11 @@ withFocusSelect focusSelectE mkTextInput  = do
     IE.select e
     E.focus e
   return t
+
+-- | Create a widget based on a given initial value.  Whenever the given Dynamic
+-- is updated to a new, different value, rebuild the widget with the new value.
+widgetForDynUniqWithInitial :: (DomBuilder t m, PostBuild t m, MonadHold t m, Eq a) => a -> Dynamic t a -> (a -> m b) -> m (Dynamic t b)
+widgetForDynUniqWithInitial a0 da f = do
+  postBuild <- getPostBuild
+  deduped <- uniqDyn <$> holdDyn a0 (leftmost [updated da, tag (current da) postBuild])
+  widgetHold (f a0) $ f <$> updated deduped

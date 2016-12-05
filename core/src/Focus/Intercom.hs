@@ -3,7 +3,8 @@ module Focus.Intercom where
 
 import Control.Exception
 import Control.Lens (makeLenses)
-import Data.Aeson.Compat
+import Data.Maybe (fromMaybe)
+import Data.Aeson.Compat (decode)
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.SHA (showDigest, hmacSha256)
@@ -16,7 +17,7 @@ import Data.Time
 import Data.Time.Clock.POSIX
 import Network.HTTP.Conduit
 
-import Focus.Intercom.Common (IntercomUserHash(..))
+import Focus.Intercom.Common (IntercomUserHash(..), IntercomUser(..))
 import Focus.Request (makeJson)
 
 
@@ -39,33 +40,26 @@ intercomScript env = "(function(){var w=window;var ic=w.Intercom;w.intercom_app_
 hashIntercom :: IntercomSecretKey -> Text -> IntercomUserHash
 hashIntercom (IntercomSecretKey intercomSecretKey) email = IntercomUserHash $ T.pack $ showDigest $ hmacSha256 (LBS.fromStrict $ T.encodeUtf8 intercomSecretKey) $ LBS.fromStrict $ T.encodeUtf8 email
 
-data IntercomUser = IntercomUser
-       { _intercomUser_updatedAt :: UTCTime
-       , _intercomUser_id :: Text
-       , _intercomUser_email :: Text
-       , _intercomUser_sessionCount :: Int64
-       , _intercomUser_location :: Text
-       , _intercomUser_userAgent :: Text
-       , _intercomUser_device :: Text
-       , _intercomUser_browser :: Text
-       }
+-- Same as IntercomUserInternal, but with a different (non-automatic) JSON instance
+-- This JSON instance must match the JSON from the Intercom API
+newtype IntercomUserInternal = IntercomUserInternal { unIntercomUserInternal :: IntercomUser }
   deriving (Show, Read, Eq, Ord)
-
-instance FromJSON IntercomUser where
+instance FromJSON IntercomUserInternal where
   parseJSON = withObject "IntercomUser" $ \o -> do
     _intercomUser_updatedAt <- fmap posixSecondsToUTCTime (o .: "updated_at")
-    _intercomUser_id <- o .: "id"
+    _intercomUser_txtId <- o .: "id"
     _intercomUser_email <- o .: "email"
+    _intercomUser_phone <- fromMaybe "Unknown" <$> o .:? "phone"
     _intercomUser_sessionCount <- o .: "session_count"
     _intercomUser_location <- do
       locationData <- o .: "location_data"
-      country <- locationData .: "country_name"
-      city <- locationData .: "city_name"
+      country <- fromMaybe "" <$> locationData .:? "country_name"
+      city <- fromMaybe "" <$> locationData .:? "city_name"
       return $ city <> ", " <> country
-    _intercomUser_userAgent <- o .: "user_agent_data"
+    _intercomUser_userAgent <- fromMaybe "Unknown" <$> o .:? "user_agent_data"
     let _intercomUser_device = getDevice _intercomUser_userAgent
     let _intercomUser_browser = getBrowser _intercomUser_userAgent
-    return IntercomUser {..}
+    return $ IntercomUserInternal $ IntercomUser {..}
     where
       -- Simplistic user agent sniffing
       getDevice ua
@@ -80,26 +74,32 @@ instance FromJSON IntercomUser where
 
 
 getIntercomUsers :: IntercomEnv -> IO [IntercomUser]
-getIntercomUsers env = do
-  let url = "https://api.intercom.io/users"
-  res <- getReq env url
-  return $ maybe mempty id $ parseMaybe userListParser =<< decode res
+getIntercomUsers env = getIntercomUsers' Nothing []
   where
-    userListParser = withObject "getIntercomUsers" (.: "users")
-
-    getReq env' url = do
+    url = "https://api.intercom.io/users/scroll"
+    getReq env' mScrollParam = do
       man <- newManager tlsManagerSettings
-      req <- fmap (asJson . applyBasicAuth user pass) $ parseUrlThrow url
+      req <- fmap (asJson . applyBasicAuth user pass) $ parseUrlThrow $ maybe url ((url <> "?scroll_param=") <>) mScrollParam
       res <- try $ httpLbs req man
       case res of
         Left (err :: HttpException) -> do
-          putStrLn $ "getIntercomUsers: " <> show err
+          putStrLn $ "ERROR getIntercomUsers: " <> show err
           return mempty
         Right res' -> return $ responseBody res'
       where
         user = T.encodeUtf8 $ _intercomEnv_appId env'
         pass = T.encodeUtf8 $ unIntercomSecretKey $ _intercomEnv_secretKey env'
         asJson req = req { requestHeaders = ("Accept", "application/json"):requestHeaders req }
+
+    getIntercomUsers' :: Maybe String -> [IntercomUser] -> IO [IntercomUser]
+    getIntercomUsers' mScrollParam prev = do
+      res <- getReq env mScrollParam
+      case decode res of
+        Nothing -> return prev
+        Just body -> do
+          let newMScrollParam = either error Just $ parseEither (body .:) "scroll_param"
+          let users = either error id $ parseEither (body .:) "users"
+          if null users then return prev else getIntercomUsers' newMScrollParam (map unIntercomUserInternal users <> prev)
 
 conversationsUrlFromId :: Text -> Text -> Text
 conversationsUrlFromId appId userId =

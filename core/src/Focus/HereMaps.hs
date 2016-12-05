@@ -51,7 +51,7 @@ data RawRouteResponse = RawRouteResponse
   }
   deriving (Show, Read, Eq, Ord)
 
-deriveJSON (defaultOptions { fieldLabelModifier = drop (length "rawRouteResponse_") }) ''RawRouteResponse
+deriveJSON (defaultOptions { fieldLabelModifier = drop ((length :: String -> Int) "rawRouteResponse_") }) ''RawRouteResponse
 
 
 
