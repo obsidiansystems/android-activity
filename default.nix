@@ -335,6 +335,7 @@ rec {
                           proxy_pass http://127.0.0.1:${builtins.toString port};
                           proxy_set_header Host $http_host;
                           proxy_read_timeout 300s;
+                          client_max_body_size 1G;
                         }
                       '';
                       locationConfigs = pkgs.lib.concatStringsSep "\n" (builtins.attrValues (pkgs.lib.mapAttrs locationConfig locations));
