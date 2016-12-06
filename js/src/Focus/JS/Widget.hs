@@ -69,7 +69,19 @@ extensibleListWidget :: forall t m a b. (MonadWidget t m)
                      -> (Dynamic t Int -> Dynamic t a -> m (Event t ListEdit, Dynamic t b)) -- ^ Widget for a single item which is expected to include
                                                                                             -- the list editing controls and pass through the resulting events.
                      -> m (Dynamic t [b])
-extensibleListWidget n x0 xs0 itemWidget =
+extensibleListWidget n x0 xs0 itemWidget = extensibleListWidgetWithSize n x0 xs0 (\d -> itemWidget (fst <$> d))
+
+-- | Like `extensibleListWidget`, but the items know the current size of the whole list, as well as their position.
+extensibleListWidgetWithSize :: forall t m a b. (MonadWidget t m)
+                             => Int -- ^ Minimum number of entries (be careful: if this is 0, the entire list is allowed to vanish)
+                             -> a -- ^ Initial entry for newly inserted items
+                             -> [a] -- ^ Initial sequence of entries
+                             -> ( Dynamic t (Int,Int) -> Dynamic t a -> m (Event t ListEdit, Dynamic t b))
+                             -- ^ Widget for a single item which is expected to include
+                             -- the list editing controls and pass through the resulting events.
+                             -- First argument is (item position, total number of items).
+                             -> m (Dynamic t [b])
+extensibleListWidgetWithSize n x0 xs0 itemWidget =
   let genIndex :: Map Rational a -> Map Rational a -> Rational
       genIndex us vs =
         case (Map.maxViewWithKey us, Map.minViewWithKey vs) of
@@ -95,7 +107,7 @@ extensibleListWidget n x0 xs0 itemWidget =
                             let ix = fmap (Map.findWithDefault (-1) k) ixMapD
                                     -- TODO, maybe: figure out why this Map lookup is too strict.
                                     -- Deleting an item causes a failed lookup, however, I'm not sure it really matters.
-                            itemWidget ix vD
+                            itemWidget ((,) <$> ix <*> fmap length listMapD) vD
             let changeMapE = (switch . current) $ fmap (mergeMap . fmap fst) $ resultMapD
                 valuesMapD = joinDynThroughMap $ fmap (fmap snd) $ resultMapD
                 valuesD = fmap Map.elems valuesMapD
