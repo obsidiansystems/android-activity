@@ -638,15 +638,17 @@ sortableTable
   -> (sk -> v -> sv)
   -- ^ Key extractor (used for sorting)
   -> (k -> Dynamic t v -> m (Dynamic t (Map Text Text)))
-  -- ^ Each row can have different attributes based on the state of the data
+  -- ^ Each row (tr) can have different attributes based on the state of the data
   -> (sk -> Either (m ()) Text)
   -- ^ How to render the header element - Left renderFunc | Right title (title is rendered with up/down arrows as appropriate)
   -> (sk -> Dynamic t v -> m ())
   -- ^ How to render the row. column sort key -> Dynamic val -> renderFunc
+  -> (sk -> Dynamic t v -> m (Dynamic t (Map Text Text)))
+  -- ^ Each row element (td) can have different attributes based on the state of the data
   -> Bool
   -- ^ Will the sorting will be done on the server itself?
   -> m (Dynamic t (SortKey sk))
-sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem serverSort = do
+sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem mkRowElem rowElemAttrs serverSort = do
   let classAttrs = "class"=:"table col-md-12 table-bordered table-striped table-condensed cf tablesorter tablesorter-default"
   dynSortKey' <- elDynAttr "table" (Map.union classAttrs <$> dynAttrs) $ do
     dynSortKey <- elAttr "thead" ("class" =: "cf table-header") $
@@ -681,7 +683,9 @@ sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem
               elDynAttr "i" d $ return ()
     mkRow k dynVal = do
       d <- fmap (<> "role" =: "row") <$> rowAttrs k dynVal
-      elDynAttr "tr" d $ mapM (el "td" . flip mkRowElem dynVal) cols
+      elDynAttr "tr" d $ forM cols $ \sk -> do
+        de <- rowElemAttrs sk dynVal
+        elDynAttr "td" de $ mkRowElem sk dynVal
     mkStaticHeader = forM_ cols $ \col -> do
         case mkHeaderElem col of
           Left m -> m
