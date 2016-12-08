@@ -362,4 +362,11 @@ self: super: {
       version = "0.5.0.1";
       src = filterGitSource ./postie;
     });
+    mime-mail = overrideCabal super.mime-mail (drv: {
+      src = "${nixpkgs.fetchgit {
+        url = git://github.com/obsidiansystems/mime-mail;
+        rev = "53f68271530a51d6709d8e5e3c88fbe67e8de837";
+        sha256 = "12l6d1cy658bai70yr4qyd8sla9xnln9w7fd3abbinmsqssjfllc";
+      }}/mime-mail";
+    });
   }
