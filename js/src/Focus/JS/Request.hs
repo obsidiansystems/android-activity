@@ -15,6 +15,10 @@ import Control.Monad
 import Foreign.JavaScript.TH
 import Focus.Request
 import Control.Monad.Reader
+#ifdef __GHCJS__
+import GHCJS.Marshal.Pure
+import Focus.JS.WebSocket (rawDecode)
+#endif
 
 import Reflex hiding (Request)
 import Reflex.Dom hiding (Error, Value, Request)
@@ -113,7 +117,11 @@ asyncApiMaybe :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, Monad
 asyncApiMaybe r f = do
   let reqJson = encode $ SomeRequest r
   _ <- mkPost "/api" (decodeUtf8 $ LBS.toStrict reqJson) $ \rspJson -> do
+#ifdef __GHCJS__
+    let mrsp = rawDecode $ pToJSVal rspJson
+#else
     let mrsp = decodeValue' $ LBS.fromStrict $ encodeUtf8 rspJson
+#endif
     liftIO $ f mrsp
   return ()
 
