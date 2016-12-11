@@ -8,7 +8,6 @@ import Focus.JS.App
 
 import Control.Monad.Reader
 import Data.Constraint
-import Reflex.PerformEvent.Base
 import Reflex.Host.Class
 import Reflex.Dom
 
@@ -54,7 +53,7 @@ instance Prerender js m => Prerender js (DynamicWriterT t w m) where
 instance Prerender js m => Prerender js (ReaderT w m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
-instance Prerender js m => Prerender js (RequestT t request response m) where
+instance Prerender js m => Prerender js (RequesterT t request response m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
 instance Prerender js m => Prerender js (QueryT t q m) where

@@ -34,7 +34,6 @@ import Focus.WebSocket
 import qualified Reflex as R
 import Reflex.Dom hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
-import Reflex.PerformEvent.Base
 
 import Unsafe.Coerce
 
@@ -138,7 +137,7 @@ dynWithQueryT f a = do
   tellQueryDyn $ zipDynWith mapQuery f q
   return result
 
-type FocusWidgetInternal app t m = QueryT t (ViewSelector app ()) (RequestT t (AppRequest app) Identity m)
+type FocusWidgetInternal app t m = QueryT t (ViewSelector app ()) (RequesterT t (AppRequest app) Identity m)
 
 newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
@@ -150,7 +149,7 @@ instance HasJS x m => HasJS x (FocusWidget app t m) where
   type JSM (FocusWidget app t m) = JSM m
   liftJS = lift . liftJS
 
-instance (HasEnv app, MonadWidget' t m, PrimMonad m) => MonadRequest t (FocusWidget app t m) where
+instance (HasEnv app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget app t m) where
   type Request (FocusWidget app t m) = AppRequest app
   type Response (FocusWidget app t m) = Identity
   withRequesting f = FocusWidget $ withRequesting $ unFocusWidget . f
@@ -204,14 +203,14 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
-instance MonadRequest t m => R.MonadRequest t (QueryT t q m) where
+instance Requester t m => R.Requester t (QueryT t q m) where
   type Request (QueryT t q m) = R.Request m
   type Response (QueryT t q m) = R.Response m
   withRequesting f = QueryT $ withRequesting $ unQueryT . f
 
 -- class ( MonadWidget' t m
 --       , MonadFix (WidgetHost m)
---       , MonadRequest t (AppRequest app) m
+--       , Requester t (AppRequest app) m
 --       , HasFocus app
 --       ) => MonadFocusWidget app t m | m -> app t where
 --   askEnv :: m (Env app t)
@@ -233,7 +232,7 @@ class (HasRequest app, HasView app) => HasFocus app
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
-      , MonadRequest t m
+      , Requester t m
       , R.Request m ~ AppRequest app
       , Response m ~ Identity
       , HasFocus app
@@ -242,7 +241,7 @@ class ( MonadWidget' t m
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
-         , MonadRequest t m
+         , Requester t m
          , R.Request m ~ AppRequest app
          , Response m ~ Identity
          , HasFocus app
@@ -253,7 +252,7 @@ instance ( MonadWidget' t m
 --         , MonadFix (WidgetHost m)
 --         , MonadWidget' t m
 --         , MonadAtomicRef m
---         , MonadRequest t (AppRequest app) (FocusWidget app t m)
+--         , Requester t (AppRequest app) (FocusWidget app t m)
 --         ) => MonadFocusWidget app t (FocusWidget app t m) where
 --  askEnv = FocusWidget $ lift ask
 --  tellInterest is = do
@@ -319,7 +318,7 @@ runFocusWidget token child = do
   pb <- getPostBuild
   rec (notification, response) <- openWebSocket "/listen" request' updatedVS
       (request', response') <- identifyTags request response
-      ((a, vs), request) <- flip runRequestT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
+      ((a, vs), request) <- flip runRequesterT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
       let nubbedVs = uniqDyn vs
           updatedVS = leftmost [updated nubbedVs, tag (current nubbedVs) pb]
       e :: Dynamic t (AppendMap (Signed AuthToken) (QueryResult (ViewSelector app ()))) <- fromNotifications nubbedVs notification
@@ -394,15 +393,16 @@ openWebSocket' :: forall t x m vs v.
 openWebSocket' url request vs = do
 #ifdef ghcjs_HOST_OS
   rec let platformDecode = rawDecode
-      ws <- rawWebSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+      ws <- rawWebSocket url $ def
 #else
   rec let platformDecode = decodeValue' . LBS.fromStrict
-      ws <- webSocket url $ WebSocketConfig $ fmap (map (decodeUtf8 . LBS.toStrict . encode)) $ mconcat
+      ws <- webSocket url $ def
 #endif
+        & webSocketConfig_send .~ fmap (map (decodeUtf8 . LBS.toStrict . encode)) (mconcat
           [ fmap (map (uncurry WebSocketData_Api)) request
           , fmap ((:[]) . WebSocketData_Listen) $ updated vs
           , tag (fmap ((:[]) . WebSocketData_Listen) $ current vs) $ _webSocket_open ws
-          ]
+          ])
   let (eMessages :: Event t (Either Text (WebSocketData v (Either Text Data.Aeson.Value)))) = fmapMaybe platformDecode $ _webSocket_recv ws
   --TODO: Handle parse errors returned by the backend
       notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages

@@ -13,7 +13,7 @@ import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
 
 import Reflex
-import Reflex.Dom hiding (webSocket, webSocketConfig_send)
+import Reflex.Dom hiding (webSocket)
 import qualified Reflex.Dom.WebSocket as RDWS
 
 import Control.Lens
@@ -58,8 +58,6 @@ webSocket path config = do
         "file:" -> "localhost:8000"
         _ -> pageHost
   RDWS.webSocket (wsProtocol <> "//" <> wsHost <> path) config
-
-makeLensesWith (lensRules & simpleLenses .~ True) ''WebSocketConfig
 
 monoConst :: a -> a -> a
 monoConst a _ = a
