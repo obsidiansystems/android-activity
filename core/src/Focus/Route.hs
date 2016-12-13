@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, OverloadedStrings #-}
 module Focus.Route where
 
 import Focus.Brand
@@ -7,10 +7,10 @@ import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
-import Data.Monoid
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Network.URI
+import Network.HTTP.Types.URI (renderQuery)
 
 class Monad m => MonadRoute r m | m -> r where
   routeToUrl :: r -> m URI
@@ -31,7 +31,7 @@ instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
 routeToQuery :: (ToJSON r, Default r, Eq r) => r -> String
 routeToQuery r = if r == def
   then ""
-  else "?x=" <> (T.unpack $ decodeUtf8 $ LBS.toStrict $ encode r)
+  else T.unpack . decodeUtf8 $ renderQuery True [("x", Just $ LBS.toStrict $ encode r)]
 
 instance MonadRoute r m => MonadRoute r (ReaderT a m) where
   routeToUrl r = lift $ routeToUrl r

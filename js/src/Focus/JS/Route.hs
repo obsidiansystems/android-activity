@@ -14,7 +14,7 @@ import Data.Map (Map)
 import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 
-importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m T.Text |]
+importJS Unsafe "window['location']['search']" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m T.Text |]
 
 getRoute :: (HasJS x m, FromJSON r, Default r) => m r
 getRoute = do
