@@ -3,6 +3,7 @@ module Focus.HereMaps where
 
 import Control.Exception
 import Data.Text (Text, unpack)
+import qualified Data.Text as T
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Int
@@ -123,11 +124,11 @@ distanceReq creds (lat1, lng1) (lat2, lng2) = do
     safeHead [] = Nothing
     safeHead (a:_) = Just a
 
--- Geocode an address into a coordinate
-geocodeReq :: HereMapsCredentials -> String -> IO (Maybe (Double, Double))
-geocodeReq creds address = do
+-- | Geocode an address into a coordinate
+geocodeReq :: HereMapsCredentials -> Text -> Text -> Text -> IO (Maybe (Double, Double))
+geocodeReq creds city state country = do
   tstart <- getCurrentTime
-  let url = "https://geocoder.api.here.com/6.2/geocode.json?searchtext=" <> address <> hereMapsCredentialsQueryString creds
+  let url = "https://geocoder.api.here.com/6.2/geocode.json?city=" <> T.unpack city <> "&state=" <> T.unpack state <> "&country=" <> T.unpack country <> hereMapsCredentialsQueryString creds --TODO: Encode URI components
   resp <- try $ simpleHttp url
   tend <- getCurrentTime
   putStrLn $ "geocodeReq: HERE.com API Call returned in " ++ show (diffUTCTime tend tstart) ++ " [" ++ url ++ "]"
