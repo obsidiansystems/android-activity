@@ -105,7 +105,7 @@ rec {
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts, NondecreasingIndentation
                 if impl(ghcjs)
-                  cpp-options: -DGHCJS_GC_INTERVAL=60000
+                  cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=5 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
             '';
         in ''
