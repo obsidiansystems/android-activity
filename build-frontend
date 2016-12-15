@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -DGHCJS_GC_INTERVAL=60000'
+nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -optl-DGHCJS_GC_INTERVAL=60000 -optl-DGHCJS_BUSY_YIELD=5 -optl-DGHCJS_SCHED_QUANTUM=5'
+
+# Xtreme optimization
+# -O2 -fplugin=Reflex.Optimizer -fexpose-all-unfoldings'
+
+# dump ghc intermediate outputs for analysis
+# -dumpdir=dump-js -ddump-to-file -ddump-simpl -ddump-hi -dppr-cols=200 -ddump-rule-firings -dsuppress-all
