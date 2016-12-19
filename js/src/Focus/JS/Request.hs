@@ -144,3 +144,12 @@ requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
   return ()
 
 importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m Text |]
+
+-- | Decode a JSON value from Text.  In JavaScript, this will use JSON.parse for
+-- greater efficiency.
+decodeValueFromText :: FromJSON a => Text -> Maybe a
+#ifdef __GHCJS__
+decodeValueFromText = rawDecode . pToJSVal
+#else
+decodeValueFromText = decodeValue' . LBS.fromStrict . encodeUtf8
+#endif
