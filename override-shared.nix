@@ -369,4 +369,8 @@ self: super: {
         sha256 = "12l6d1cy658bai70yr4qyd8sla9xnln9w7fd3abbinmsqssjfllc";
       }}/mime-mail";
     });
+    hsemail = overrideCabal super.hsemail (drv: {
+      version = "1.7.8";
+      src = filterGitSource ./hsemail;
+    });
   }
