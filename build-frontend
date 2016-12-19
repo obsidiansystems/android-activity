@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -DGHCJS_GC_INTERVAL=60000'
+nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -o frontend.jsexe -DGHCJS_GC_INTERVAL=60000'
 
 # GC flags
 # -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=5 -DGHCJS_SCHED_QUANTUM=5
