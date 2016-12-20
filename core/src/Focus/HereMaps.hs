@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, OverloadedStrings #-}
 module Focus.HereMaps where
 
 import Control.Exception
@@ -125,11 +125,12 @@ distanceReq creds (lat1, lng1) (lat2, lng2) = do
     safeHead (a:_) = Just a
 
 -- | Geocode an address into a coordinate
-geocodeReq :: HereMapsCredentials -> Text -> Text -> Text -> IO (Maybe (Double, Double))
-geocodeReq creds city state country = do
+geocodeReq :: Manager -> HereMapsCredentials -> Text -> Text -> Text -> IO (Maybe (Double, Double))
+geocodeReq mgr creds city state country = do
   tstart <- getCurrentTime
   let url = "https://geocoder.api.here.com/6.2/geocode.json?city=" <> T.unpack city <> "&state=" <> T.unpack state <> "&country=" <> T.unpack country <> hereMapsCredentialsQueryString creds --TODO: Encode URI components
-  resp <- try $ simpleHttp url
+  req <- parseUrlThrow url
+  resp <- try $ responseBody <$> httpLbs (req { requestHeaders = ("Connection", "close") : requestHeaders req }) mgr
   tend <- getCurrentTime
   putStrLn $ "geocodeReq: HERE.com API Call returned in " ++ show (diffUTCTime tend tstart) ++ " [" ++ url ++ "]"
   case resp of
