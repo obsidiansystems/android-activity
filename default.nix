@@ -320,6 +320,8 @@ rec {
               User = user;
               KillMode = "process";
               WorkingDirectory = "~";
+              Restart = "always";
+              RestartSec = 5;
             };
           };
           defaultBackendPort = 8000;
