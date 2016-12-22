@@ -2,18 +2,12 @@
 module Focus.RightSignature where
 
 import Control.Exception
-import Control.Lens (makeLenses)
 import Data.Aeson.Compat
 import Data.Aeson.Types
-import qualified Data.ByteString.Lazy as LBS
-import Data.Digest.Pure.SHA (showDigest, hmacSha256)
-import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Time
-import Data.Time.Clock.POSIX
 import Network.HTTP.Conduit
 import Network.HTTP.Types
 import qualified Data.Vector as V
@@ -25,12 +19,12 @@ newtype RightSignatureSecretToken = RightSignatureSecretToken { unRightSignature
 prepackageTemplate :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 prepackageTemplate tok templateId = do
   let url = "https://rightsignature.com/api/templates/" <> T.unpack templateId <> "/prepackage.json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ parseMaybe guidParser =<< parseMaybe templateParser =<< decode res
   where
     templateParser = withObject "template" (.: "template")
     guidParser = withObject "guid" (.: "guid")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok $ req' { method = methodPost }
@@ -44,12 +38,12 @@ prepackageTemplate tok templateId = do
 prefillDocument :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 prefillDocument tok xmlBody = do
   let url = "https://rightsignature.com/api/templates.json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ parseMaybe guidParser =<< parseMaybe documentParser =<< decode res
   where
     documentParser = withObject "document" (.: "document")
     guidParser = withObject "guid" (.: "guid")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok $ req' { method = methodPost, requestBody = RequestBodyBS $ T.encodeUtf8 xmlBody, requestHeaders = [("Content-type", "application/xml")] }
@@ -63,12 +57,12 @@ prefillDocument tok xmlBody = do
 createOneOffDocument :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 createOneOffDocument tok xmlBody = do
   let url = "https://rightsignature.com/api/documents.json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ parseMaybe guidParser =<< parseMaybe documentParser =<< decode res
   where
     documentParser = withObject "document" (.: "document")
     guidParser = withObject "guid" (.: "guid")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok $ req' { method = methodPost, requestBody = RequestBodyBS $ T.encodeUtf8 xmlBody, requestHeaders = [("Content-type", "application/xml")] }
@@ -82,14 +76,14 @@ createOneOffDocument tok xmlBody = do
 getSignerToken :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 getSignerToken tok guid = do
   let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> "/signer_links.json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ parseMaybe firstSignerLinkParser =<< parseMaybe signerLinksParser =<< parseMaybe documentParser =<< decode res
   where
     documentParser = withObject "document" (.: "document")
     signerLinksParser = withObject "signer_links" (.: "signer_links")
     firstSignerLinkParser = withArray "array" $ \arr -> signerTokenParser (V.head arr)
     signerTokenParser = withObject "signer_token" (.: "signer_token")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok req'
@@ -103,7 +97,7 @@ getSignerToken tok guid = do
 getDocumentDetails :: RightSignatureSecretToken -> Text -> IO (Maybe W9DocumentDetails)
 getDocumentDetails tok guid = do
   let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> ".json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ do
     doc <- parseMaybe documentParser =<< decode res
     W9DocumentDetails <$> unescapeUrl (parseMaybe (withObject "original_url" (.: "original_url")) doc)
@@ -113,7 +107,7 @@ getDocumentDetails tok guid = do
   where
     unescapeUrl = fmap (T.decodeUtf8 . urlDecode False . T.encodeUtf8)
     documentParser = withObject "document" (.: "document")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok req'
@@ -127,12 +121,12 @@ getDocumentDetails tok guid = do
 deleteDocument :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 deleteDocument tok guid = do
   let url = "https://rightsignature.com/api/documents/" <> T.unpack guid <> "/trash.json"
-  res <- makeReq tok url
+  res <- makeReq url
   return $ parseMaybe statusParser =<< parseMaybe documentParser =<< decode res
   where
     documentParser = withObject "document" (.: "document")
     statusParser = withObject "status" (.: "status")
-    makeReq tok url = do
+    makeReq url = do
       man <- newManager tlsManagerSettings
       req' <- parseUrlThrow url
       let req = addSecureToken tok $ req' { method = methodPost }

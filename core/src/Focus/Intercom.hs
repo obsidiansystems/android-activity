@@ -8,12 +8,10 @@ import Data.Aeson.Compat (decode)
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.SHA (showDigest, hmacSha256)
-import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Time
 import Data.Time.Clock.POSIX
 import Network.HTTP.Conduit
 

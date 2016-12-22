@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, OverloadedStrings #-}
 module Focus.HereMaps where
 
 import Control.Exception
@@ -102,11 +102,12 @@ data RawResponse a = RawResponse
 deriveJSON (defaultOptions { fieldLabelModifier = ((:) . toUpper . head <*> tail) . drop ((length :: String -> Int) "rawResponse_") }) ''RawResponse
 
 -- Returns distance between two points in meters (taking the route into account)
-distanceReq :: HereMapsCredentials -> (Double, Double) -> (Double, Double) -> IO (Maybe Int64)
-distanceReq creds (lat1, lng1) (lat2, lng2) = do
+distanceReq :: Manager -> HereMapsCredentials -> (Double, Double) -> (Double, Double) -> IO (Maybe Int64)
+distanceReq mgr creds (lat1, lng1) (lat2, lng2) = do
   tstart <- getCurrentTime
   let url = "https://route.api.here.com/routing/7.2/calculateroute.json?waypoint0=" <> show lat1 <> "%2C" <> show lng1 <> "&waypoint1=" <> show lat2 <> "%2C" <> show lng2 <> "&mode=fastest%3Btruck%3Btraffic%3Adisabled" <> hereMapsCredentialsQueryString creds
-  resp <- try $ simpleHttp url
+  req <- parseUrlThrow url
+  resp <- try $ responseBody <$> httpLbs (req { requestHeaders = ("Connection", "close") : requestHeaders req }) mgr
   tend <- getCurrentTime
   putStrLn $ "distanceReq: HERE.com API Call returned in " ++ show (diffUTCTime tend tstart) ++ " [" ++ url ++ "]"
   case resp of
@@ -125,11 +126,12 @@ distanceReq creds (lat1, lng1) (lat2, lng2) = do
     safeHead (a:_) = Just a
 
 -- | Geocode an address into a coordinate
-geocodeReq :: HereMapsCredentials -> Text -> Text -> Text -> IO (Maybe (Double, Double))
-geocodeReq creds city state country = do
+geocodeReq :: Manager -> HereMapsCredentials -> Text -> Text -> Text -> IO (Maybe (Double, Double))
+geocodeReq mgr creds city state country = do
   tstart <- getCurrentTime
   let url = "https://geocoder.api.here.com/6.2/geocode.json?city=" <> T.unpack city <> "&state=" <> T.unpack state <> "&country=" <> T.unpack country <> hereMapsCredentialsQueryString creds --TODO: Encode URI components
-  resp <- try $ simpleHttp url
+  req <- parseUrlThrow url
+  resp <- try $ responseBody <$> httpLbs (req { requestHeaders = ("Connection", "close") : requestHeaders req }) mgr
   tend <- getCurrentTime
   putStrLn $ "geocodeReq: HERE.com API Call returned in " ++ show (diffUTCTime tend tstart) ++ " [" ++ url ++ "]"
   case resp of
