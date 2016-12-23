@@ -6,6 +6,7 @@ module Data.SemiMap where
 import Data.Aeson
 import Data.Coerce
 import Data.Either
+import Data.Maybe
 import Data.Monoid hiding ((<>), First (..))
 import Data.Semigroup
 import Data.Set (Set)
@@ -19,6 +20,9 @@ data SemiMap k v
    = SemiMap_Complete (AppendMap k v)
    | SemiMap_Partial (AppendMap k (First (Maybe v)))
    deriving (Show, Read, Eq, Ord, Foldable, Generic)
+
+isComplete :: SemiMap k v -> Bool
+isComplete = isJust . getComplete
 
 getComplete :: SemiMap k v -> Maybe (AppendMap k v)
 getComplete = \case
