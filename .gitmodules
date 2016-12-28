@@ -62,3 +62,6 @@
 [submodule "hsemail"]
 	path = hsemail
 	url = git@github.com:obsidiansystems/hsemail
+[submodule "stripe"]
+	path = stripe
+	url = git@github.com:obsidiansystems/stripe.git
