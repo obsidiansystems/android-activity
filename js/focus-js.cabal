@@ -55,6 +55,7 @@ library
     safe,
     safe,
     semigroups,
+    stripe-core,
     template-haskell,
     text,
     these,
@@ -84,6 +85,7 @@ library
     Focus.JS.Request
     Focus.JS.Route
     Focus.JS.SmoothieCharts
+    Focus.JS.Stripe
     Focus.JS.TextArea
     Focus.JS.Time
     Focus.JS.Transition
