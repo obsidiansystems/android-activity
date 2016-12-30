@@ -83,6 +83,7 @@ library
     , Focus.Backend.Listen
     , Focus.Backend.Email
     , Focus.Backend.Mustache
+    , Focus.Backend.Schema
     , Focus.Backend.Schema.TH
     , Focus.Backend.TH
     , Focus.Backend.Sign
