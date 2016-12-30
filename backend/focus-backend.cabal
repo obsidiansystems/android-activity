@@ -38,7 +38,6 @@ library
     snap,
     snap-core,
     stm,
-    stripe,
     template-haskell,
     text,
     time,
@@ -85,7 +84,6 @@ library
     , Focus.Backend.Email
     , Focus.Backend.Mustache
     , Focus.Backend.Schema.TH
-    , Focus.Backend.Subscription
     , Focus.Backend.TH
     , Focus.Backend.Sign
     , Focus.Backend.DB.Temp
