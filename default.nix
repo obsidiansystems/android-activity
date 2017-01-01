@@ -54,6 +54,7 @@ rec {
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
              email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
+             hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {

@@ -62,3 +62,6 @@
 [submodule "hsemail"]
 	path = hsemail
 	url = git@github.com:obsidiansystems/hsemail
+[submodule "hellosign"]
+	path = hellosign
+	url = git@gitlab.com:obsidian.systems/hellosign
