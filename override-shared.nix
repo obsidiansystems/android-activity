@@ -373,4 +373,7 @@ self: super: {
       version = "1.7.8";
       src = filterGitSource ./hsemail;
     });
+    imagemagick = super.imagemagick.override {
+      imagemagick = nixpkgs.imagemagickBig; # Necessary for PDF support
+    };
   }
