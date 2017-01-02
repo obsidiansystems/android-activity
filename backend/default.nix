@@ -1,4 +1,4 @@
-{mkDerivation, loch-th, groundhog, groundhog-th, mtl, focus-core, focus-serve, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, stripe, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-lib, diagrams-svg, raw-strings-qq, attoparsec, focus-th, mustache, parsec, vector, word8, myPostgres}:
+{mkDerivation, loch-th, groundhog, groundhog-th, mtl, focus-core, focus-serve, lens, aeson, snap, resource-pool, text, network, stm, postgresql-simple, groundhog-postgresql, websockets-snap, websockets, smtp-mail, temporary, stringsearch, shelly, tar, file-embed, binary, lucid, diagrams, diagrams-lib, diagrams-svg, raw-strings-qq, attoparsec, focus-th, mustache, parsec, vector, word8, myPostgres}:
 
 mkDerivation {
   pname = "focus-backend";
@@ -23,7 +23,6 @@ mkDerivation {
     groundhog-postgresql
     websockets-snap
     websockets
-    stripe
     smtp-mail
     temporary
     stringsearch

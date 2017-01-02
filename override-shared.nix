@@ -265,6 +265,7 @@ self: super: {
       buildDepends = with self; [ aeson http-conduit http-types mtl text unordered-containers utf8-string ghcjs-dom reflex-dom ];
       version = "0.8.3";
     });
+    stripe-tests = self.callPackage ./stripe/stripe-tests/stripe-tests.nix {};
     stripe-core = self.callPackage ./stripe/stripe-core/stripe-core.nix {};
     stripe-http-streams = self.callPackage ./stripe/stripe-http-streams/stripe-http-streams.nix {};
     stripe-haskell = self.callPackage ./stripe/stripe-haskell/stripe-haskell.nix {};
@@ -376,4 +377,7 @@ self: super: {
       version = "1.7.8";
       src = filterGitSource ./hsemail;
     });
+    imagemagick = super.imagemagick.override {
+      imagemagick = nixpkgs.imagemagickBig; # Necessary for PDF support
+    };
   }

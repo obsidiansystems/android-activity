@@ -50,3 +50,8 @@ class ShowPretty a where
   showPretty = T.pack . show
 
 type Email = Text --TODO: Validation
+
+-- | Wrapper for storing objects as JSON in the DB. Import the instance from
+-- focus-backend:Focus.Backend.Schema
+newtype Json a = Json { unJson :: a }
+  deriving (Eq, Ord, Show, Read, ToJSON, FromJSON)
