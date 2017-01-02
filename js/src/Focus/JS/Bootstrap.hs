@@ -50,7 +50,7 @@ buttonActive' k actD w = do
   let attrs = ffor actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
   buttonDynAttr attrs w
 
-buttonAttr :: (DomBuilder t m, PostBuild t m) => Map Text Text -> m a -> m (Event t ())
+buttonAttr :: (DomBuilder t m) => Map Text Text -> m a -> m (Event t ())
 buttonAttr attrs w = liftM (domEvent Click . fst) $ elAttr' "button" attrs w
 
 buttonDynAttr :: (DomBuilder t m, PostBuild t m) => Dynamic t (Map Text Text) -> m a -> m (Event t ())
