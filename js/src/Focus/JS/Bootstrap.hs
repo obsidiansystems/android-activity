@@ -43,12 +43,15 @@ buttonActiveClass :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -
 buttonActiveClass k actD s = buttonActive' k actD (text s)
 
 button' :: (DomBuilder t m, PostBuild t m) => Text -> m a -> m (Event t ())
-button' k w = buttonDynAttr (constDyn $ "class" =: k <> "type" =: "button") w
+button' k w = buttonAttr ("class" =: k <> "type" =: "button") w
 
 buttonActive' :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> m a -> m (Event t ())
 buttonActive' k actD w = do
   let attrs = ffor actD $ \active -> "class" =: k <> "type" =: "button" <> if active then mempty else "disabled" =: "1"
   buttonDynAttr attrs w
+
+buttonAttr :: (DomBuilder t m, PostBuild t m) => Map Text Text -> m a -> m (Event t ())
+buttonAttr attrs w = liftM (domEvent Click . fst) $ elAttr' "button" attrs w
 
 buttonDynAttr :: (DomBuilder t m, PostBuild t m) => Dynamic t (Map Text Text) -> m a -> m (Event t ())
 buttonDynAttr attrs w = liftM (domEvent Click . fst) $ elDynAttr' "button" attrs w

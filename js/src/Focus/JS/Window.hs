@@ -39,6 +39,9 @@ windowResizeEvent w = do
     height <- DOM.getInnerHeight w
     return (width, height)
 
+getWindowSize :: DOM.Window -> IO (Int, Int)
+getWindowSize w = liftM2 (,) (DOM.getInnerWidth w) (DOM.getInnerHeight w)
+
 windowSize :: ( Reflex t
               , TriggerEvent t m
               , MonadFix m
@@ -52,5 +55,5 @@ windowSize w = do
   resizeRaw <- windowResizeEvent w
   resize <- debounce 0.25 resizeRaw -- debounce because the raw resize event can be very spammy in some browsers when a user is dragging
   pb <- getPostBuild
-  initialSize <- performEvent (liftM2 (,) (DOM.getInnerWidth w) (DOM.getInnerHeight w) <$ pb)
+  initialSize <- performEvent (liftIO (getWindowSize w) <$ pb)
   holdDyn (0,0) $ leftmost [resize, initialSize]
