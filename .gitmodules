@@ -11,9 +11,6 @@
 [submodule "webkit"]
 	path = webkit
 	url = git@github.com:ryantrinkle/webkit
-[submodule "clay"]
-	path = clay
-	url = git@github.com:ryantrinkle/clay
 [submodule "hs-stripe"]
 	path = hs-stripe
 	url = git@gitlab.com:obsidian.systems/hs-stripe.git
