@@ -11,7 +11,6 @@ import Focus.Time
 import Focus.Misc
 import Focus.Account
 import Focus.Sign
-import Focus.JS.Prerender
 
 import Safe
 import Control.Monad
@@ -629,7 +628,7 @@ checkButton b0 active inactive txt = do
   return selected
 
 sortableTable
-  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Prerender js m)
+  :: (Ord k, Ord sv, Eq sk, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Dynamic t (Map k v)
   -- ^ The data set
   -> Dynamic t (Map Text Text)
@@ -656,7 +655,7 @@ sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem
   dynSortKey' <- elDynAttr "table" (Map.union classAttrs <$> dynAttrs) $ do
     dynSortKey <- elAttr "thead" ("class" =: "cf table-header") $
       elAttr "tr" ("role"=:"row" <> "class"=:"tablesorter-headerRow") $
-        prerender (mkStaticHeader >> return (constDyn defaultSort)) $ sortableListHeader cols defaultSort mkHeaderElem'
+        sortableListHeader cols defaultSort mkHeaderElem'
 
     -- For server side sorting we simply display all list elements without modification
     el "tbody" $ do
@@ -671,11 +670,9 @@ sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem
 
     return dynSortKey
 
-  prerender mkSpinner blank
   return dynSortKey'
 
   where
-    mkSpinner = el "center" $ elClass "i" "fa fa-gear fa-spin fa-4x shadow1 spinner" blank
     mkHeaderElem' sk dynSortKey = case mkHeaderElem sk of
       Left renderHeaderElem -> renderHeaderElem >> return never
       Right title -> do
@@ -689,10 +686,6 @@ sortableTable dynVals dynAttrs cols defaultSort extractKey rowAttrs mkHeaderElem
       elDynAttr "tr" d $ forM cols $ \sk -> do
         de <- rowElemAttrs sk dynVal
         elDynAttr "td" de $ mkRowElem sk dynVal
-    mkStaticHeader = forM_ cols $ \col -> do
-        case mkHeaderElem col of
-          Left m -> m
-          Right title -> void $ elAttr "th" ("class"=:"tablesorter-header tablesorter-headerUnSorted" <> "role"=:"columnheader" <> "style"=:"-webkit-user-select: none; cursor: pointer;") $ text title
 
 -- Key to sort a table
 data SortKey a = Asc a | Desc a
