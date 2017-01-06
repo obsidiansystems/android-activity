@@ -461,7 +461,7 @@ defaultLoginWidget
   -> m (Event t (Email, Text), Event t ())
 defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
   signupLink <- elAttr "h3" ("class" =: "form-signin-heading") $ do
-    text "Sign in up or "
+    text "Sign in or "
     link "sign up"
   emailBox <- emailInputWithPlaceholder "Email address"
   passwordBox <- passwordInputWithPlaceholder "Password"
