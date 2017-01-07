@@ -33,16 +33,16 @@ import Text.RawString.QQ
 bootstrapCDN :: DomBuilder t m => m ()
 bootstrapCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css") $ return ()
 
-button :: (DomBuilder t m, PostBuild t m) => Text -> m (Event t ())
+button :: DomBuilder t m => Text -> m (Event t ())
 button s = buttonClass "btn btn-primary" s
 
-buttonClass :: (DomBuilder t m, PostBuild t m) => Text -> Text -> m (Event t ())
+buttonClass :: DomBuilder t m => Text -> Text -> m (Event t ())
 buttonClass k s = button' k $ text s
 
 buttonActiveClass :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> Text -> m (Event t ())
 buttonActiveClass k actD s = buttonActive' k actD (text s)
 
-button' :: (DomBuilder t m, PostBuild t m) => Text -> m a -> m (Event t ())
+button' :: DomBuilder t m => Text -> m a -> m (Event t ())
 button' k w = buttonAttr ("class" =: k <> "type" =: "button") w
 
 buttonActive' :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> m a -> m (Event t ())
@@ -311,7 +311,7 @@ labelledInput name content = do
       text $ name
     divClass "col-sm-10" $ return =<< content
 
-buttonWithIcon :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> Text -> Text -> m (Event t ())
+buttonWithIcon :: forall t m. DomBuilder t m => Text -> Text -> Text -> m (Event t ())
 buttonWithIcon i s btnClass = button' btnClass $ do
   icon i
   text $ " " <> s
