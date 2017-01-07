@@ -292,6 +292,13 @@ instance ToJSON ByteString where
 instance FromJSON ByteString where
     parseJSON o = either fail return . B64.decode . encodeUtf8 =<< parseJSON o
 
+instance ToJSON LBS.ByteString where
+    toJSON = toJSON . decodeUtf8 . B64.encode . LBS.toStrict
+ 
+instance FromJSON LBS.ByteString where
+    parseJSON o = either fail (return . LBS.fromStrict) . B64.decode . encodeUtf8 =<< parseJSON o
+
+
 class Functor' (f :: (k -> *) -> *) where
   fmap' :: (forall x. a x -> b x) -> f a -> f b
 
