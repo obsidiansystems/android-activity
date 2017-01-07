@@ -22,7 +22,6 @@ import Control.Arrow
 
 import Data.Pool
 import Database.PostgreSQL.Simple hiding (execute)
-import Database.PostgreSQL.Simple.SqlQQ
 import Database.PostgreSQL.Simple.Types
 import Database.Groundhog.Postgresql
 import Control.Monad.Trans.Control
