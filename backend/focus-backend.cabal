@@ -22,7 +22,6 @@ library
     bytestring,
     base64-bytestring,
     containers,
-    directory-tree,
     exceptions,
     groundhog,
     groundhog-th,
@@ -96,7 +95,6 @@ library
     , Focus.Backend.Snap
     , Focus.Backend.Route
     , Focus.Backend.Brand
-    , Focus.Backend.Timezone
     , Focus.Backend.Typeahead
 
   other-extensions: TemplateHaskell

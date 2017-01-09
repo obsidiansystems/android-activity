@@ -1,9 +1,9 @@
-module Focus.Backend.Timezone where
+module Focus.Time.Zone where
 
 import qualified Data.Set as Set
 import System.Directory.Tree
 
-getTimezoneNames :: FilePath -> IO [FileName]
+getTimezoneNames :: FilePath -> IO [String]
 getTimezoneNames dir = do
   tree <- build dir
   let filenames = concatMap getFilenames $ contents $ dirTree tree

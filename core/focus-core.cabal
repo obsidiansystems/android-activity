@@ -25,6 +25,7 @@ library
                , data-default
                , dependent-map
                , dependent-sum
+               , directory-tree
                , haskell-src-exts
                , http-conduit
                , http-types
@@ -56,6 +57,7 @@ library
     , Focus.Route
     , Focus.Schema
     , Focus.Time
+    , Focus.Time.Zone
     , Focus.Sign
     , Focus.Concurrent
     , Focus.WebSocket

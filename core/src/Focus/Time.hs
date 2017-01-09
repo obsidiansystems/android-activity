@@ -1,15 +1,16 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP, DeriveLift, OverloadedStrings, TemplateHaskell #-}
 module Focus.Time where
 
-import Focus.Misc
-import Focus.Schema
+import Data.Fixed
+import Data.Monoid
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.WeekDate
 import Data.Time.LocalTime.TimeZone.Series
-import Data.Fixed
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Monoid
+import Focus.Misc
+import Focus.Request
+import Focus.Schema
 
 formatTime' :: Text -> TimeZoneSeries -> UTCTime -> Text
 formatTime' s tz t = T.pack $ formatTime defaultTimeLocale (T.unpack s) $ ZoneSeriesTime t tz
@@ -17,7 +18,7 @@ formatTime' s tz t = T.pack $ formatTime defaultTimeLocale (T.unpack s) $ ZoneSe
 showTime' :: TimeZoneSeries -> UTCTime -> Text
 showTime' = formatTime' "%l:%M%p %Z"
 
-showDateTime' :: TimeZoneSeries -> UTCTime -> Text 
+showDateTime' :: TimeZoneSeries -> UTCTime -> Text
 showDateTime' = formatTime' "%D %l:%M%p %Z"
 
 maybeShowTime' :: TimeZoneSeries -> Text -> Maybe UTCTime -> Text
@@ -115,3 +116,10 @@ twelveHourTimeToLocalTime (h, m, meridian) = case meridian of
                                                   PM -> TimeOfDay (if h == 12 then 12 else h + 12) m 0
 
 
+newtype TimeZoneName = TimeZoneName { unTimeZoneName :: Text }
+  deriving (Show, Read, Eq, Ord)
+
+instance ShowPretty TimeZoneName where
+  showPretty = unTimeZoneName
+
+makeJson ''TimeZoneName
