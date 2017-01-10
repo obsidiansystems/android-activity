@@ -15,7 +15,6 @@ import Reflex.Dom hiding (button)
 
 import Focus.Account
 import Focus.JS.FontAwesome
-import Focus.JS.Prerender
 import Focus.JS.Widget
 import Focus.Misc
 import Focus.Schema
