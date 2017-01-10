@@ -5,7 +5,7 @@ module Focus.Backend.Listen ( NotificationListener, MonadListenDb, NotificationT
                             , insertByAllAndNotify, insertByAllAndNotifyWithBody, listenDB
                             , makeNotificationListener, notifyEntity, notifyEntityId, notifyEntityWithBody
                             , notifyEntityWithBody', getPatchesFor, updateAndNotify, updateChannel
-                            , withNotifications
+                            , withNotifications, updateAndNotifyWithBody
                             ) where
 
 import Focus.Account
@@ -23,7 +23,7 @@ import Control.Concurrent.STM
 import Control.Exception (handle, try, SomeException, displayException, throwIO)
 import Control.Lens
 import Control.Monad.Cont
-import Control.Monad.State.Strict hiding (state)
+import Control.Monad.State.Strict hiding (state, get)
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.Writer
 import Data.Aeson
@@ -106,6 +106,15 @@ updateAndNotify :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionH
 updateAndNotify tid dt = do
   update dt (AutoKeyField ==. fromId tid)
   notifyEntityId NotificationType_Update tid
+
+updateAndNotifyWithBody :: (ToJSON (IdData a), GH.Expression (PhantomDb m) (RestrictionHolder v c) (DefaultKey a), PersistEntity v, PersistEntity a, PersistBackend m, GH.Unifiable (AutoKeyField v c) (DefaultKey a), DefaultKeyId a, _)
+                        => Id a
+                        -> [GH.Update (PhantomDb m) (RestrictionHolder v c)]
+                        -> m ()
+updateAndNotifyWithBody tid dt = do
+  update dt (AutoKeyField ==. fromId tid)
+  Just t <- get $ fromId tid
+  notifyEntityWithBody NotificationType_Update tid t
 
 notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> a -> m ()
 notifyEntity nt aid _ = notifyEntityId nt aid
