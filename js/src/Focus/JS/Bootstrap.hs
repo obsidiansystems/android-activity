@@ -1,33 +1,40 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings, DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
 
-import Focus.JS.FontAwesome
-import Focus.JS.Time
-import Focus.JS.Widget
-import Focus.Schema
-import Focus.Time
-import Focus.Misc
 import Focus.Account
-import Focus.Sign
+import Focus.JS.FontAwesome
 import Focus.JS.Prerender
+import Focus.JS.Widget
+import Focus.Misc
+import Focus.Schema
+import Focus.Sign
+import Focus.Time
 
-import Safe
 import Control.Monad
 import Control.Monad.Fix
-import Control.Monad.IO.Class
--- import Control.Monad.Ref
 import Data.List
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import Safe
 import Text.RawString.QQ
 
 bootstrapCDN :: DomBuilder t m => m ()
@@ -170,25 +177,6 @@ timeInput t0 = do
         PM -> if h == 12 then 12 else h + 12) hour meridian
       tod = fmapMaybe id . updated $ zipDynWith (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
-
-mainlandUSTimeZoneMap :: (MonadIO m, HasJS x m) => m (Map Text TimeZoneSeries)
-mainlandUSTimeZoneMap = do
-  kvs <- forM ["Eastern", "Central", "Mountain", "Pacific"] $ \n ->
-            do s <- getTimeZoneSeries ("US/" <> n)
-               return (n,s)
-  return (Map.fromList [(n,s) | (n,Just s) <- kvs])
-
-mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
-mainlandUSTimeInput tzMap t0 =
-  utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
-
-mainlandUSTimeZone :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> DropdownConfig t Text -> m (Dynamic t TimeZoneSeries)
-mainlandUSTimeZone tzMap _ {- cfg -} = do
-  let labelMap, valueMap :: Map Int Text
-      labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
-      valueMap = 0 =: "Pacific" <> 1 =: "Mountain" <> 2 =: "Central" <> 3 =: "Eastern"
-  selection <- fmap (fmap (valueMap Map.!)) $ toggleButtonStrip "btn-xs" 3 labelMap
-  return $ fmap (tzMap Map.!) selection
 
 utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
                  => TimeZoneSeries
