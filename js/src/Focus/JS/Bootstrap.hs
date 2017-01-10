@@ -1,47 +1,55 @@
-{-# LANGUAGE RecursiveDo, RankNTypes, ScopedTypeVariables, TypeFamilies, FlexibleContexts, TemplateHaskell, QuasiQuotes, LambdaCase, OverloadedStrings, DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Focus.JS.Bootstrap where
 
 import Reflex.Dom hiding (button)
 
-import Focus.JS.FontAwesome
-import Focus.JS.Time
-import Focus.JS.Widget
-import Focus.Schema
-import Focus.Time
-import Focus.Misc
 import Focus.Account
+import Focus.JS.FontAwesome
+import Focus.JS.Prerender
+import Focus.JS.Widget
+import Focus.Misc
+import Focus.Schema
 import Focus.Sign
+import Focus.Time
 
-import Safe
 import Control.Monad
 import Control.Monad.Fix
-import Control.Monad.IO.Class
--- import Control.Monad.Ref
 import Data.List
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import Safe
 import Text.RawString.QQ
 
 bootstrapCDN :: DomBuilder t m => m ()
 bootstrapCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css") $ return ()
 
-button :: (DomBuilder t m, PostBuild t m) => Text -> m (Event t ())
+button :: DomBuilder t m => Text -> m (Event t ())
 button s = buttonClass "btn btn-primary" s
 
-buttonClass :: (DomBuilder t m, PostBuild t m) => Text -> Text -> m (Event t ())
+buttonClass :: DomBuilder t m => Text -> Text -> m (Event t ())
 buttonClass k s = button' k $ text s
 
 buttonActiveClass :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> Text -> m (Event t ())
 buttonActiveClass k actD s = buttonActive' k actD (text s)
 
-button' :: (DomBuilder t m, PostBuild t m) => Text -> m a -> m (Event t ())
+button' :: DomBuilder t m => Text -> m a -> m (Event t ())
 button' k w = buttonAttr ("class" =: k <> "type" =: "button") w
 
 buttonActive' :: (DomBuilder t m, PostBuild t m) => Text -> Dynamic t Bool -> m a -> m (Event t ())
@@ -170,25 +178,6 @@ timeInput t0 = do
       tod = fmapMaybe id . updated $ zipDynWith (\h m -> makeTimeOfDayValid h m 0) milHour minute
   holdDyn t0 tod
 
-mainlandUSTimeZoneMap :: (MonadIO m, HasJS x m) => m (Map Text TimeZoneSeries)
-mainlandUSTimeZoneMap = do
-  kvs <- forM ["Eastern", "Central", "Mountain", "Pacific"] $ \n ->
-            do s <- getTimeZoneSeries ("US/" <> n)
-               return (n,s)
-  return (Map.fromList [(n,s) | (n,Just s) <- kvs])
-
-mainlandUSTimeInput :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> UTCTime -> m (Dynamic t UTCTime)
-mainlandUSTimeInput tzMap t0 =
-  utcTimeInputMini (tzMap Map.! "Eastern") (mainlandUSTimeZone tzMap def) t0
-
-mainlandUSTimeZone :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Map Text TimeZoneSeries -> DropdownConfig t Text -> m (Dynamic t TimeZoneSeries)
-mainlandUSTimeZone tzMap _ {- cfg -} = do
-  let labelMap, valueMap :: Map Int Text
-      labelMap = 0 =: "PT"      <> 1 =: "MT"       <> 2 =: "CT"      <> 3 =: "ET"
-      valueMap = 0 =: "Pacific" <> 1 =: "Mountain" <> 2 =: "Central" <> 3 =: "Eastern"
-  selection <- fmap (fmap (valueMap Map.!)) $ toggleButtonStrip "btn-xs" 3 labelMap
-  return $ fmap (tzMap Map.!) selection
-
 utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
                  => TimeZoneSeries
                  -> m (Dynamic t TimeZoneSeries)
@@ -310,7 +299,7 @@ labelledInput name content = do
       text $ name
     divClass "col-sm-10" $ return =<< content
 
-buttonWithIcon :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> Text -> Text -> m (Event t ())
+buttonWithIcon :: forall t m. DomBuilder t m => Text -> Text -> Text -> m (Event t ())
 buttonWithIcon i s btnClass = button' btnClass $ do
   icon i
   text $ " " <> s
@@ -460,7 +449,7 @@ defaultLoginWidget
   -> m (Event t (Email, Text), Event t ())
 defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
   signupLink <- elAttr "h3" ("class" =: "form-signin-heading") $ do
-    text "Sign in up or "
+    text "Sign in or "
     link "sign up"
   emailBox <- emailInputWithPlaceholder "Email address"
   passwordBox <- passwordInputWithPlaceholder "Password"

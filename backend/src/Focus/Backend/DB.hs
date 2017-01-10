@@ -5,6 +5,7 @@ module Focus.Backend.DB where
 import Focus.AppendMap (AppendMap (..))
 import Focus.Schema
 import Focus.Backend.Schema.TH
+import Focus.Backend.DB.PsqlSimple
 
 --import Database.Groundhog
 --import Database.Groundhog.TH
@@ -20,7 +21,8 @@ import Data.Time
 import Control.Arrow
 
 import Data.Pool
-import Database.PostgreSQL.Simple
+import Database.PostgreSQL.Simple hiding (execute)
+import Database.PostgreSQL.Simple.Types
 import Database.Groundhog.Postgresql
 import Control.Monad.Trans.Control
 import Control.Monad.Logger
@@ -79,6 +81,32 @@ runDb :: ( MonadIO m
       -> Pool cm
       -> m b
 runDb a dbConns = withResource dbConns $ runDbConn a
+
+data SchemaConn cm = SchemaConn { _schemaConn_pool :: Pool cm, _schemaConn_schema :: Identifier }
+
+ensureSchemaExists :: ( MonadIO m
+                      , MonadBaseControl IO m
+                      , ConnectionManager cm conn
+                      , PostgresRaw (DbPersist conn (NoLoggingT m))
+                      )
+                   => SchemaConn cm
+                   -> m ()
+ensureSchemaExists (SchemaConn db schema) = flip runDb db $ do
+  void $ execute [sql| CREATE SCHEMA IF NOT EXISTS ? |] (Only schema)
+
+-- The argument order of runSchemaDb is different from runDb's because we always flip runDb. We probably ought to change its type too,
+-- but I didn't want to deal with that right away. - cg
+runSchemaDb :: ( MonadIO m
+               , MonadBaseControl IO m
+               , ConnectionManager cm conn
+               , PostgresRaw (DbPersist conn (NoLoggingT m))
+               )
+            => SchemaConn cm
+            -> DbPersist conn (NoLoggingT m) b
+            -> m b
+runSchemaDb (SchemaConn db schema) x = flip runDb db $ do
+  void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)
+  x
 
 ilike :: (SqlDb db, ExpressionOf db r a a') => a -> String -> Cond db r
 ilike a b = CondRaw $ operator 40 " ILIKE " a b
