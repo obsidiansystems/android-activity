@@ -1,5 +1,9 @@
 { emails ? { outPath = ./.; name = "emails"; }
-, pkgs ? import <nixpkgs> {}
+, pkgs ? import ((import <nixpkgs> {}).fetchgit {
+    url = "https://github.com/NixOS/nixpkgs-channels";
+    rev = "b0539b96519b8b20ce1ade94029cfe4408d9137e";
+    sha256 = "123qn6c1vqphq44f4chbr1w6icnmbdf6rpfi17gpd5zy8ynz5av2";
+  }) {}
 }:
 with pkgs.lib;
 let
