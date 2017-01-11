@@ -380,4 +380,8 @@ self: super: {
     imagemagick = super.imagemagick.override {
       imagemagick = nixpkgs.imagemagickBig; # Necessary for PDF support
     };
+    hdevtools = overrideCabal super.hdevtools (drv: {
+      version = "0.1.5.0";
+      sha256 = "1rq41mlvfsjqf21hnv5jslnfk39z52p0a6a0yk2ng8q971pj70gd";
+    });
   }
