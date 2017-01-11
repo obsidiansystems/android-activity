@@ -304,7 +304,6 @@ type MonadWidget' t m =
   , Ref (Performable m) ~ Ref IO
   )
 
-
 runFocusWidget :: forall t m a x app. ( MonadWidget' t m
                                       , HasWebView m
                                       , HasJS x m
@@ -314,9 +313,21 @@ runFocusWidget :: forall t m a x app. ( MonadWidget' t m
                => Signed AuthToken
                -> FocusWidget app t m a
                -> m a
-runFocusWidget token child = do
+runFocusWidget = runFocusWidget' (Right "/listen")
+
+runFocusWidget' :: forall t m a x app. ( MonadWidget' t m
+                                       , HasWebView m
+                                       , HasJS x m
+                                       , HasFocus app
+                                       , Eq (ViewSelector app ())
+                                       )
+                => Either WebSocketUrl Text
+                -> Signed AuthToken
+                -> FocusWidget app t m a
+                -> m a
+runFocusWidget' murl token child = do
   pb <- getPostBuild
-  rec (notification, response) <- openWebSocket "/listen" request' updatedVS
+  rec (notification, response) <- openWebSocket murl request' updatedVS
       (request', response') <- identifyTags request response
       ((a, vs), request) <- flip runRequesterT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
       let nubbedVs = uniqDyn vs
@@ -383,20 +394,20 @@ openWebSocket' :: forall t x m vs v.
                  , FromJSON v
                  , ToJSON vs
                  )
-              => Text -- ^ URL
+              => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
               -> Dynamic t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    , Event t Text
                    )
-openWebSocket' url request vs = do
+openWebSocket' murl request vs = do
 #ifdef ghcjs_HOST_OS
   rec let platformDecode = rawDecode
-      ws <- rawWebSocket url $ def
+      ws <- rawWebSocket murl $ def
 #else
   rec let platformDecode = decodeValue' . LBS.fromStrict
-      ws <- webSocket url $ def
+      ws <- webSocket murl $ def
 #endif
         & webSocketConfig_send .~ fmap (map (decodeUtf8 . LBS.toStrict . encode)) (mconcat
           [ fmap (map (uncurry WebSocketData_Api)) request
@@ -424,13 +435,13 @@ openWebSocket :: forall t x m vs v.
                  , ToJSON vs
                  , Monoid vs
                  )
-              => Text -- ^ URL
+              => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
               -> Event t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
-openWebSocket url request updatedVs = do
+openWebSocket murl request updatedVs = do
   vs <- holdDyn mempty updatedVs
-  (f, s, _) <- openWebSocket' url request vs
+  (f, s, _) <- openWebSocket' murl request vs
   return (f, s)

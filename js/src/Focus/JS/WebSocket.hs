@@ -44,20 +44,32 @@ instance ToJS x (JSWebSocket x) where
 instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
+data WebSocketUrl = WebSocketUrl
+       { _websocket_protocol :: Text
+       , _websocket_host :: Text
+       , _websocket_port :: Int
+       , _websocket_path :: Text
+       } deriving (Eq, Ord, Show, Read)
+
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (WebSocket t)
-webSocket path config = do
-  pageHost <- liftIO . getLocationHost =<< askWebView
-  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
-  let wsProtocol = case pageProtocol of
-        "http:" -> "ws:"
-        "https:" -> "wss:"
-        "file:" -> "ws:"
-        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
-      wsHost = case pageProtocol of
-        "file:" -> "localhost:8000"
-        _ -> pageHost
-  RDWS.webSocket (wsProtocol <> "//" <> wsHost <> path) config
+webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
+webSocket murl config
+  | Left url <- murl = do
+    RDWS.webSocket (mconcat [ _websocket_protocol url, "://"
+                            , _websocket_host url, ":", T.pack (show (_websocket_port url))
+                            , "/", _websocket_path url ]) config
+  | Right path <- murl = do
+    pageHost <- liftIO . getLocationHost =<< askWebView
+    pageProtocol <- liftIO . getLocationProtocol =<< askWebView
+    let wsProtocol = case pageProtocol of
+          "http:" -> "ws:"
+          "https:" -> "wss:"
+          "file:" -> "ws:"
+          s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
+        wsHost = case pageProtocol of
+          "file:" -> "localhost:8000"
+          _ -> pageHost
+    RDWS.webSocket (wsProtocol <> "//" <> wsHost <> path) config
 
 monoConst :: a -> a -> a
 monoConst a _ = a
@@ -81,12 +93,12 @@ apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req ::
              , ToJSON' req
              , AllArgsHave (ComposeConstraint FromJSON rsp) req
              )
-          => Text
+          => Either WebSocketUrl Text
           -> Event t [f req]
           -> m (Event t (f rsp), Dynamic t (Map (Int, Int) (f (With' Int req), Int, Map Int Aeson.Value)))
-apiSocket path batches = do
+apiSocket murl batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
-  rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
+  rec ws <- webSocket murl $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
       state <- foldDyn ($) mempty $ mergeWith (.) [ fmap (\(n, fs) -> foldl (.) id $ map (\(m, (r, sz)) -> Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)) fs) batchesWithSerialNumbers
                                                   , fmap snd change
                                                   ]
@@ -133,17 +145,23 @@ rawDecode jsv = do
       Aeson.Success a -> Just a
       _ -> Nothing
 
-rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
-rawWebSocket path config = do
-  pageHost <- liftIO . getLocationHost =<< askWebView
-  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
-  let wsProtocol = case pageProtocol of
-        "http:" -> "ws:"
-        "https:" -> "wss:"
-        "file:" -> "ws:"
-        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
-      wsHost = case pageProtocol of
-        "file:" -> "localhost:8000"
-        _ -> pageHost
-  RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
+rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
+rawWebSocket murl config
+  | Left url <- murl
+  = do
+    RDWS.webSocket' (mconcat [ _websocket_protocol url, "://"
+                             , _websocket_host url, ":", T.pack (show (_websocket_port url))
+                             , path ]) config (either (error "websocket': expected JSVal") id)
+  | Right path = do
+    pageHost <- liftIO . getLocationHost =<< askWebView
+    pageProtocol <- liftIO . getLocationProtocol =<< askWebView
+    let wsProtocol = case pageProtocol of
+          "http:" -> "ws:"
+          "https:" -> "wss:"
+          "file:" -> "ws:"
+          s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
+        wsHost = case pageProtocol of
+          "file:" -> "localhost:8000"
+          _ -> pageHost
+    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
 #endif
