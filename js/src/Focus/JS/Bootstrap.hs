@@ -381,24 +381,24 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
   let loginWorkflow' = Workflow . wrapper $ do
         let newAccountWorkflow = Workflow $ do
               (_ {- eSignupClick -}, eSigninClick) <- newAccountForm'
-              return (never, fmap (const loginWorkflow) eSigninClick)
+              return (never, fmapCheap (const loginWorkflow) eSigninClick)
             recoverAccountWorkflow = Workflow $ do
               (_ {- eReset -}, eSigninClick) <- recoveryForm'
-              return (never, fmap (const loginWorkflow) eSigninClick)
+              return (never, fmapCheap (const loginWorkflow) eSigninClick)
             loginWorkflow = Workflow $ do
               (eLoginSuccess, eNewAccountClick) <- loginForm'
               recoverLink <- elAttr "p" (Map.singleton "class" "text-center") $ do
                 text "Forgot password? "
                 link "Recover account"
-              let eNewAccount = fmap (const newAccountWorkflow) eNewAccountClick
-                  eRecoverAccount = fmap (const recoverAccountWorkflow) (_link_clicked recoverLink)
+              let eNewAccount = fmapCheap (const newAccountWorkflow) eNewAccountClick
+                  eRecoverAccount = fmapCheap (const recoverAccountWorkflow) (_link_clicked recoverLink)
               let eChange = leftmost [eNewAccount, eRecoverAccount]
               return (eLoginSuccess, eChange)
         eLoginInfo <- liftM switch $ hold never =<< workflowView (if signUp then newAccountWorkflow else loginWorkflow)
-        return ((fmap Just eLoginInfo, constDyn mempty), fmap f' eLoginInfo)
+        return ((fmapCheap Just eLoginInfo, constDyn mempty), fmapCheap f' eLoginInfo)
       f' x = Workflow $ do
         (eLogout, a) <- f x
-        return ((fmap (const Nothing) eLogout, a), fmap (const loginWorkflow') eLogout)
+        return ((fmapCheap (const Nothing) eLogout, a), fmapCheap (const loginWorkflow') eLogout)
   in maybe loginWorkflow' f' li0
 
 recoveryForm
