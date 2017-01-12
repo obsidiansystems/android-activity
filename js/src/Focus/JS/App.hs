@@ -211,7 +211,7 @@ instance Requester t m => R.Requester t (QueryT t q m) where
 -- class ( MonadWidget' t m
 --       , MonadFix (WidgetHost m)
 --       , Requester t (AppRequest app) m
---       , HasFocus app
+--       , HasFocus f app
 --       ) => MonadFocusWidget f app t m | m -> app t where
 --   askEnv :: m (Env app t)
 --   tellInterest :: Dynamic t (ViewSelector app ()) -> m ()
@@ -228,14 +228,14 @@ class (HasView app) => HasEnv f app where
   getToken :: Env app t -> Dynamic t (Maybe (Signed (AuthToken f))) -- This is a Maybe to handle logged-out interactions
   getViews :: Env app t -> Dynamic t (Map (Signed (AuthToken f)) (View app))
 
-class (HasRequest app, HasView app) => HasFocus app
+class (HasRequest app f, HasView app) => HasFocus f app
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
       , R.Request m ~ AppRequest f app
       , Response m ~ Identity
-      , HasFocus app
+      , HasFocus f app
       , MonadQuery t (ViewSelector app ()) m
       ) => MonadFocusWidget f app t m | m -> app t where
 
@@ -244,7 +244,7 @@ instance ( MonadWidget' t m
          , Requester t m
          , R.Request m ~ AppRequest f app
          , Response m ~ Identity
-         , HasFocus app
+         , HasFocus f app
          , MonadQuery t (ViewSelector app ()) m
          ) => MonadFocusWidget f app t m
 
@@ -274,11 +274,11 @@ type MonadWidget' t m =
   )
 
 
-runFocusWidget :: forall t m a x f app. 
+runFocusWidget :: forall t m a x f app.
                 ( MonadWidget' t m
                 , HasWebView m
                 , HasJS x m
-                , HasFocus app
+                , HasFocus f app
                 , Eq (ViewSelector app ())
                 )
                => Signed (AuthToken f)

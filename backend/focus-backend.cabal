@@ -73,6 +73,7 @@ library
     parsec,
     vector,
     word8,
+    split,
     reflex
 
   exposed-modules:

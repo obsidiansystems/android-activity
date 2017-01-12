@@ -1,4 +1,12 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, OverloadedStrings, TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Focus.Route where
 
 import Focus.Brand
@@ -43,9 +51,17 @@ runRouteT = runReaderT . unRouteT
 
 instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
   routeToUrl r = do
-    (baseProto, baseHost, basePort) <- RouteT ask
-    let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
-    return $ base (routeToQuery r) "" --TODO: https
+    routeEnv <- RouteT ask
+    return $ routeToUrlDefault routeEnv r
+
+routeToUrlDefault :: (ToJSON r, Default r, Eq r)
+                  => RouteEnv
+                  -> r
+                  -> URI
+routeToUrlDefault (baseProto, baseHost, basePort) r =
+  let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
+  in base (routeToQuery r) "" --TODO: https
+
 
 routeToQuery :: (ToJSON r, Default r, Eq r) => r -> String
 routeToQuery r = if r == def

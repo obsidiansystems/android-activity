@@ -18,6 +18,9 @@ newtype SchemaName = SchemaName { unSchemaName :: Text }
 data WithSchema a = WithSchema SchemaName a
   deriving (Eq, Ord, Read, Show, Typeable, Generic)
 
+withoutSchema :: WithSchema a -> a
+withoutSchema (WithSchema _ a) = a
+
 instance (FromJSON a) => FromJSON (WithSchema a)
 instance (ToJSON a) => ToJSON (WithSchema a)
 
