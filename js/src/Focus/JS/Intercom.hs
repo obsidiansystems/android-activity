@@ -72,7 +72,7 @@ shutdownIntercom :: (PostBuild t m, PerformEvent t m, Prerender js m) => m (Even
 shutdownIntercom = intercom $ constDyn Nothing
 
 {-# DEPRECATED setupIntercom "Use 'void . intercom . fmap Just =<< holdDyn v0 newV' instead of 'setupIntercom v0 newV'" #-}
-setupIntercom :: (MonadFocusWidget app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
+setupIntercom :: (MonadFocusWidget f app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
 setupIntercom v0 v' = void . intercom . fmap Just =<< holdDyn v0 v'
 
 -- | Show or hide intercom chat widget

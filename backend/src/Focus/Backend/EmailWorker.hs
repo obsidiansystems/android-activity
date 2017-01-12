@@ -17,6 +17,7 @@ import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Maybe
+import Data.Pool
 import Data.Time (UTCTime)
 import Database.Groundhog.Postgresql hiding (Cond)
 import Database.Groundhog.TH
@@ -71,13 +72,13 @@ clearMailQueue emailEnv = do
       clearMailQueue emailEnv
 
 -- | Spawns a thread to monitor mail queue table and send emails if necessary
-emailWorker :: MonadIO m
+emailWorker :: (MonadIO m, RunDb f)
             => Int -- ^ Thread delay
-            -> SchemaConn Postgresql
+            -> f (Pool Postgresql)
             -> EmailEnv
             -> m ()
 emailWorker delay db emailEnv = void . liftIO . forkIO . forever $
-  handle (\(e :: SomeException) -> print e) $ runSchemaDb db (clearMailQueue emailEnv) >> threadDelay delay
+  handle (\(e :: SomeException) -> print e) $ runDb db (clearMailQueue emailEnv) >> threadDelay delay
 
 deriveJSON defaultOptions ''Mail.Address
 deriveJSON defaultOptions ''Mail.Encoding

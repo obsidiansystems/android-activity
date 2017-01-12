@@ -1,7 +1,8 @@
-{-# LANGUAGE StandaloneDeriving, DefaultSignatures, TypeFamilies, FlexibleContexts, UndecidableInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving, DefaultSignatures, TypeFamilies, FlexibleContexts, UndecidableInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving, DeriveGeneric #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Schema where
 
+import GHC.Generics
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Int
@@ -10,6 +11,15 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+
+newtype SchemaName = SchemaName { unSchemaName :: Text }
+  deriving (Eq, Ord, Read, Show, FromJSON, ToJSON, Typeable, Generic)
+
+data WithSchema a = WithSchema SchemaName a
+  deriving (Eq, Ord, Read, Show, Typeable, Generic)
+
+instance (FromJSON a) => FromJSON (WithSchema a)
+instance (ToJSON a) => ToJSON (WithSchema a)
 
 class HasId a where
   type IdData a :: *

@@ -1,9 +1,11 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, OverloadedStrings, TypeFamilies #-}
 module Focus.Route where
 
 import Focus.Brand
 
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
+import Control.Monad.Base
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
@@ -18,6 +20,23 @@ class Monad m => MonadRoute r m | m -> r where
 type RouteEnv = (String, String, String) -- (protocol, hostname, anything after hostname (e.g., port))
 
 newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand, MonadTrans)
+
+instance MonadTransControl (RouteT r) where
+    type StT (RouteT r) a = a
+    liftWith f = RouteT . ReaderT $ \r -> f $ \t -> runRouteT t r
+    restoreT = RouteT . ReaderT . const
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
+instance MonadBase b m => MonadBase b (RouteT r m) where
+  liftBase = lift . liftBase
+
+instance (MonadBaseControl b m) => MonadBaseControl b (RouteT r m) where
+  type StM (RouteT r m) a = ComposeSt (RouteT r) m a
+  liftBaseWith = defaultLiftBaseWith
+  restoreM     = defaultRestoreM
+  {-# INLINABLE liftBaseWith #-}
+  {-# INLINABLE restoreM #-}
 
 runRouteT :: RouteT r m a -> RouteEnv -> m a
 runRouteT = runReaderT . unRouteT

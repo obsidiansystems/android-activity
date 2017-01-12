@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase, AllowAmbiguousTypes, PartialTypeSignatures, BangPatterns, DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonoLocalBinds, RankNTypes, MultiParamTypeClasses, UndecidableInstances, ConstraintKinds, LambdaCase, AllowAmbiguousTypes, BangPatterns, DeriveTraversable, PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Focus.Backend.Listen ( NotificationListener, MonadListenDb, NotificationType(..), getPatchesForTokens
                             , getViewsForTokens, handleListen, handleRequests, insertAndNotify
@@ -153,13 +153,12 @@ revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeNotificationListener :: forall m' notification alignedVs vs vp state. Align alignedVs
-                         => (forall x. m' x -> IO x) -- runGroundhog
-                         -> TChan notification -- chan
+makeNotificationListener :: forall notification alignedVs vs vp state. Align alignedVs
+                         => TChan notification -- chan
                          -> (forall t. (Traversable t, Align t, FunctorMaybe t) =>
-                                       notification -> alignedVs (t ()) -> t (vs, state) -> m' (t (Maybe vp, state)))
+                                       notification -> alignedVs (t ()) -> t (vs, state) -> IO (t (Maybe vp, state)))
                          -> IO (NotificationListener alignedVs vs vp state)
-makeNotificationListener runGroundhog chan getPatches = do
+makeNotificationListener chan getPatches = do
   connections <- newMVar $ Connections { _connections_connState = AppendMap.empty
                                        , _connections_alignedViewSelector = nil
                                        }
@@ -171,7 +170,7 @@ makeNotificationListener runGroundhog chan getPatches = do
     withMVar connections $ \currentConnections -> do
       revise (_connections_connState currentConnections) $ \selectors -> do
         let alignedVs = _connections_alignedViewSelector currentConnections
-        (patches :: AppendMap ThreadId (Maybe vp, state)) <- liftIO . runGroundhog $ getPatches notification alignedVs (fmap snd selectors)
+        (patches :: AppendMap ThreadId (Maybe vp, state)) <- getPatches notification alignedVs (fmap snd selectors)
         fmap (fmapMaybe id) . forM (align selectors patches) $ \case
           These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
           These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
@@ -205,8 +204,9 @@ handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelect
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
 
   threadId <- myThreadId
-  bracket
-    (do
+
+  let allocate :: IO (MVar (vs, state))
+      allocate = do
         stateRef <- newMVar (vs0, state0)
         modifyMVar_ connections $ \currentConnections -> do
           let initialAlignment (This ()) = AppendMap.singleton threadId ()
@@ -215,64 +215,63 @@ handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelect
               -- ^ Add the initial view selector with the aligned view selector
           return $ currentConnections & connections_connState           %~ AppendMap.insert threadId (send', stateRef)
                                       & connections_alignedViewSelector %~ alignWith initialAlignment (alignViewSelector vs0)
-        return stateRef)
-
-    (\stateRef -> do
+        return stateRef
+      release :: MVar (vs, state) -> IO ()
+      release stateRef = do
         modifyMVar_ connections $ \currentConnections -> do
           tryReadMVar stateRef >>= \case
             Just (vs, state) -> runGroundhog $ connectionCloseHook vs state
             Nothing -> return () -- TODO: The stateRef shouldn't be empty when the connection closes. This indicates an error.
           return $ currentConnections & connections_connState           %~ AppendMap.delete threadId
-                                      & connections_alignedViewSelector %~ fmapMaybe (AppendMap.nonEmptyDelete threadId))
-
-    $ \stateRef -> do
-        vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
-          -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
-          (vpInit, !newStateInit) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
-            runGroundhog (runStateT (getView vsInit mempty) stateInit)
-          return ((vsInit, newStateInit), vpInit)
-        send' vpInit
-        let sender act wrapper wsd = do
-              er <- try act
-              sendDataMessage conn . wrapper . encodeR . Right . wsd $ case er of
-                Left (se :: SomeException) -> Left (displayException se)
-                Right rsp -> Right rsp
-        let sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
-        connectionOpenHook (sender' WS.Text)
-
-        let handleConnectionException = handle $ \e -> case e of
-              ConnectionClosed -> return ()
-              CloseRequest _ _ -> print e >> WS.pendingStreamClose pc >> throwIO e
-              _ -> do putStr "Exception: " >> print e
-                      throwIO e
-        handleConnectionException $ forever $ do
-          dm <- receiveDataMessage conn
-          let (wrapper, r) = case dm of
-                WS.Text r' -> (WS.Text, r')
-                WS.Binary r' -> (WS.Text, r')
-
-          case eitherDecode' r of
-            Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
-            Right (WebSocketData_Version _) -> do
-              putStrLn "Shouldn't be receiving version from frontend..."
-              return ()
-            Right (WebSocketData_Api rid rq) -> sender (processRequest rq) wrapper (WebSocketData_Api rid)
-            Right (WebSocketData_Listen vs) -> do
-              -- Acquire connections
-              vp <- modifyMVar connections $ \currentConnections -> do
-                -- Now that connections are acquired, we can safely acquire the stateRef.
-                (vsOld, vp) <- modifyMVar stateRef $ \(vsOld, state) -> do
-                  -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
-                  (vp, !newState) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
-                    runGroundhog (runStateT (getView vs vsOld) state)
-                  return ((vs, newState), (vsOld, vp))
-
-                -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
-                return (currentConnections & connections_alignedViewSelector %~ diffAlign threadId
-                                                                                          (alignViewSelector vsOld)
-                                                                                          (alignViewSelector vs)
-                       , vp)
-              send' vp
+                                      & connections_alignedViewSelector %~ fmapMaybe (AppendMap.nonEmptyDelete threadId)
+  bracket allocate release $ \stateRef -> do
+    vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
+      -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
+      (vpInit, !newStateInit) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
+        runGroundhog (runStateT (getView vsInit mempty) stateInit)
+      return ((vsInit, newStateInit), vpInit)
+    send' vpInit
+    let sender act wrapper wsd = do
+          er <- try act
+          sendDataMessage conn . wrapper . encodeR . Right . wsd $ case er of
+            Left (se :: SomeException) -> Left (displayException se)
+            Right rsp -> Right rsp
+    let sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
+    connectionOpenHook (sender' WS.Text)
+    
+    let handleConnectionException = handle $ \e -> case e of
+          ConnectionClosed -> return ()
+          CloseRequest _ _ -> print e >> WS.pendingStreamClose pc >> throwIO e
+          _ -> do putStr "Exception: " >> print e
+                  throwIO e
+    handleConnectionException $ forever $ do
+      dm <- receiveDataMessage conn
+      let (wrapper, r) = case dm of
+            WS.Text r' -> (WS.Text, r')
+            WS.Binary r' -> (WS.Text, r')
+    
+      case eitherDecode' r of
+        Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
+        Right (WebSocketData_Version _) -> do
+          putStrLn "Shouldn't be receiving version from frontend..."
+          return ()
+        Right (WebSocketData_Api rid rq) -> sender (processRequest rq) wrapper (WebSocketData_Api rid)
+        Right (WebSocketData_Listen vs) -> do
+          -- Acquire connections
+          vp <- modifyMVar connections $ \currentConnections -> do
+            -- Now that connections are acquired, we can safely acquire the stateRef.
+            (vsOld, vp) <- modifyMVar stateRef $ \(vsOld, state) -> do
+              -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
+              (vp, !newState) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
+                runGroundhog (runStateT (getView vs vsOld) state)
+              return ((vs, newState), (vsOld, vp))
+    
+            -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
+            return (currentConnections & connections_alignedViewSelector %~ diffAlign threadId
+                                                                                      (alignViewSelector vsOld)
+                                                                                      (alignViewSelector vs)
+                   , vp)
+          send' vp
 
  where
    encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
@@ -415,11 +414,11 @@ listenDB withConn' = do
         _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel
   return (nChan, killThread daemonThread)
 
-handleRequests :: forall f m pub priv. (Monad m)
+handleRequests :: forall h f m pub priv. (Monad m)
                => (forall x. ToJSON x => f x -> m Value) -- Runs request and turns response into JSON
                -> (forall x. pub x -> f x) -- Public request handler
-               -> (forall x. Signed AuthToken -> priv x -> f x) -- Private request handler
-               -> SomeRequest (ApiRequest pub priv) -- Api Request
+               -> (forall x. Signed (AuthToken h) -> priv x -> f x) -- Private request handler
+               -> SomeRequest (ApiRequest h pub priv) -- Api Request
                -> m Value -- JSON response
 handleRequests runRequest fpub fpriv request = case request of
   SomeRequest req -> do

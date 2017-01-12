@@ -495,9 +495,9 @@ newAccountForm newUserForm newUserReq = elAttr "form" (Map.singleton "class" "fo
 
 passwordResetWorkflow
   :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
-  => Signed PasswordResetToken
+  => Signed (PasswordResetToken f)
   -> (Maybe loginInfo -> Workflow t m (Event t (Maybe loginInfo)))
-  -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
+  -> (Event t (Signed (PasswordResetToken f), Text) -> m (Event t loginInfo))
   -> m (Event t (Maybe loginInfo))
 passwordResetWorkflow token withLoginWorkflow reset = do
   liftM switch $ hold never <=< workflowView $ Workflow $ do
@@ -507,8 +507,8 @@ passwordResetWorkflow token withLoginWorkflow reset = do
 
 passwordReset
   :: (DomBuilder t m, PostBuild t m)
-  => Signed PasswordResetToken
-  -> (Event t (Signed PasswordResetToken, Text) -> m (Event t loginInfo))
+  => Signed (PasswordResetToken f)
+  -> (Event t (Signed (PasswordResetToken f), Text) -> m (Event t loginInfo))
   -> m (Event t loginInfo)
 passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") $ do
   elAttr "h3" (Map.singleton "class" "form-signin-heading") $ text "Set Password"
