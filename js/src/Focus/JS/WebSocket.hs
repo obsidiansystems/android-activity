@@ -151,8 +151,8 @@ rawWebSocket murl config
   = do
     RDWS.webSocket' (mconcat [ _websocket_protocol url, "://"
                              , _websocket_host url, ":", T.pack (show (_websocket_port url))
-                             , path ]) config (either (error "websocket': expected JSVal") id)
-  | Right path = do
+                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") id)
+  | Right path <- murl = do
     pageHost <- liftIO . getLocationHost =<< askWebView
     pageProtocol <- liftIO . getLocationProtocol =<< askWebView
     let wsProtocol = case pageProtocol of
