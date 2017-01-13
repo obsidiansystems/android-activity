@@ -1,4 +1,13 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, GeneralizedNewtypeDeriving, ScopedTypeVariables, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, UndecidableInstances, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Email
 ( module Focus.Backend.Email
@@ -95,7 +104,7 @@ emailTemplate mStyleHtml titleHtml leadHtml contentHtml = do
       H.tr $ H.td $ H.table $ H.tr $ H.td $ do
         H.hr
         H.p $ do
-          "Brought to you by "
+          H.text "Brought to you by "
           H.a ! A.href (fromString $ show indexLink) $ H.toHtml pn
 
 tableSection :: Html -> [(Html, Html)] -> Html

@@ -446,7 +446,7 @@ listenDB schema withConn' = do
   nChan <- newBroadcastTChanIO
   daemonThread <- forkIO $ withConn' $ \conn -> do
     let cmd = "LISTEN " <> T.unpack schema
-    execute_ conn $ fromString cmd
+    _ <- execute_ conn $ fromString cmd
     forever $ do
       PG.Notification _ channel message <- PG.getNotification conn
       case channel of

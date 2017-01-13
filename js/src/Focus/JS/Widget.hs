@@ -1,4 +1,12 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts, OverloadedStrings, TypeFamilies, LambdaCase, DataKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Focus.JS.Widget where
 
 import Control.Lens hiding (ix, element)
