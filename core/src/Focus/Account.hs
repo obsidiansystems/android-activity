@@ -19,11 +19,25 @@ data Account
 
 instance HasId Account
 
-newtype PasswordResetToken = PasswordResetToken { unPasswordResetToken :: (Id Account, UTCTime) } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, Typeable)
+newtype PasswordResetToken f = PasswordResetToken { unPasswordResetToken :: (f (Id Account), UTCTime) }
 
-newtype AuthToken = AuthToken { unAuthToken :: Id Account } deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, Typeable)
+newtype AuthToken f = AuthToken { unAuthToken :: f (Id Account) } deriving (Typeable)
 
-data AccountRoute = AccountRoute_PasswordReset (Signed PasswordResetToken) deriving (Show, Read, Eq, Ord)
+deriving instance (Show (f (Id Account))) => Show (AuthToken f)
+deriving instance (Read (f (Id Account))) => Read (AuthToken f)
+deriving instance (Eq (f (Id Account))) => Eq (AuthToken f)
+deriving instance (Ord (f (Id Account))) => Ord (AuthToken f)
+deriving instance (ToJSON (f (Id Account))) => ToJSON (AuthToken f)
+deriving instance (FromJSON (f (Id Account))) => FromJSON (AuthToken f)
+
+deriving instance (Show (f (Id Account))) => Show (PasswordResetToken f)
+deriving instance (Read (f (Id Account))) => Read (PasswordResetToken f)
+deriving instance (Eq (f (Id Account))) => Eq (PasswordResetToken f)
+deriving instance (Ord (f (Id Account))) => Ord (PasswordResetToken f)
+deriving instance (ToJSON (f (Id Account))) => ToJSON (PasswordResetToken f)
+deriving instance (FromJSON (f (Id Account))) => FromJSON (PasswordResetToken f)
+
+data AccountRoute f = AccountRoute_PasswordReset (Signed (PasswordResetToken f)) deriving (Show, Read, Eq, Ord)
 
 makeJson ''AccountRoute
 

@@ -33,11 +33,13 @@ library
                , loch-th
                , mtl
                , mime-mail
+               , monad-control
                , network-uri
                , old-locale
                , reflex
                , semigroups
                , template-haskell
+               , transformers-base
                , text
                , these
                , time

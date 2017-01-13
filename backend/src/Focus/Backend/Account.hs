@@ -25,12 +25,14 @@ import Focus.Schema
 import Control.Monad.Trans.Except
 import Control.Monad.Writer
 import Crypto.PasswordStore
+import Data.Aeson
 import Data.Default
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
 import Data.Text.Encoding
 import Data.Time
+import Data.Typeable
 import Database.Groundhog hiding ((~>))
 import Database.Groundhog.Core hiding ((~>))
 import Database.Groundhog.TH
@@ -55,7 +57,7 @@ mkPersist defaultCodegenConfig [groundhog|
 
 makeDefaultKeyIdInt64 ''Account 'AccountKey
 
-tokenToAuth :: CS.Key -> Signed AuthToken -> Maybe (Id Account)
+tokenToAuth :: (Typeable f, FromJSON (f (Id Account))) => CS.Key -> Signed (AuthToken f) -> Maybe (f (Id Account))
 tokenToAuth csk = fmap unAuthToken . readSignedWithKey csk
 
 migrateAccount :: PersistBackend m => Migration m
@@ -80,8 +82,9 @@ ensureAccountExists email = do
 
 -- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
-  :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m))
-  => (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
+  :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m), Typeable f, ToJSON (f (Id Account)))
+  => (Id Account -> f (Id Account))
+  -> (Signed (PasswordResetToken f) -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Bool, Id Account)
 ensureAccountExistsEmail = ensureAccountExistsEmail' ensureAccountExists
@@ -89,24 +92,37 @@ ensureAccountExistsEmail = ensureAccountExistsEmail' ensureAccountExists
 -- Creates account if it doesn't already exist and sends pw email
 -- Allows the option for a custom "ensure account" creation function
 ensureAccountExistsEmail'
-  :: (PersistBackend m, MonadSign m)
+  :: (PersistBackend m, MonadSign m, Typeable f, ToJSON (f (Id Account)))
   => (Email -> m (Bool, Id Account))
-  -> (Signed PasswordResetToken -> Email -> m ()) -- pw reset email
+  -> (Id Account -> f (Id Account))
+  -> (Signed (PasswordResetToken f) -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Bool, Id Account)
-ensureAccountExistsEmail' ensureAccount pwEmail email = do
+ensureAccountExistsEmail' ensureAccount decorateAccountId pwEmail email = do
   ret@(_, aid) <- ensureAccount email
-  mNonce <- generateAndSendPasswordResetEmail pwEmail aid
+  mNonce <- generateAndSendPasswordResetEmail decorateAccountId pwEmail aid
   forM_ mNonce $ \nonce -> do
     update [Account_passwordResetNonceField =. Just nonce] (Account_emailField ==. email)
   return ret
 
-generatePasswordResetToken :: (PersistBackend m, MonadSign m) => Id Account -> m (Signed PasswordResetToken)
+generatePasswordResetToken :: ( PersistBackend m
+                              , MonadSign m
+                              , Typeable f
+                              , ToJSON (f (Id Account))
+                              )
+                           => f (Id Account)
+                           -> m (Signed (PasswordResetToken f))
 generatePasswordResetToken aid = do
   nonce <- getTime
   sign $ PasswordResetToken (aid, nonce)
 
-generatePasswordResetTokenFromNonce :: MonadSign m => Id Account -> UTCTime -> m (Signed PasswordResetToken)
+generatePasswordResetTokenFromNonce :: ( MonadSign m
+                                       , Typeable f
+                                       , ToJSON (f (Id Account))
+                                       )
+                                    => f (Id Account) 
+                                    -> UTCTime 
+                                    -> m (Signed (PasswordResetToken f))
 generatePasswordResetTokenFromNonce aid nonce = sign $ PasswordResetToken (aid, nonce)
 
 setAccountPassword :: (PersistBackend m, MonadIO m) => Id Account -> Text -> m ()
@@ -116,14 +132,12 @@ setAccountPassword aid password = do
          , Account_passwordResetNonceField =. (Nothing :: Maybe UTCTime) ]
          (AutoKeyField ==. fromId aid)
 
-setPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed AuthToken -> Text -> m ()
-setPasswordWithToken token password = do
-  Just (AuthToken aid) <- readSigned token
-  setAccountPassword aid password
-
-resetPasswordWithToken :: (MonadIO m, PersistBackend m, MonadSign m) => Signed PasswordResetToken -> Text -> m (Maybe (Id Account))
-resetPasswordWithToken prt password = do
-  Just (PasswordResetToken (aid, nonce)) <- readSigned prt
+resetPassword :: (MonadIO m, PersistBackend m) 
+              => Id Account
+              -> UTCTime
+              -> Text
+              -> m (Maybe (Id Account))
+resetPassword aid nonce password = do
   Just a <- get $ fromId aid
   if account_passwordResetNonce a == Just nonce
     then do
@@ -131,7 +145,11 @@ resetPasswordWithToken prt password = do
       return $ Just aid
     else return Nothing
 
-login :: (PersistBackend m, SqlDb (PhantomDb m)) => (Id Account -> m loginInfo) -> Email -> Text -> m (Either LoginError loginInfo)
+login :: (PersistBackend m, SqlDb (PhantomDb m))
+      => (Id Account -> m loginInfo) 
+      -> Email 
+      -> Text 
+      -> m (Either LoginError loginInfo)
 login toLoginInfo email password = runExceptT $ do
   (aid, a) <- ExceptT . fmap (maybeToEither LoginError_UserNotFound . listToMaybe) $ project (AutoKeyField, AccountConstructor) (lower Account_emailField ==. T.toLower email)
   ph <- ExceptT . return $ maybeToEither LoginError_UserNotFound $ account_passwordHash a
@@ -141,21 +159,24 @@ login toLoginInfo email password = runExceptT $ do
     maybeToEither b Nothing = Left b
     maybeToEither _ (Just a) = Right a
 
-
 generateAndSendPasswordResetEmail
-  :: (PersistBackend m, MonadSign m)
-  => (Signed PasswordResetToken -> Email -> m ())
+  :: (PersistBackend m, MonadSign m, Typeable f, ToJSON (f (Id Account)))
+  => (Id Account -> f (Id Account))
+  -> (Signed (PasswordResetToken f) -> Email -> m ())
   -> Id Account
   -> m (Maybe UTCTime)
-generateAndSendPasswordResetEmail pwEmail aid = do
+generateAndSendPasswordResetEmail decorateAccountId pwEmail aid = do
   nonce <- getTime
-  prt <- sign $ PasswordResetToken (aid, nonce)
+  prt <- sign $ PasswordResetToken (decorateAccountId aid, nonce)
   ma <- get (fromId aid)
   forM ma $ \a -> do
     pwEmail prt (account_email a)
     return nonce
 
-newAccountEmail :: (MonadBrand m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> m Html
+newAccountEmail :: (MonadBrand m, MonadRoute r m, Default r) 
+                => (AccountRoute f -> r) 
+                -> Signed (PasswordResetToken f) 
+                -> m Html
 newAccountEmail f token = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset token
   b <- getBrand
@@ -165,8 +186,8 @@ newAccountEmail f token = do
                 (H.p $ H.text $ _brand_description b)
 
 sendNewAccountEmail :: (MonadRoute r m, Default r, MonadBrand m, MonadEmail m)
-                    => (AccountRoute -> r) -- How to turn AccountRoute into a route for a specific app
-                    -> Signed PasswordResetToken
+                    => (AccountRoute f -> r) -- How to turn AccountRoute into a route for a specific app
+                    -> Signed (PasswordResetToken f)
                     -> Email
                     -> m ()
 sendNewAccountEmail f prt email = do
@@ -174,7 +195,11 @@ sendNewAccountEmail f prt email = do
   body <- newAccountEmail f prt
   sendEmailDefault (email :| []) (pn <> " Verification Email") body
 
-sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, Default r) => (AccountRoute -> r) -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, Default r)
+                       => (AccountRoute f -> r)
+                       -> Signed (PasswordResetToken f)
+                       -> Email
+                       -> m ()
 sendPasswordResetEmail f prt email = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
   pn <- getProductName
@@ -182,7 +207,15 @@ sendPasswordResetEmail f prt email = do
       body = H.a H.! A.href (fromString $ show passwordResetLink) $ "Reset Password"
   sendEmailDefault (email :| []) (T.pack pn <> " Password Reset") =<< emailTemplate Nothing (H.text (T.pack pn <> " Password Reset")) (H.toHtml lead) body
 
-sendPasswordResetMustacheEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m) => (AccountRoute -> r) -> Text -> Text -> Text -> Text -> Signed PasswordResetToken -> Email -> m ()
+sendPasswordResetMustacheEmail :: (MonadBrand m, MonadEmail m, MonadRoute r m, MonadMustache m)
+                               => (AccountRoute f -> r) 
+                               -> Text 
+                               -> Text 
+                               -> Text 
+                               -> Text 
+                               -> Signed (PasswordResetToken f) 
+                               -> Email 
+                               -> m ()
 sendPasswordResetMustacheEmail f baseUrl unsubscribeUrl needHelpUrl privacyPolicyUrl prt email = do
   passwordResetLink <- routeToUrl $ f $ AccountRoute_PasswordReset prt
   let resetPasswordUrl = T.pack $ show passwordResetLink

@@ -1,8 +1,32 @@
-{-# LANGUAGE CPP, GADTs, QuasiQuotes, TemplateHaskell, ViewPatterns, FlexibleInstances, OverloadedStrings, ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts, UndecidableInstances, KindSignatures, PolyKinds, RankNTypes, ConstraintKinds, StandaloneDeriving, GeneralizedNewtypeDeriving, DataKinds, TypeOperators, TypeFamilies, AllowAmbiguousTypes, LambdaCase #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
+
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
 #endif
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Focus.Request where
 
 import Control.Arrow
@@ -167,7 +191,7 @@ makeRequestForDataInstance n n' = do
                   _ -> $undef
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
-    instance Request $(appT (conT n) (conT n')) where
+    instance Request $(appT (appT (conT n) (conT n')) (varT $ mkName "f")) where
       requestToJSON r = $(caseE [|r|] $ map (conToJson modifyConName) cons)
       requestParseJSON v = do
         (tag', v') <- parseJSON v
@@ -216,7 +240,7 @@ makeJsonForDataInstance n mns = do
 #else
          (DataInstD _ _ tParams xs _) <- dataInstances
 #endif
-         
+
          typeNames <- maybeToList $ forM (align mns tParams) $ \case
            These Nothing v@(VarT _) -> Just v
            These (Just n') c@(ConT m) | m == n' -> Just c
@@ -288,13 +312,13 @@ conArity c = case c of
 
 instance ToJSON ByteString where
     toJSON = toJSON . decodeUtf8 . B64.encode
- 
+
 instance FromJSON ByteString where
     parseJSON o = either fail return . B64.decode . encodeUtf8 =<< parseJSON o
 
 instance ToJSON LBS.ByteString where
     toJSON = toJSON . decodeUtf8 . B64.encode . LBS.toStrict
- 
+
 instance FromJSON LBS.ByteString where
     parseJSON o = either fail (return . LBS.fromStrict) . B64.decode . encodeUtf8 =<< parseJSON o
 
