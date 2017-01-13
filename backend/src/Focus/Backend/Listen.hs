@@ -19,12 +19,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Focus.Backend.Listen ( NotificationListener, MonadListenDb, NotificationType(..), getPatchesForTokens
+module Focus.Backend.Listen ( ViewListener, MonadListenDb, NotificationType(..), getPatchesForTokens
                             , getViewsForTokens, handleListen, handleRequests, insertAndNotify
                             , insertByAllAndNotify, insertByAllAndNotifyWithBody, listenDB
-                            , makeNotificationListener, notifyEntity, notifyEntityId, notifyEntityWithBody
+                            , makeViewListener, notifyEntity, notifyEntityId, notifyEntityWithBody
                             , notifyEntityWithBody', getPatchesFor, updateAndNotify
-                            , withNotifications, updateAndNotifyWithBody
+                            , notificationListener, updateAndNotifyWithBody
                             , getSchemaName
                             ) where
 
@@ -33,21 +33,22 @@ import Focus.Api
 import Focus.AppendMap (AppendMap (..))
 import qualified Focus.AppendMap as AppendMap
 import Focus.Backend.Schema.TH
-import Focus.Schema
 import Focus.Request
+import Focus.Schema
 import Focus.Sign
 import Focus.WebSocket
 
 import Control.Concurrent
-import Control.Concurrent.STM
+import Control.Concurrent.STM (TChan, atomically, dupTChan, readTChan, newBroadcastTChanIO, writeTChan)
 import Control.Exception (handle, try, SomeException, displayException, throwIO)
 import Control.Lens
 import Control.Monad.Cont
-import Control.Monad.State.Strict hiding (state, get)
 import qualified Control.Monad.State.Strict as State
+import Control.Monad.State.Strict hiding (state, get)
 import Control.Monad.Writer
 import Data.Aeson
 import Data.Align
+import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.List.Split
 import Data.Pool
@@ -58,22 +59,19 @@ import Data.Text.Encoding
 import Data.These
 import Data.Traversable
 import Database.Groundhog
-import Database.Groundhog.Core hiding (Update)
 import qualified Database.Groundhog.Core as GH
+import Database.Groundhog.Core hiding (Update)
 import qualified Database.Groundhog.Expression as GH
 import Database.Groundhog.Generic
 import Database.Groundhog.Instances ()
 import Database.Groundhog.Postgresql
 import Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import Database.PostgreSQL.Simple.SqlQQ
+import qualified Database.PostgreSQL.Simple.Notification as PG
 import Network.WebSockets as WS
 import Network.WebSockets.Connection as WS
 import Network.WebSockets.Snap
-import Snap
-import qualified Data.ByteString.Lazy as LBS
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import Reflex (FunctorMaybe(..), ffor)
+import Snap
 
 import Debug.Trace (trace)
 
@@ -91,19 +89,21 @@ data Connections alignedVs vs vp state = Connections
 makeLenses ''Connections
 
 -- | Contains synchronization tools for websockets to communicate with listener thread.
-data NotificationListener alignedVs vs vp state = NotificationListener
-  { _notificationListener_connections :: MVar (Connections alignedVs vs vp state)
-  , _notificationListener_thread :: ThreadId
+data ViewListener alignedVs vs vp state = ViewListener
+  { _viewListener_connections :: MVar (Connections alignedVs vs vp state)
+  , _viewListener_thread :: ThreadId
   }
 
-class WithNotifications f where
-  withNotifications :: FromJSON a => f (Pool Postgresql) -> (TChan a -> IO r) -> IO r
+class NotificationListener f where
+  notificationListener :: FromJSON a -- ^ Notifications from the database are serialized as JSON
+                       => f (Pool Postgresql) -- ^ DB pool
+                       -> IO (TChan a, IO ()) -- ^ Pair of notifications and finalizer action for this listener
 
-instance WithNotifications Identity where
-  withNotifications (Identity db) k = bracket (listenDB "public" $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
+instance NotificationListener Identity where
+  notificationListener (Identity db) = listenDB "public" (\f -> withResource db $ \(Postgresql conn) -> f conn)
 
-instance WithNotifications WithSchema where
-  withNotifications (WithSchema (SchemaName schema) db) k = bracket (listenDB schema $ \f -> withResource db $ \(Postgresql conn) -> f conn) snd $ \(nm, _) -> k nm
+instance NotificationListener WithSchema where
+  notificationListener (WithSchema (SchemaName schema) db) = listenDB schema (\f -> withResource db $ \(Postgresql conn) -> f conn)
 
 insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
@@ -161,7 +161,7 @@ notifyEntityWithBody' nt aid b = do
   schemaName <- getSchemaName
   let proxy = undefined :: proxy (PhantomDb m)
       cmd = "NOTIFY " <> schemaName <> ", ?"
-  _ <- trace cmd $ executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, b))]
+  _ <- executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, b))]
   return ()
 
 notifyEntityWithBody :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
@@ -172,7 +172,7 @@ notifyEntityId nt aid = do
   schemaName <- getSchemaName
   let proxy = undefined :: proxy (PhantomDb m)
       cmd = "NOTIFY " <> schemaName <> ", ?"
-  _ <- trace cmd $ executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
+  _ <- executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
   return ()
 
 -- An elaborate control structure to do something a bit silly: we're modifying all the state MVars for all the connections at once,
@@ -192,12 +192,15 @@ revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeNotificationListener :: forall notification alignedVs vs vp state. Align alignedVs
-                         => TChan notification -- chan
-                         -> (forall t. (Traversable t, Align t, FunctorMaybe t) =>
-                                       notification -> alignedVs (t ()) -> t (vs, state) -> IO (t (Maybe vp, state)))
-                         -> IO (NotificationListener alignedVs vs vp state)
-makeNotificationListener chan getPatches = do
+makeViewListener :: forall notification alignedVs vs vp state. Align alignedVs
+                 => TChan notification -- chan
+                 -> (forall t. (Traversable t, Align t, FunctorMaybe t)
+                             => notification
+                             -> alignedVs (t ())
+                             -> t (vs, state)
+                             -> IO (t (Maybe vp, state)))
+                 -> IO (ViewListener alignedVs vs vp state)
+makeViewListener chan getPatches = do
   connections <- newMVar $ Connections { _connections_connState = AppendMap.empty
                                        , _connections_alignedViewSelector = nil
                                        }
@@ -216,12 +219,12 @@ makeNotificationListener chan getPatches = do
           _ -> return Nothing
       return ()
 
-  return $ NotificationListener { _notificationListener_connections = connections
-                                , _notificationListener_thread = thread
-                                }
+  return $ ViewListener { _viewListener_connections = connections
+                        , _viewListener_thread = thread
+                        }
   where
     logNotificationError :: SomeException -> IO ()
-    logNotificationError e = putStrLn $ "Focus.Backend.Listen makeNotificationListener exception: " <> (show e)
+    logNotificationError e = putStrLn $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
 
 handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
@@ -231,14 +234,14 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
              -> ((T.Text -> IO ()) -> IO ())
              -> (forall x. m' x -> IO x) -- runGroundhog
              -> (vs -> alignedVs ()) -- alignViewSelector
-             -> NotificationListener alignedVs vs vp state
+             -> ViewListener alignedVs vs vp state
              -> vs
              -> state
              -> (vs -> vs -> StateT state m' vp) -- getView
              -> (rq -> IO rsp) -- processRequest
              -> m ()
-handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelector notificationListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
-  let connections = _notificationListener_connections notificationListener
+handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelector viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+  let connections = _viewListener_connections viewListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
 
@@ -439,13 +442,10 @@ instance (Align t, Ord token) => Align (AlignCompose token t) where
 
 listenDB :: FromJSON a => Text -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
 listenDB schema withConn' = do
-  nChan <- trace "newBroadcastTChanIO" newBroadcastTChanIO
-  daemonThread <- trace "forkIO" $ forkIO $ trace "withConn'" withConn' $ \conn -> do
-    liftIO $ putStrLn "qwer"
+  nChan <- newBroadcastTChanIO
+  daemonThread <- forkIO $ withConn' $ \conn -> do
     let cmd = "LISTEN " <> T.unpack schema
-    liftIO $ putStrLn "asdf"
-    trace cmd $ execute_ conn $ fromString cmd
-    liftIO $ putStrLn "zxcv"
+    execute_ conn $ fromString cmd
     forever $ do
       PG.Notification _ channel message <- PG.getNotification conn
       case channel of
