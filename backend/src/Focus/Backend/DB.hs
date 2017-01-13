@@ -1,4 +1,15 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonomorphismRestriction, ConstraintKinds, MultiParamTypeClasses, UndecidableInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Focus.Backend.DB where
 
@@ -8,12 +19,10 @@ import Focus.Backend.Schema ()
 import Focus.Backend.Schema.TH
 import Focus.Backend.DB.PsqlSimple
 
---import Database.Groundhog
---import Database.Groundhog.TH
+import Database.Groundhog.Generic hiding (runDb)
 import Database.Groundhog.Core
 import Database.Groundhog.Expression
 import Database.Groundhog.Generic.Sql
---import Database.Groundhog.Instances
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -22,7 +31,7 @@ import Data.Time
 import Control.Arrow
 
 import Data.Pool
-import Database.PostgreSQL.Simple hiding (execute)
+import Database.PostgreSQL.Simple hiding (execute, execute_)
 import Database.Groundhog.Postgresql
 import Data.Functor.Identity
 import Control.Monad.Trans.Control
@@ -84,19 +93,32 @@ instance RunDb Identity where
   runDb dbConns a = withResource (runIdentity dbConns) $ runDbConn a  
 
 instance RunDb WithSchema where
-  runDb (WithSchema schema db) x = runDb (Identity db) $ do
-    void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)
-    x
+  runDb (WithSchema schema db) x = runDb (Identity db) $ setSchema schema >> x
 
-ensureSchemaExists :: ( MonadIO m
-                      , MonadBaseControl IO m
-                      , ConnectionManager cm conn
-                      , PostgresRaw (DbPersist conn (NoLoggingT m))
-                      )
-                   => WithSchema (Pool cm)
+getSearchPath :: PersistBackend m => m String
+getSearchPath = do
+  [searchPath] :: [String] <- queryRaw False "SHOW search_path" [] $ mapAllRows (fmap fst . fromPersistValues)
+  return searchPath
+
+setSearchPath :: (Monad m, PostgresRaw m) => String -> m ()
+setSearchPath sp = void $ execute_ $ [sql| SET search_path TO |] <> fromString sp
+
+setSchema :: (Monad m, PostgresRaw m) => SchemaName -> m ()
+setSchema schema = void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)
+
+-- | Sets the search path to a particular schema, runs an action in that schema, and resets the search path
+withSchema :: (PostgresRaw m, PersistBackend m) => SchemaName -> m r -> m r
+withSchema schema a = do
+  sp <- getSearchPath
+  setSchema schema
+  r <- a
+  setSearchPath sp
+  return r
+
+ensureSchemaExists :: (Monad m, PostgresRaw m)
+                   => SchemaName
                    -> m ()
-ensureSchemaExists (WithSchema schema db) = runDb (Identity db) $ do
-  void $ execute [sql| CREATE SCHEMA IF NOT EXISTS ? |] (Only schema)
+ensureSchemaExists schema = void $ execute [sql| CREATE SCHEMA IF NOT EXISTS ? |] (Only schema)
 
 ilike :: (SqlDb db, ExpressionOf db r a a') => a -> String -> Cond db r
 ilike a b = CondRaw $ operator 40 " ILIKE " a b

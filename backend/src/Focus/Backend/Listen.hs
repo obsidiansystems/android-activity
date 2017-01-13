@@ -32,6 +32,7 @@ import Focus.Account
 import Focus.Api
 import Focus.AppendMap (AppendMap (..))
 import qualified Focus.AppendMap as AppendMap
+import Focus.Backend.DB
 import Focus.Backend.Schema.TH
 import Focus.Request
 import Focus.Schema
@@ -149,7 +150,7 @@ notifyEntity nt aid _ = notifyEntityId nt aid
 getSchemaName :: PersistBackend m
               => m String
 getSchemaName =  do
-  [searchPath] :: [String] <- queryRaw False "SHOW search_path" [] $ mapAllRows (fmap fst . fromPersistValues)
+  searchPath <- getSearchPath
   let searchPathComponents = wordsBy (==',') searchPath
       schemaName = case searchPathComponents of
        (x:_:_:_) -> x
