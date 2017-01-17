@@ -1,6 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts #-}
 module Focus.AppendMap where
 
+import Prelude hiding (map)
+
 import Control.Arrow ((***))
 import Control.Lens
 import Data.Aeson
@@ -14,6 +16,7 @@ import Data.Typeable
 import GHC.Generics (Generic)
 import Focus.Patch
 import Reflex (FunctorMaybe(..))
+import Reflex.Patch (Additive, Group (..))
 
 newtype AppendMap k m = AppendMap { _unAppendMap :: Map k m }
   deriving (Eq, Ord, Show, Read, Typeable, Generic, Functor, Foldable, Traversable, Align)
@@ -72,6 +75,11 @@ instance (FromJSON k, FromJSON m, Ord k) => FromJSON (AppendMap k m) where
   parseJSON r = do
     res <- parseJSON r
     fmap AppendMap . sequence . Map.fromListWithKey (fail "duplicate key in JSON deserialization of AppendMap") . fmap (fmap return) $ res
+
+instance (Ord k, Group q) => Group (AppendMap k q) where
+  negateG = map negateG
+
+instance (Ord k, Additive q) => Additive (AppendMap k q)
 
 (!) :: Ord k => AppendMap k a -> k -> a
 (!) m k = (Map.!) (_unAppendMap m) k
