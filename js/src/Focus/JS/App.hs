@@ -106,15 +106,32 @@ instance (Reflex t, MonadFix m, Group q, Additive q, Query q, MonadHold t m, Mon
           Map.fromDistinctAscList $ (\(WrapArg k :=> ComposeMaybe mr) -> (Some.This k, fmap (getWritten . runIdentity) mr)) <$> DMap.toList p
         sampleBs :: forall m'. MonadSample t m' => [Behavior t q] -> m' q
         sampleBs = foldlM (\b a -> fmap (b <>) $ sample a) mempty
-    qpatch <- (\a b f -> mapAccumMaybeM_ f a b) liftedBs0 liftedBs' $ \bs0 pbs@(PatchMap bs') -> do
-      patch <- fmap (AdditivePatch . fold) $ iforM bs' $ \k bs -> case Map.lookup k bs0 of
-        Nothing -> case bs of
-          Nothing -> return mempty
-          Just newBs -> sampleBs newBs
-        Just oldBs -> case bs of
-          Nothing -> fmap negateG $ sampleBs oldBs
-          Just newBs -> (~~) <$> sampleBs newBs <*> sampleBs oldBs
-      return (apply pbs bs0, Just patch)
+        f :: forall m'. MonadHold t m'
+          => Map (Some k) [Behavior t q]
+          -> PatchMap (Some k) [Behavior t q]
+          -> m' ( Maybe (Map (Some k) [Behavior t q])
+                , Maybe (AdditivePatch q))
+        -- f accumulates the child behavior state we receive from running sequenceDMapWithAdjust for the underlying monad.
+        -- When an update occurs, it also computes a patch to communicate to the parent QueryT state.
+        -- bs0 is a Map denoting the behaviors of the current children.
+        -- pbs is a PatchMap denoting an update to the behaviors of the current children
+        f bs0 pbs@(PatchMap bs') = do
+          -- we compute the patch by iterating over the update PatchMap and proceeding by cases. Then we fold over the
+          -- child patches and wrap them in AdditivePatch.
+          patch <- fmap (AdditivePatch . fold) $ iforM bs' $ \k bs -> case Map.lookup k bs0 of
+            Nothing -> case bs of
+              -- If the update is to delete the state for a child that doesn't exist, the patch is mempty.
+              Nothing -> return mempty
+              -- If the update is to update the state for a child that doesn't exist, the patch is the sample of the new state.
+              Just newBs -> sampleBs newBs
+            Just oldBs -> case bs of
+              -- If the update is to delete the state for a child that already exists, the patch is the negation of the child's current state
+              Nothing -> fmap negateG $ sampleBs oldBs
+              -- If the update is to update the state for a child that already exists, the patch is the negation of sampling the child's current state
+              -- composed with the sampling the child's new state.
+              Just newBs -> (~~) <$> sampleBs newBs <*> sampleBs oldBs
+          return (apply pbs bs0, Just patch)
+    (qpatch :: Event t (AdditivePatch q)) <- mapAccumMaybeM_ f liftedBs0 liftedBs'
     tellQueryIncremental $ unsafeBuildIncremental (fmap fold $ mapM sampleBs liftedBs0) qpatch
     return (liftedResult0, liftedResult')
 

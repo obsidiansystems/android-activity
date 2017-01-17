@@ -58,7 +58,7 @@ instance Additive SelectedCount
 
 -- | The Semigroup/Monoid/Group instances for a ViewSelector should use this function which returns Nothing if the result is 0. This allows the pruning of leaves that are no longer wanted.
 combineSelectedCounts :: SelectedCount -> SelectedCount -> Maybe SelectedCount
-combineSelectedCounts (SelectedCount i) (SelectedCount j) = case i == j of
+combineSelectedCounts (SelectedCount i) (SelectedCount j) = case i == negate j of
   True -> Nothing
   False -> Just $ SelectedCount (i + j)
 
