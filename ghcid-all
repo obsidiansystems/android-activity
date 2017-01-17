@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+# run configure and repl to generate autogen files for focus/backend
+nix-shell -E 'let this = import ./. {}; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.backend.haskellPackages.focus-backend [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.ghcid this.backend.haskellPackages.cabal-install ]).env' --command "cd \"focus/backend\" && cabal configure --builddir=dist-ghci --ghc-option=-w && cabal repl --builddir=dist-ghci" "$@"
+
+# avoid rebuilding focus-backend by moving generated dist outside
+mv -f focus/backend/dist-ghci focus/backend-dist-ghci
+
+nix-shell -E 'let this = import ./. {}; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.backend [this.backend.haskellPackages.ghcid this.nixpkgs.postgresql95]).env' --command "ghcid -c'ghci -Wall -ignore-dot-ghci -ghci-script=.ghci-dev'" "$@"

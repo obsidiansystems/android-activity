@@ -1,18 +1,28 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, FlexibleContexts, NoMonomorphismRestriction, ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Focus.Backend.DB where
 
 import Focus.AppendMap (AppendMap (..))
 import Focus.Schema
+import Focus.Backend.Schema ()
 import Focus.Backend.Schema.TH
 import Focus.Backend.DB.PsqlSimple
 
---import Database.Groundhog
---import Database.Groundhog.TH
+import Database.Groundhog.Generic hiding (runDb)
 import Database.Groundhog.Core
 import Database.Groundhog.Expression
 import Database.Groundhog.Generic.Sql
---import Database.Groundhog.Instances
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -21,9 +31,9 @@ import Data.Time
 import Control.Arrow
 
 import Data.Pool
-import Database.PostgreSQL.Simple hiding (execute)
-import Database.PostgreSQL.Simple.Types
+import Database.PostgreSQL.Simple hiding (execute, execute_)
 import Database.Groundhog.Postgresql
+import Data.Functor.Identity
 import Control.Monad.Trans.Control
 import Control.Monad.Logger
 import Control.Monad.IO.Class
@@ -73,40 +83,42 @@ openDb dbUri = do
       closePostgresql (Postgresql p) = close p
   createPool openPostgresql closePostgresql 1 5 20
 
-runDb :: ( MonadIO m
-         , MonadBaseControl IO m
-         , ConnectionManager cm conn
-         )
-      => DbPersist conn (NoLoggingT m) b
-      -> Pool cm
-      -> m b
-runDb a dbConns = withResource dbConns $ runDbConn a
+class RunDb f where
+  runDb :: (MonadIO m, MonadBaseControl IO m, ConnectionManager cm conn, PostgresRaw (DbPersist conn (NoLoggingT m)))
+        => f (Pool cm)
+        -> DbPersist conn (NoLoggingT m) b
+        -> m b
 
-data SchemaConn cm = SchemaConn { _schemaConn_pool :: Pool cm, _schemaConn_schema :: Identifier }
+instance RunDb Identity where
+  runDb dbConns a = withResource (runIdentity dbConns) $ runDbConn a  
 
-ensureSchemaExists :: ( MonadIO m
-                      , MonadBaseControl IO m
-                      , ConnectionManager cm conn
-                      , PostgresRaw (DbPersist conn (NoLoggingT m))
-                      )
-                   => SchemaConn cm
+instance RunDb WithSchema where
+  runDb (WithSchema schema db) x = runDb (Identity db) $ setSchema schema >> x
+
+getSearchPath :: PersistBackend m => m String
+getSearchPath = do
+  [searchPath] :: [String] <- queryRaw False "SHOW search_path" [] $ mapAllRows (fmap fst . fromPersistValues)
+  return searchPath
+
+setSearchPath :: (Monad m, PostgresRaw m) => String -> m ()
+setSearchPath sp = void $ execute_ $ [sql| SET search_path TO |] <> fromString sp
+
+setSchema :: (Monad m, PostgresRaw m) => SchemaName -> m ()
+setSchema schema = void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)
+
+-- | Sets the search path to a particular schema, runs an action in that schema, and resets the search path
+withSchema :: (PostgresRaw m, PersistBackend m) => SchemaName -> m r -> m r
+withSchema schema a = do
+  sp <- getSearchPath
+  setSchema schema
+  r <- a
+  setSearchPath sp
+  return r
+
+ensureSchemaExists :: (Monad m, PostgresRaw m)
+                   => SchemaName
                    -> m ()
-ensureSchemaExists (SchemaConn db schema) = flip runDb db $ do
-  void $ execute [sql| CREATE SCHEMA IF NOT EXISTS ? |] (Only schema)
-
--- The argument order of runSchemaDb is different from runDb's because we always flip runDb. We probably ought to change its type too,
--- but I didn't want to deal with that right away. - cg
-runSchemaDb :: ( MonadIO m
-               , MonadBaseControl IO m
-               , ConnectionManager cm conn
-               , PostgresRaw (DbPersist conn (NoLoggingT m))
-               )
-            => SchemaConn cm
-            -> DbPersist conn (NoLoggingT m) b
-            -> m b
-runSchemaDb (SchemaConn db schema) x = flip runDb db $ do
-  void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)
-  x
+ensureSchemaExists schema = void $ execute [sql| CREATE SCHEMA IF NOT EXISTS ? |] (Only schema)
 
 ilike :: (SqlDb db, ExpressionOf db r a a') => a -> String -> Cond db r
 ilike a b = CondRaw $ operator 40 " ILIKE " a b

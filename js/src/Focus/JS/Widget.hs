@@ -1,4 +1,12 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, ViewPatterns, RankNTypes, FlexibleContexts, OverloadedStrings, TypeFamilies, LambdaCase, DataKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Focus.JS.Widget where
 
 import Control.Lens hiding (ix, element)
@@ -115,7 +123,7 @@ extensibleListWidgetWithSize n x0 xs0 itemWidget = do
           valuesD = fmap Map.elems valuesMapD
   return valuesD
 
-typeaheadSearch :: (MonadFocusWidget app t m)
+typeaheadSearch :: (MonadFocusWidget f app t m)
                 => Text
                 -- ^ text input placeholder
                 -> (Text -> ViewSelector app SelectedCount)
@@ -130,7 +138,7 @@ typeaheadSearch ph vsQuery extractor = do
   let result = fmap extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k)
+typeaheadSearchDropdown :: (MonadFocusWidget f app t m, Ord k)
                         => Text
                         -- ^ text input placeholder
                         -> (Text -> ViewSelector app SelectedCount)
@@ -145,7 +153,7 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   let options = ffor xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k)
+typeaheadSearchMultiselect :: (MonadFocusWidget f app t m, Ord k)
                            => Text
                            -- ^ text input placeholder
                            -> (Text -> ViewSelector app SelectedCount)
@@ -267,7 +275,7 @@ comboBox cfg getOptions li toStr wrapper = do
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
 
-simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k)
+simpleCombobox :: forall app f t m k v. (HasView app, MonadFocusWidget f app t m, Ord k)
                => (Text -> ViewSelector app SelectedCount) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display

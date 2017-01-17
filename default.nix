@@ -54,6 +54,7 @@ rec {
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
              email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
+             unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
@@ -371,6 +372,16 @@ rec {
                   };
                 system = "x86_64-linux";
                 configuration = args@{ config, pkgs, ... }: overrideServerConfig args { inherit defaultBackendPort defaultBackendUid defaultBackendGid frontend backend backendService nginxService; } {
+                  nixpkgs.config.packageOverrides = self: {
+                    simp_le =
+                      let newNixpkgs = pkgs.fetchFromGitHub {
+                            owner = "NixOS";
+                            repo = "nixpkgs";
+                            rev = "8341cfb64836d4da669f37bd0b8d7ea828cf47c8";
+                            sha256 = "00lcmgfhzjyfv27ixlsx9x9vh3q1p9j5d2zhs5cxxigzd9km349x";
+                          };
+                      in self.callPackage (newNixpkgs + "/pkgs/tools/admin/simp_le") {};
+                  };
                   environment.systemPackages = with pkgs; [
                     rsync
                     emacs24-nox

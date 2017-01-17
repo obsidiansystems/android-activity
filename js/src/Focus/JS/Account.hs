@@ -29,7 +29,7 @@ import Web.Cookie
 withPermanentAuthTokenFromCookie :: (MonadIO m, HasWebView m, MonadIO (Performable m), HasWebView (Performable m), PerformEvent t m)
                                     => DOM.Document
                                  -> Text
-                                 -> (Maybe (Signed AuthToken) -> m (Event t (Maybe (Signed AuthToken))))
+                                 -> (Maybe (Signed (AuthToken f)) -> m (Event t (Maybe (Signed (AuthToken f)))))
                                  -> m ()
 withPermanentAuthTokenFromCookie doc key a = do
   -- Try a couple of ways of getting the initial auth token
@@ -41,7 +41,7 @@ withPermanentAuthTokenFromCookie doc key a = do
   performEvent_ $ setPermanentAuthTokenCookie doc key <$> tokenE
   return ()
 
-setPermanentAuthTokenCookie :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> Maybe (Signed AuthToken) -> m ()
+setPermanentAuthTokenCookie :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> Maybe (Signed (AuthToken f)) -> m ()
 setPermanentAuthTokenCookie doc key mt = do
   wv <- askWebView
   currentProtocol <- Reflex.Dom.getLocationProtocol wv
@@ -67,14 +67,14 @@ setPermanentAuthTokenCookie doc key mt = do
       }
 
 -- | Retrieve the current auth token from the given cookie
-getAuthTokenCookie :: MonadIO m => DOM.Document -> Text -> m (Maybe (Signed AuthToken))
+getAuthTokenCookie :: MonadIO m => DOM.Document -> Text -> m (Maybe (Signed (AuthToken f)))
 getAuthTokenCookie doc key = do
   Just cookieString <- DOM.getCookie doc
   return $ fmap Signed $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
 
 -- | Try to retrieve the auth token from local storage; if we succeed, clear it
 -- out of local storage, save it in a cookie, and return it.
-migrateLocalStorageAuthTokenToCookies :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> m (Maybe (Signed AuthToken))
+migrateLocalStorageAuthTokenToCookies :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> m (Maybe (Signed (AuthToken f)))
 migrateLocalStorageAuthTokenToCookies doc key = do
   authTokenStr <- storageGetInitial $ T.unpack key
   authToken0 <- case authTokenStr of

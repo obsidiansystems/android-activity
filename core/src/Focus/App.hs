@@ -1,4 +1,9 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts, RankNTypes, GeneralizedNewtypeDeriving, DeriveDataTypeable #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Focus.App where
 
 import Data.Aeson
@@ -71,7 +76,6 @@ class ( ToJSON (ViewSelector app SelectedCount), FromJSON (ViewSelector app Sele
 cropView :: (Query q) => q -> QueryResult q -> QueryResult q
 cropView = crop
 
-class (Request (PublicRequest app), Request (PrivateRequest app)) => HasRequest app where
-  data PublicRequest app :: * -> *
-  data PrivateRequest app :: * -> *
-
+class (Request (PublicRequest app f), Request (PrivateRequest app f)) => HasRequest app (f :: * -> *) where
+  data PublicRequest app f :: * -> *
+  data PrivateRequest app f :: * -> *

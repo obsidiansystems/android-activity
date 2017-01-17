@@ -1,9 +1,19 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies, OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Focus.Route where
 
 import Focus.Brand
 
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
+import Control.Monad.Base
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
@@ -19,14 +29,39 @@ type RouteEnv = (String, String, String) -- (protocol, hostname, anything after 
 
 newtype RouteT r m a = RouteT { unRouteT :: ReaderT RouteEnv m a } deriving (Functor, Applicative, Monad, MonadIO, MonadBrand, MonadTrans)
 
+instance MonadTransControl (RouteT r) where
+    type StT (RouteT r) a = a
+    liftWith f = RouteT . ReaderT $ \r -> f $ \t -> runRouteT t r
+    restoreT = RouteT . ReaderT . const
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
+instance MonadBase b m => MonadBase b (RouteT r m) where
+  liftBase = lift . liftBase
+
+instance (MonadBaseControl b m) => MonadBaseControl b (RouteT r m) where
+  type StM (RouteT r m) a = ComposeSt (RouteT r) m a
+  liftBaseWith = defaultLiftBaseWith
+  restoreM     = defaultRestoreM
+  {-# INLINABLE liftBaseWith #-}
+  {-# INLINABLE restoreM #-}
+
 runRouteT :: RouteT r m a -> RouteEnv -> m a
 runRouteT = runReaderT . unRouteT
 
 instance (Monad m, ToJSON r, Default r, Eq r) => MonadRoute r (RouteT r m) where
   routeToUrl r = do
-    (baseProto, baseHost, basePort) <- RouteT ask
-    let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
-    return $ base (routeToQuery r) "" --TODO: https
+    routeEnv <- RouteT ask
+    return $ routeToUrlDefault routeEnv r
+
+routeToUrlDefault :: (ToJSON r, Default r, Eq r)
+                  => RouteEnv
+                  -> r
+                  -> URI
+routeToUrlDefault (baseProto, baseHost, basePort) r =
+  let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
+  in base (routeToQuery r) "" --TODO: https
+
 
 routeToQuery :: (ToJSON r, Default r, Eq r) => r -> String
 routeToQuery r = if r == def

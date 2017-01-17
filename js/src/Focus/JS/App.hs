@@ -228,35 +228,35 @@ dynWithQueryT f q = do
                    return $ Just $ AdditivePatch $ mconcat [ g a bOld, negateG (g aOld bOld), g a b]
          in unsafeBuildIncremental (g <$> sample (current da) <*> sample (currentIncremental ib)) ec
 
-type FocusWidgetInternal app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest app) Identity m)
+type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest f app) Identity m)
 
-newtype FocusWidget app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal app t m a }
+newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
 
-instance MonadTrans (FocusWidget app t) where
+instance MonadTrans (FocusWidget f app t) where
   lift = FocusWidget . lift . lift
 
-instance HasJS x m => HasJS x (FocusWidget app t m) where
-  type JSM (FocusWidget app t m) = JSM m
+instance HasJS x m => HasJS x (FocusWidget f app t m) where
+  type JSM (FocusWidget f app t m) = JSM m
   liftJS = lift . liftJS
 
-instance (HasEnv app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget app t m) where
-  type Request (FocusWidget app t m) = AppRequest app
-  type Response (FocusWidget app t m) = Identity
+instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
+  type Request (FocusWidget f app t m) = AppRequest f app
+  type Response (FocusWidget f app t m) = Identity
   withRequesting f = FocusWidget $ withRequesting $ unFocusWidget . f
 
-instance PerformEvent t m => PerformEvent t (FocusWidget app t m) where
-  type Performable (FocusWidget app t m) = Performable m
+instance PerformEvent t m => PerformEvent t (FocusWidget f app t m) where
+  type Performable (FocusWidget f app t m) = Performable m
   performEvent_ = lift . performEvent_
   performEvent = lift . performEvent
 
-instance TriggerEvent t m => TriggerEvent t (FocusWidget app t m) where
+instance TriggerEvent t m => TriggerEvent t (FocusWidget f app t m) where
   newTriggerEvent = lift newTriggerEvent
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => DomBuilder t (FocusWidget app t m) where
-  type DomBuilderSpace (FocusWidget app t m) = DomBuilderSpace m
+instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => DomBuilder t (FocusWidget f app t m) where
+  type DomBuilderSpace (FocusWidget f app t m) = DomBuilderSpace m
   textNode = liftTextNode
   element elementTag cfg (FocusWidget child) = FocusWidget $ element elementTag (fmap1 unFocusWidget cfg) child
   inputElement cfg = FocusWidget $ inputElement $ fmap1 unFocusWidget cfg
@@ -265,32 +265,32 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
-instance (Reflex t, MonadFix m, MonadHold t m, MonadAdjust t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => MonadAdjust t (FocusWidget app t m) where
+instance (Reflex t, MonadFix m, MonadHold t m, MonadAdjust t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => MonadAdjust t (FocusWidget f app t m) where
   runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (coerceEvent a')
   sequenceDMapWithAdjust dm0 dm' = FocusWidget $ sequenceDMapWithAdjust (coerce dm0) (coerceEvent dm')
 
-instance PostBuild t m => PostBuild t (FocusWidget app t m) where
+instance PostBuild t m => PostBuild t (FocusWidget f app t m) where
   getPostBuild = lift getPostBuild
 
-instance MonadRef m => MonadRef (FocusWidget app t m) where
-  type Ref (FocusWidget app t m) = Ref m
+instance MonadRef m => MonadRef (FocusWidget f app t m) where
+  type Ref (FocusWidget f app t m) = Ref m
   newRef = FocusWidget . newRef
   readRef = FocusWidget . readRef
   writeRef r = FocusWidget . writeRef r
 
-instance MonadHold t m => MonadHold t (FocusWidget app t m) where
+instance MonadHold t m => MonadHold t (FocusWidget f app t m) where
   hold a = FocusWidget . hold a
   holdDyn a = FocusWidget . holdDyn a
   holdIncremental a = FocusWidget . holdIncremental a
 
-instance MonadSample t m => MonadSample t (FocusWidget app t m) where
+instance MonadSample t m => MonadSample t (FocusWidget f app t m) where
   sample = FocusWidget . sample
 
-instance HasWebView m => HasWebView (FocusWidget app t m) where
-  type WebViewPhantom (FocusWidget app t m) = WebViewPhantom m
+instance HasWebView m => HasWebView (FocusWidget f app t m) where
+  type WebViewPhantom (FocusWidget f app t m) = WebViewPhantom m
   askWebView = FocusWidget askWebView
 
-instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget app t m) where
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget f app t m) where
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
@@ -300,37 +300,37 @@ instance Requester t m => R.Requester t (QueryT t q m) where
   withRequesting f = QueryT $ withRequesting $ unQueryT . f
 
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
-type MonadFocusFrontendWidget app t m =
-    ( MonadFocusWidget app t m
+type MonadFocusFrontendWidget f app t m =
+    ( MonadFocusWidget f app t m
     , DomBuilderSpace m ~ GhcjsDomSpace
     )
 
-class (HasView app) => HasEnv app where
+class (HasView app) => HasEnv f app where
   data Env app :: * -> *
-  getToken :: Env app t -> Dynamic t (Maybe (Signed AuthToken)) -- This is a Maybe to handle logged-out interactions
-  getViews :: Env app t -> Dynamic t (Map (Signed AuthToken) (View app))
+  getToken :: Env app t -> Dynamic t (Maybe (Signed (AuthToken f))) -- This is a Maybe to handle logged-out interactions
+  getViews :: Env app t -> Dynamic t (Map (Signed (AuthToken f)) (View app))
 
-class (HasRequest app, HasView app, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => HasFocus app
+class (HasRequest app f, HasView app, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => HasFocus f app
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
-      , R.Request m ~ AppRequest app
+      , R.Request m ~ AppRequest f app
       , Response m ~ Identity
-      , HasFocus app
+      , HasFocus f app
       , MonadQuery t (ViewSelector app SelectedCount) m
-      ) => MonadFocusWidget app t m | m -> app t where
+      ) => MonadFocusWidget f app t m | m -> app t where
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
          , Requester t m
-         , R.Request m ~ AppRequest app
+         , R.Request m ~ AppRequest f app
          , Response m ~ Identity
-         , HasFocus app
+         , HasFocus f app
          , MonadQuery t (ViewSelector app SelectedCount) m
-         ) => MonadFocusWidget app t m
+         ) => MonadFocusWidget f app t m
 
-watchViewSelector :: (MonadFocusWidget app t m) => Dynamic t (ViewSelector app SelectedCount) -> m (Dynamic t (View app))
+watchViewSelector :: (MonadFocusWidget f app t m) => Dynamic t (ViewSelector app SelectedCount) -> m (Dynamic t (View app))
 watchViewSelector = fmap uniqDyn . queryDyn
 
 --TODO: HasDocument is still not accounted for
@@ -355,26 +355,28 @@ type MonadWidget' t m =
   , Ref (Performable m) ~ Ref IO
   )
 
-runFocusWidget :: forall t m a x app. ( MonadWidget' t m
-                                      , HasWebView m
-                                      , HasJS x m
-                                      , HasFocus app
-                                      , Eq (ViewSelector app SelectedCount)
-                                      )
-               => Signed AuthToken
-               -> FocusWidget app t m a
+runFocusWidget :: forall t m a x f app.
+                ( MonadWidget' t m
+                , HasWebView m
+                , HasJS x m
+                , HasFocus f app
+                , Eq (ViewSelector app SelectedCount)
+                )
+               => Signed (AuthToken f)
+               -> FocusWidget f app t m a
                -> m a
 runFocusWidget = runFocusWidget' (Right "/listen")
 
-runFocusWidget' :: forall t m a x app. ( MonadWidget' t m
-                                       , HasWebView m
-                                       , HasJS x m
-                                       , HasFocus app
-                                       , Eq (ViewSelector app SelectedCount)
-                                       )
+runFocusWidget' :: forall t m a x f app.
+                 ( MonadWidget' t m
+                 , HasWebView m
+                 , HasJS x m
+                 , HasFocus f app
+                 , Eq (ViewSelector app SelectedCount)
+                 )
                 => Either WebSocketUrl Text
-                -> Signed AuthToken
-                -> FocusWidget app t m a
+                -> Signed (AuthToken f)
+                -> FocusWidget f app t m a
                 -> m a
 runFocusWidget' murl token child = do
   pb <- getPostBuild
@@ -383,7 +385,7 @@ runFocusWidget' murl token child = do
       ((a, vs), request) <- flip runRequesterT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
       let nubbedVs = uniqDyn (incrementalToDynamic vs)
           updatedVS = leftmost [updated nubbedVs, tag (current nubbedVs) pb]
-      e :: Dynamic t (AppendMap (Signed AuthToken) (QueryResult (ViewSelector app SelectedCount))) <- fromNotifications nubbedVs notification
+      e :: Dynamic t (AppendMap (Signed (AuthToken f)) (QueryResult (ViewSelector app SelectedCount))) <- fromNotifications nubbedVs notification
   return a
 
 fromNotifications :: forall m t k vs. (Query vs, MonadHold t m, Reflex t, MonadFix m, Ord k)

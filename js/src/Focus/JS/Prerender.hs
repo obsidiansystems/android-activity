@@ -41,7 +41,7 @@ data NoJavaScript -- This type should never have a HasJS instance
 instance js ~ NoJavaScript => Prerender js (StaticDomBuilderT t m) where
   prerenderClientDict = Nothing
 
-instance Prerender js m => Prerender js (FocusWidget env t m) where
+instance Prerender js m => Prerender js (FocusWidget f env t m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
 
 instance (Prerender js m, ReflexHost t) => Prerender js (PostBuildT t m) where

@@ -10,14 +10,14 @@ import Focus.Sign
 
 import Debug.Trace.LocationTH
 
-data ApiRequest :: (k -> *) -> (k -> *) -> k -> * where
-  ApiRequest_Public :: public a -> ApiRequest public private a
-  ApiRequest_Private :: Signed AuthToken -> private a -> ApiRequest public private a
+data ApiRequest (f :: * -> *) :: ((* -> *) -> k -> *) -> ((* -> *) -> k -> *) -> k -> * where
+  ApiRequest_Public :: public f a -> ApiRequest f public private a
+  ApiRequest_Private :: Signed (AuthToken f) -> private f a -> ApiRequest f public private a
   deriving (Show)
 
-type AppRequest app = ApiRequest (PublicRequest app) (PrivateRequest app)
+type AppRequest f app = ApiRequest f (PublicRequest app) (PrivateRequest app)
 
-instance (Request private, Request public) => Request (ApiRequest public private) where
+instance (Request (private f), Request (public f)) => Request (ApiRequest f public private) where
   requestToJSON r = case r of
     ApiRequest_Public p -> case (requestResponseToJSON p, requestResponseFromJSON p) of
       (Dict, Dict) -> toJSON ("Public"::String, SomeRequest p `HCons` HNil)
@@ -40,9 +40,8 @@ instance (Request private, Request public) => Request (ApiRequest public private
     ApiRequest_Public p -> requestResponseFromJSON p
     ApiRequest_Private _ p -> requestResponseFromJSON p
 
-public :: PublicRequest app t -> AppRequest app t
+public :: PublicRequest app f t -> AppRequest f app t
 public = ApiRequest_Public
 
-private :: Signed AuthToken -> PrivateRequest app t -> AppRequest app t
+private :: Signed (AuthToken f) -> PrivateRequest app f t -> AppRequest f app t
 private = ApiRequest_Private
-
