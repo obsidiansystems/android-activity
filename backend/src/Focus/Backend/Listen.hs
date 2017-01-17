@@ -44,7 +44,7 @@ import Focus.WebSocket
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
-import Control.Lens
+import Control.Lens hiding (view)
 import Control.Monad.Cont
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.State.Strict hiding (state, get)
@@ -52,10 +52,8 @@ import Control.Monad.Writer
 import Data.Aeson
 import Data.Align
 import qualified Data.ByteString.Lazy as LBS
-import Data.Default
 import Data.List.Split
 import Data.Pool
-import Data.Semigroup hiding ((<>), diff)
 import Data.String (fromString)
 import qualified Data.Text as T
 import Data.Text.Encoding
@@ -77,8 +75,6 @@ import Reflex (FunctorMaybe(..), ffor)
 import Snap
 
 import Debug.Trace (trace)
-
-import Focus.App
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
@@ -204,7 +200,7 @@ revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeViewListener :: forall notification alignedVs vs vp state a. Align alignedVs
+makeViewListener :: forall alignedVs vs vp state a. Align alignedVs
                  => TChan (NotifyMessage a) -- chan
                  -> (forall t. (Traversable t, Align t, FunctorMaybe t)
                              => NotifyMessage a
@@ -394,35 +390,47 @@ diffAlign token remove add xs = let
   -- Use 'alignWithMaybe' to remove empty maps
   in alignWithMaybe realignment diff xs
 
-getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs, Default state)
+getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs)
                   => (token -> vs -> vs -> StateT state m vp)
-                  -> (token -> m ()) -- ^ login hook
-                  -> (token -> m ()) -- ^ logout hook
+                  -> (token -> m state) -- ^ login hook
+                  -> (token -> state -> m ()) -- ^ logout hook
                   -> AppendMap token vs
                   -> AppendMap token vs
                   -> StateT (AppendMap token state) m (AppendMap token vp)
 getViewsForTokens getView loginHook logoutHook vs vsOld = do
   states <- State.get
 
-  -- TODO: Do something better than expecting these two to come aligned
-  let stateWithSelectors (This vsNew) = Just (vsNew, def) -- Login needs new state
-      stateWithSelectors (That _) = Nothing -- Logout removes state
-      stateWithSelectors (These vsNew state) = Just (vsNew, state)
-      vs' = fmapMaybe id $ alignWith stateWithSelectors vs states
+  let login token newVS = do
+        s <- loginHook token
+        (view, newState) <- runStateT (getView token newVS mempty) s
+        return $ Just (view, newState)
+      logout token s = do
+        logoutHook token s
+        return Nothing
 
-  viewMap <- lift $ fmap (fmapMaybe id) $ ifor (align vs' vsOld) $ \token -> \case
-    -- Logout
-    That _ -> Nothing <$ logoutHook token
-    -- Login
-    This (vsNew, state) -> loginHook token >> Just <$> runStateT (getView token vsNew mempty) state
-    -- Update for a logged in user
-    These (vsNew, state) vsOld' -> Just <$> runStateT (getView token vsNew vsOld') state
+  viewMap <- lift $ fmap (fmapMaybe id) $ iforM (align vs (align vsOld states)) $ \token -> \case
+    -- We have an old view selector and state, but no new view selector:
+    That (These _ s) -> logout token s
+    -- We have old and new view selectors, so no login is necessary:
+    These newVS (These oldVS s) -> Just <$> runStateT (getView token newVS oldVS) s
+    -- We have a new VS but no state:
+    This newVS -> login token newVS
+
+    -- NB: The cases below are impossible
+    -- We have a state, but no old or new view selector:
+    That (That s) -> logout token s
+    -- We have an old view selector but no state:
+    That (This _) -> return Nothing
+    -- We have a new view selector and state, but no old view selector:
+    These newVS (That _) -> login token newVS
+    -- We have an old and new view selector but no state:
+    These newVS (This _) -> login token newVS
 
   put $ fmap snd viewMap
   return $ fmap fst viewMap
 
 -- | Get the patches for authenticated view selectors.
-getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, Default state)
+getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs)
                     => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
                                    alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
                     -> alignedVs (t ())
@@ -430,7 +438,7 @@ getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMay
                     -> m (t (Maybe (AppendMap token vp), AppendMap token state))
 getPatchesForTokens getPatches alignedVs selectors =
   -- TODO: Do something better than expecting these two to come aligned.
-  let stateWithSelectors (This vs) = trace "Warning: missing state in getPatchesForTokens" $ Just (vs, def)
+  let stateWithSelectors (This _vs) = trace "Warning: missing state in getPatchesForTokens" Nothing
       stateWithSelectors (That _state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
       stateWithSelectors (These vs state) = Just (vs, state)
       selectors' = AlignCompose $ ffor selectors (imap (\token (vs, state) -> (vs, state, token))
@@ -442,29 +450,8 @@ getPatchesForTokens getPatches alignedVs selectors =
   in fmap separateStateAndPatches . getAlignCompose <$>
      getPatches (fmap (AlignCompose . fmapMaybe id . alignWith tokenizeAlignedVs selectors) alignedVs) selectors'
 
--- | Compose an instance of 'FunctorMaybe' and 'Align' with
---   'AppendMap'. 'FunctorMaybe's don't compose by nature. You have
---   to define a curated instance to get the desired effect.
---
---   Note: If there were a class for endofunctors on @Kleisli Maybe@,
---   'AppendMap' would fit like this:
---
--- @
--- instance EndoFunctorMaybe (AppendMap token) where
---   maybeMapMaybe :: (a -> Maybe b) -> AppendMap token a -> Maybe (AppendMap token b)
---   maybeMapMaybe f as = let bs = fmapMaybe f as
---     in if null bs
---        then Nothing
---        else Just bs
--- @
---
---   This class of functors does compose with 'FunctorMaybe', and is
---   hard-coded into this implementation, as there is no class for
---   these Kleisli endofunctors.
---
 --   TODO: Find a better home for this type. It's currently only used
 --   in 'getPatchesForTokens', hence this awkward placement.
-
 newtype AlignCompose token t a = AlignCompose { getAlignCompose :: t (AppendMap token a) }
   deriving (Functor, Foldable, Traversable)
 
