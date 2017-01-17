@@ -20,7 +20,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Focus.Backend.Listen ( ViewListener, MonadListenDb, NotificationType(..), getPatchesForTokens
+module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType(..), getPatchesForTokens
                             , getViewsForTokens, handleListen, handleRequests, insertAndNotify
                             , insertByAllAndNotify, insertByAllAndNotifyWithBody, listenDB
                             , NotifyMessage (..)
