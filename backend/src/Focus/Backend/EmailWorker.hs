@@ -76,8 +76,8 @@ emailWorker :: (MonadIO m, RunDb f)
             => Int -- ^ Thread delay
             -> f (Pool Postgresql)
             -> EmailEnv
-            -> m ()
-emailWorker delay db emailEnv = void . liftIO . forkIO . forever $
+            -> m (IO ()) -- ^ Action that kills the email worker thread
+emailWorker delay db emailEnv = return . killThread <=< liftIO . forkIO . forever $
   handle (\(e :: SomeException) -> print e) $ runDb db (clearMailQueue emailEnv) >> threadDelay delay
 
 deriveJSON defaultOptions ''Mail.Address
