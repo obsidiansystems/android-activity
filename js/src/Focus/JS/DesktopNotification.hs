@@ -5,7 +5,9 @@ import Foreign.JavaScript.TH
 import Data.Default
 import Data.Maybe
 import Data.Text
+#ifdef ghcjs_HOST_OS
 import Data.Monoid
+#endif
 
 #ifdef ghcjs_HOST_OS
 
