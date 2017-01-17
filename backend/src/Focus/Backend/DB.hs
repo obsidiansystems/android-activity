@@ -36,9 +36,10 @@ import Control.Arrow
 import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as T
 import Data.Time
 
+
+type FocusPersist = DbPersist Postgresql (NoLoggingT IO)
 
 -- | Will return all matching instances of the given constructor
 selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.

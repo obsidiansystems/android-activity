@@ -26,7 +26,7 @@ module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType
                             , NotifyMessage (..)
                             , makeViewListener, notifyEntities, notifyEntityId, notifyEntityWithBody
                             , notifyEntityWithBody', getPatchesFor, updateAndNotify
-                            , notificationListener, updateAndNotifyWithBody
+                            , notificationListener, notificationListenerWithSession, updateAndNotifyWithBody
                             , getSchemaName
                             ) where
 
@@ -44,7 +44,7 @@ import Focus.WebSocket
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
-import Control.Lens hiding (view)
+import Control.Lens hiding (view, (<.))
 import Control.Monad.Cont
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.State.Strict hiding (state, get)
@@ -75,6 +75,8 @@ import Reflex (FunctorMaybe(..), ffor)
 import Snap
 
 import Debug.Trace (trace)
+
+import Focus.Backend.Listen.Session
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
@@ -108,10 +110,21 @@ data ViewListener alignedVs vs vp state = ViewListener
   , _viewListener_thread :: ThreadId
   }
 
-notificationListener :: FromJSON a -- ^ Notifications from the database are serialized as JSON
-                     => Pool Postgresql -- ^ DB pool
-                     -> IO (TChan a, IO ()) -- ^ Pair of notifications and finalizer action for this listener
+notificationListener :: FromJSON a
+                     => Pool Postgresql
+                     -> IO (TChan a, IO ())
 notificationListener db = listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
+
+notificationListenerWithSession :: FromJSON a -- ^ Notifications from the database are serialized as JSON
+                                => Pool Postgresql -- ^ DB pool
+                                -> (Id Session -> FocusPersist ()) -- ^ Clean up sessions that have disappeared
+                                -> IO (TChan a, Id Session, IO ()) -- ^ Tuple of (notifications, session id, and  finalizer action)
+notificationListenerWithSession db cleanup = do
+  sid <- runDb (Identity db) $ fmap toId . insert . Session =<< getTime
+  killHb <- heartbeat db sid
+  killSupervise <- superviseSessions db cleanup
+  (nchan, nfinalize)  <- listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
+  return (nchan, sid, killHb >> killSupervise >> nfinalize)
 
 insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
@@ -264,7 +277,7 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
              -> vs
              -> state
              -> (vs -> vs -> StateT state m' vp) -- getView
-             -> (rq -> IO rsp) -- processRequest
+             -> (state -> rq -> IO rsp) -- processRequest
              -> m ()
 handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignViewSelector viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
   connections <- ensureSchemaViewListenerExists schema $ _viewListener_connections viewListener
@@ -328,7 +341,9 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
         Right (WebSocketData_Version _) -> do
           putStrLn "Shouldn't be receiving version from frontend..."
           return ()
-        Right (WebSocketData_Api rid rq) -> sender (processRequest rq) wrapper (WebSocketData_Api rid)
+        Right (WebSocketData_Api rid rq) -> do
+          (_, s) <- readMVar stateRef
+          sender (processRequest s rq) wrapper (WebSocketData_Api rid)
         Right (WebSocketData_Listen vs) -> do
           -- Acquire connections
           vp <- modifyTMVar connections $ \currentConnections -> do
