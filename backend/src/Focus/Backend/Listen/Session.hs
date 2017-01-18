@@ -27,6 +27,7 @@ instance HasId Session
 
 mkFocusPersist (Just "migrateSession") [groundhog|
   - entity: Session
+    schema: public
 |]
 
 makeDefaultKeyIdInt64 ''Session 'SessionKey
