@@ -23,21 +23,23 @@ import Database.Groundhog.Generic hiding (runDb)
 import Database.Groundhog.Core
 import Database.Groundhog.Expression
 import Database.Groundhog.Generic.Sql
+import Control.Monad.IO.Class
+import Control.Monad.Logger
+import Control.Monad.Trans.Control
+import Data.ByteString (ByteString)
+import Data.Functor.Identity
+import Data.Pool
+import Database.Groundhog.Postgresql
+import Database.PostgreSQL.Simple hiding (execute, execute_)
 
+import Control.Arrow
+import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Monad
 import Data.Time
-import Control.Arrow
 
-import Data.Pool
-import Database.PostgreSQL.Simple hiding (execute, execute_)
-import Database.Groundhog.Postgresql
-import Data.Functor.Identity
-import Control.Monad.Trans.Control
-import Control.Monad.Logger
-import Control.Monad.IO.Class
-import Data.ByteString (ByteString)
+
+type FocusPersist = DbPersist Postgresql (NoLoggingT IO)
 
 -- | Will return all matching instances of the given constructor
 selectMap :: forall a (m :: * -> *) v (c :: (* -> *) -> *) t.
@@ -84,16 +86,16 @@ openDb dbUri = do
   createPool openPostgresql closePostgresql 1 5 20
 
 class RunDb f where
-  runDb :: (MonadIO m, MonadBaseControl IO m, ConnectionManager cm conn, PostgresRaw (DbPersist conn (NoLoggingT m)))
+  runDb :: (MonadIO m, MonadBaseControl IO m, ConnectionManager cm conn, PostgresRaw (DbPersist conn (NoLoggingT m)), PersistBackend (DbPersist conn (NoLoggingT m)))
         => f (Pool cm)
         -> DbPersist conn (NoLoggingT m) b
         -> m b
 
 instance RunDb Identity where
-  runDb dbConns a = withResource (runIdentity dbConns) $ runDbConn a  
+  runDb (Identity db) = withResource db . runDbConn . withSchema (SchemaName "public")
 
 instance RunDb WithSchema where
-  runDb (WithSchema schema db) x = runDb (Identity db) $ setSchema schema >> x
+  runDb (WithSchema schema db) = withResource db . runDbConn . withSchema schema
 
 getSearchPath :: PersistBackend m => m String
 getSearchPath = do
@@ -101,7 +103,7 @@ getSearchPath = do
   return searchPath
 
 setSearchPath :: (Monad m, PostgresRaw m) => String -> m ()
-setSearchPath sp = void $ execute_ $ [sql| SET search_path TO |] <> fromString sp
+setSearchPath sp = void $ execute_ $ "SET search_path TO " <> fromString sp
 
 setSchema :: (Monad m, PostgresRaw m) => SchemaName -> m ()
 setSchema schema = void $ execute [sql| SET search_path TO ?,"$user",public |] (Only schema)

@@ -3,6 +3,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -19,12 +20,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Focus.Backend.Listen ( ViewListener, MonadListenDb, NotificationType(..), getPatchesForTokens
+module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType(..), getPatchesForTokens
                             , getViewsForTokens, handleListen, handleRequests, insertAndNotify
                             , insertByAllAndNotify, insertByAllAndNotifyWithBody, listenDB
-                            , makeViewListener, notifyEntity, notifyEntityId, notifyEntityWithBody
+                            , NotifyMessage (..)
+                            , makeViewListener, notifyEntities, notifyEntityId, notifyEntityWithBody
                             , notifyEntityWithBody', getPatchesFor, updateAndNotify
-                            , notificationListener, updateAndNotifyWithBody
+                            , notificationListener, notificationListenerWithSession, updateAndNotifyWithBody
                             , getSchemaName
                             ) where
 
@@ -40,9 +42,9 @@ import Focus.Sign
 import Focus.WebSocket
 
 import Control.Concurrent
-import Control.Concurrent.STM (TChan, atomically, dupTChan, readTChan, newBroadcastTChanIO, writeTChan)
-import Control.Exception (handle, try, SomeException, displayException, throwIO)
-import Control.Lens
+import Control.Concurrent.STM
+import Control.Exception
+import Control.Lens hiding (view, (<.))
 import Control.Monad.Cont
 import qualified Control.Monad.State.Strict as State
 import Control.Monad.State.Strict hiding (state, get)
@@ -50,11 +52,9 @@ import Control.Monad.Writer
 import Data.Aeson
 import Data.Align
 import qualified Data.ByteString.Lazy as LBS
-import Data.Default
 import Data.List.Split
 import Data.Pool
 import Data.String (fromString)
-import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.These
@@ -63,11 +63,11 @@ import Database.Groundhog
 import qualified Database.Groundhog.Core as GH
 import Database.Groundhog.Core hiding (Update)
 import qualified Database.Groundhog.Expression as GH
-import Database.Groundhog.Generic
 import Database.Groundhog.Instances ()
 import Database.Groundhog.Postgresql
 import Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Notification as PG
+import GHC.Generics
 import Network.WebSockets as WS
 import Network.WebSockets.Connection as WS
 import Network.WebSockets.Snap
@@ -76,9 +76,24 @@ import Snap
 
 import Debug.Trace (trace)
 
+import Focus.Backend.Listen.Session
+
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
-data NotificationType = NotificationType_Insert | NotificationType_Update | NotificationType_Delete
+data NotifyMessage a
+   = NotifyMessage { _notifyMessage_schemaName :: SchemaName
+                   , _notifyMessage_notificationType :: NotificationType
+                   , _notifyMessage_entityName :: String
+                   , _notifyMessage_value :: a
+                   }
+  deriving (Show, Read, Eq, Generic)
+
+instance FromJSON a => FromJSON (NotifyMessage a)
+instance ToJSON a => ToJSON (NotifyMessage a)
+
+data NotificationType = NotificationType_Insert
+                      | NotificationType_Update
+                      | NotificationType_Delete
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
 makeJson ''NotificationType
@@ -91,25 +106,30 @@ makeLenses ''Connections
 
 -- | Contains synchronization tools for websockets to communicate with listener thread.
 data ViewListener alignedVs vs vp state = ViewListener
-  { _viewListener_connections :: MVar (Connections alignedVs vs vp state)
+  { _viewListener_connections :: TVar (AppendMap SchemaName (TMVar (Connections alignedVs vs vp state)))
   , _viewListener_thread :: ThreadId
   }
 
-class NotificationListener f where
-  notificationListener :: FromJSON a -- ^ Notifications from the database are serialized as JSON
-                       => f (Pool Postgresql) -- ^ DB pool
-                       -> IO (TChan a, IO ()) -- ^ Pair of notifications and finalizer action for this listener
+notificationListener :: FromJSON a
+                     => Pool Postgresql
+                     -> IO (TChan a, IO ())
+notificationListener db = listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
 
-instance NotificationListener Identity where
-  notificationListener (Identity db) = listenDB "public" (\f -> withResource db $ \(Postgresql conn) -> f conn)
-
-instance NotificationListener WithSchema where
-  notificationListener (WithSchema (SchemaName schema) db) = listenDB schema (\f -> withResource db $ \(Postgresql conn) -> f conn)
+notificationListenerWithSession :: FromJSON a -- ^ Notifications from the database are serialized as JSON
+                                => Pool Postgresql -- ^ DB pool
+                                -> (Id Session -> FocusPersist ()) -- ^ Clean up sessions that have disappeared
+                                -> IO (TChan a, Id Session, IO ()) -- ^ Tuple of (notifications, session id, and  finalizer action)
+notificationListenerWithSession db cleanup = do
+  sid <- runDb (Identity db) $ fmap toId . insert . Session =<< getTime
+  killHb <- heartbeat db sid
+  killSupervise <- superviseSessions db cleanup
+  (nchan, nfinalize)  <- listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
+  return (nchan, sid, killHb >> killSupervise >> nfinalize)
 
 insertAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Id a)
 insertAndNotify t = do
   tid <- liftM toId $ insert t
-  notifyEntity NotificationType_Insert tid t
+  notifyEntityId NotificationType_Insert tid
   return tid
 
 insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
@@ -117,7 +137,7 @@ insertByAllAndNotify t = do
   etid <- liftM (fmap toId) $ insertByAll t
   case etid of
     Left _ -> return Nothing
-    Right tid -> notifyEntity NotificationType_Insert tid t >> return (Just tid)
+    Right tid -> notifyEntityId NotificationType_Insert tid >> return (Just tid)
 
 insertByAllAndNotifyWithBody :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
 insertByAllAndNotifyWithBody t = do
@@ -144,9 +164,6 @@ updateAndNotifyWithBody tid dt = do
   Just t <- get $ fromId tid
   notifyEntityWithBody NotificationType_Update tid t
 
-notifyEntity :: (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> a -> m ()
-notifyEntity nt aid _ = notifyEntityId nt aid
-
 getSchemaName :: PersistBackend m
               => m String
 getSchemaName =  do
@@ -158,22 +175,25 @@ getSchemaName =  do
   return schemaName
 
 notifyEntityWithBody' :: forall a b m. (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON b) => NotificationType -> Id a -> b -> m ()
-notifyEntityWithBody' nt aid b = do
-  schemaName <- getSchemaName
-  let proxy = undefined :: proxy (PhantomDb m)
-      cmd = "NOTIFY " <> schemaName <> ", ?"
-  _ <- executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), (aid, b))]
-  return ()
+notifyEntityWithBody' nt aid b = notifyEntities nt (b, aid)
 
 notifyEntityWithBody :: (PersistBackend m, PersistEntity a, ToJSON (IdData a), ToJSON a) => NotificationType -> Id a -> a -> m ()
 notifyEntityWithBody = notifyEntityWithBody'
 
 notifyEntityId :: forall a m. (PersistBackend m, PersistEntity a, ToJSON (IdData a)) => NotificationType -> Id a -> m ()
-notifyEntityId nt aid = do
+notifyEntityId nt aid = notifyEntities nt (Identity aid)
+
+notifyEntities :: forall a f m. (PersistBackend m, PersistEntity a, ToJSON (f (Id a))) => NotificationType -> f (Id a) -> m ()
+notifyEntities nt aid = do
   schemaName <- getSchemaName
   let proxy = undefined :: proxy (PhantomDb m)
-      cmd = "NOTIFY " <> schemaName <> ", ?"
-  _ <- executeRaw False (fromString cmd) [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode (nt, entityName $ entityDef proxy (undefined :: a), aid)]
+      cmd = "NOTIFY " <> notifyChannel <> ", ?"
+      notification = NotifyMessage { _notifyMessage_schemaName = SchemaName . T.pack $ schemaName
+                                   , _notifyMessage_notificationType = nt
+                                   , _notifyMessage_entityName = entityName $ entityDef proxy (undefined :: a)
+                                   , _notifyMessage_value = aid
+                                   }
+  _ <- executeRaw False cmd [PersistString $ T.unpack $ decodeUtf8 $ LBS.toStrict $ encode notification]
   return ()
 
 -- An elaborate control structure to do something a bit silly: we're modifying all the state MVars for all the connections at once,
@@ -193,45 +213,63 @@ revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeViewListener :: forall notification alignedVs vs vp state. Align alignedVs
-                 => TChan notification -- chan
+makeViewListener :: forall alignedVs vs vp state a. Align alignedVs
+                 => TChan (NotifyMessage a) -- chan
                  -> (forall t. (Traversable t, Align t, FunctorMaybe t)
-                             => notification
+                             => NotifyMessage a
                              -> alignedVs (t ())
                              -> t (vs, state)
                              -> IO (t (Maybe vp, state)))
                  -> IO (ViewListener alignedVs vs vp state)
 makeViewListener chan getPatches = do
-  connections <- newMVar $ Connections { _connections_connState = AppendMap.empty
-                                       , _connections_alignedViewSelector = nil
-                                       }
+  connections <- newTVarIO (AppendMap.empty :: AppendMap SchemaName (TMVar (Connections alignedVs vs vp state)))
   changes <- atomically $ dupTChan chan
 
   thread <- forkIO $ forever $ handle logNotificationError $ do
-    notification <- atomically $ readTChan changes
-
-    withMVar connections $ \currentConnections -> do
-      revise (_connections_connState currentConnections) $ \selectors -> do
-        let alignedVs = _connections_alignedViewSelector currentConnections
-        (patches :: AppendMap ThreadId (Maybe vp, state)) <- getPatches notification alignedVs (fmap snd selectors)
-        fmap (fmapMaybe id) . forM (align selectors patches) $ \case
-          These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
-          These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
-          _ -> return Nothing
-      return ()
-
+    n@(NotifyMessage schema _ _ _) <- atomically $ readTChan changes
+    -- Insert schema into connections map if it isn't there
+    schemaConn <- ensureSchemaViewListenerExists schema connections
+    bracket (atomically $ takeTMVar schemaConn)
+            (atomically . putTMVar schemaConn)
+            (go n)
   return $ ViewListener { _viewListener_connections = connections
                         , _viewListener_thread = thread
                         }
   where
+    -- TODO remove empty schema keys from the connections map
+    go :: NotifyMessage a -> Connections alignedVs vs vp state -> IO ()
+    go notification conns = revise (_connections_connState conns) $ \selectors -> do
+      let alignedVs = _connections_alignedViewSelector conns
+      patches <- getPatches notification alignedVs (fmap snd selectors)
+      fmap (fmapMaybe id) . forM (align selectors patches) $ \case
+        These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
+        These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
+        _ -> return Nothing
     logNotificationError :: SomeException -> IO ()
     logNotificationError e = putStrLn $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
+
+ensureSchemaViewListenerExists :: (Align alignedVs, Ord k)
+                               => k
+                               -> TVar (AppendMap k (TMVar (Connections alignedVs vs vp state)))
+                               -> IO (TMVar (Connections alignedVs vs vp state))
+ensureSchemaViewListenerExists schema connections = atomically $ do
+  connsBySchema <- readTVar connections
+  case AppendMap.lookup schema connsBySchema of
+    Nothing -> do
+      newSchemaConn <- newTMVar $
+        Connections { _connections_connState = AppendMap.empty
+                    , _connections_alignedViewSelector = nil
+                    }
+      modifyTVar' connections $ AppendMap.insert schema newSchemaConn
+      return newSchemaConn
+    Just schemaConn -> return schemaConn
 
 handleListen :: forall m m' rsp rq alignedVs vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
                 , FromJSON vs, ToJSON vp, Monoid vs
                 , Align alignedVs, FunctorMaybe alignedVs)
-             => (vs -> state -> m' ()) -- connectionCloseHook
+             => SchemaName
+             -> (vs -> state -> m' ()) -- connectionCloseHook
              -> ((T.Text -> IO ()) -> IO ())
              -> (forall x. m' x -> IO x) -- runGroundhog
              -> (vs -> alignedVs ()) -- alignViewSelector
@@ -239,19 +277,25 @@ handleListen :: forall m m' rsp rq alignedVs vs vp state.
              -> vs
              -> state
              -> (vs -> vs -> StateT state m' vp) -- getView
-             -> (rq -> IO rsp) -- processRequest
+             -> (state -> rq -> IO rsp) -- processRequest
              -> m ()
-handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelector viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
-  let connections = _viewListener_connections viewListener
+handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignViewSelector viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+  connections <- ensureSchemaViewListenerExists schema $ _viewListener_connections viewListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
+      modifyTMVar_ v f = bracketOnError (atomically $ takeTMVar v)
+                                        (atomically . putTMVar v)
+                                        (atomically . putTMVar v <=< f)
+      modifyTMVar v f = bracketOnError (atomically $ takeTMVar v) (atomically . putTMVar v) $ \a -> do
+        (a', b) <- f a
+        atomically $ putTMVar v a'
+        return b
 
   threadId <- myThreadId
 
-  let allocate :: IO (MVar (vs, state))
-      allocate = do
+  let allocate = do
         stateRef <- newMVar (vs0, state0)
-        modifyMVar_ connections $ \currentConnections -> do
+        modifyTMVar_ connections $ \currentConnections -> do
           let initialAlignment (This ()) = AppendMap.singleton threadId ()
               initialAlignment (That users) = users
               initialAlignment (These () users) = AppendMap.insert threadId () users
@@ -259,9 +303,8 @@ handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelect
           return $ currentConnections & connections_connState           %~ AppendMap.insert threadId (send', stateRef)
                                       & connections_alignedViewSelector %~ alignWith initialAlignment (alignViewSelector vs0)
         return stateRef
-      release :: MVar (vs, state) -> IO ()
       release stateRef = do
-        modifyMVar_ connections $ \currentConnections -> do
+        modifyTMVar_ connections $ \currentConnections -> do
           tryReadMVar stateRef >>= \case
             Just (vs, state) -> runGroundhog $ connectionCloseHook vs state
             Nothing -> return () -- TODO: The stateRef shouldn't be empty when the connection closes. This indicates an error.
@@ -298,10 +341,12 @@ handleListen connectionCloseHook connectionOpenHook runGroundhog alignViewSelect
         Right (WebSocketData_Version _) -> do
           putStrLn "Shouldn't be receiving version from frontend..."
           return ()
-        Right (WebSocketData_Api rid rq) -> sender (processRequest rq) wrapper (WebSocketData_Api rid)
+        Right (WebSocketData_Api rid rq) -> do
+          (_, s) <- readMVar stateRef
+          sender (processRequest s rq) wrapper (WebSocketData_Api rid)
         Right (WebSocketData_Listen vs) -> do
           -- Acquire connections
-          vp <- modifyMVar connections $ \currentConnections -> do
+          vp <- modifyTMVar connections $ \currentConnections -> do
             -- Now that connections are acquired, we can safely acquire the stateRef.
             (vsOld, vp) <- modifyMVar stateRef $ \(vsOld, state) -> do
               -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
@@ -360,35 +405,47 @@ diffAlign token remove add xs = let
   -- Use 'alignWithMaybe' to remove empty maps
   in alignWithMaybe realignment diff xs
 
-getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs, Default state)
+getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs)
                   => (token -> vs -> vs -> StateT state m vp)
-                  -> (token -> m ()) -- ^ login hook
-                  -> (token -> m ()) -- ^ logout hook
+                  -> (token -> m state) -- ^ login hook
+                  -> (token -> state -> m ()) -- ^ logout hook
                   -> AppendMap token vs
                   -> AppendMap token vs
                   -> StateT (AppendMap token state) m (AppendMap token vp)
 getViewsForTokens getView loginHook logoutHook vs vsOld = do
   states <- State.get
 
-  -- TODO: Do something better than expecting these two to come aligned
-  let stateWithSelectors (This vsNew) = Just (vsNew, def) -- Login needs new state
-      stateWithSelectors (That _) = Nothing -- Logout removes state
-      stateWithSelectors (These vsNew state) = Just (vsNew, state)
-      vs' = fmapMaybe id $ alignWith stateWithSelectors vs states
+  let login token newVS = do
+        s <- loginHook token
+        (view, newState) <- runStateT (getView token newVS mempty) s
+        return $ Just (view, newState)
+      logout token s = do
+        logoutHook token s
+        return Nothing
 
-  viewMap <- lift $ fmap (fmapMaybe id) $ ifor (align vs' vsOld) $ \token -> \case
-    -- Logout
-    That _ -> Nothing <$ logoutHook token
-    -- Login
-    This (vsNew, state) -> loginHook token >> Just <$> runStateT (getView token vsNew mempty) state
-    -- Update for a logged in user
-    These (vsNew, state) vsOld' -> Just <$> runStateT (getView token vsNew vsOld') state
+  viewMap <- lift $ fmap (fmapMaybe id) $ iforM (align vs (align vsOld states)) $ \token -> \case
+    -- We have an old view selector and state, but no new view selector:
+    That (These _ s) -> logout token s
+    -- We have old and new view selectors, so no login is necessary:
+    These newVS (These oldVS s) -> Just <$> runStateT (getView token newVS oldVS) s
+    -- We have a new VS but no state:
+    This newVS -> login token newVS
+
+    -- NB: The cases below are impossible
+    -- We have a state, but no old or new view selector:
+    That (That s) -> logout token s
+    -- We have an old view selector but no state:
+    That (This _) -> return Nothing
+    -- We have a new view selector and state, but no old view selector:
+    These newVS (That _) -> login token newVS
+    -- We have an old and new view selector but no state:
+    These newVS (This _) -> login token newVS
 
   put $ fmap snd viewMap
   return $ fmap fst viewMap
 
 -- | Get the patches for authenticated view selectors.
-getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs, Default state)
+getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs)
                     => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
                                    alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
                     -> alignedVs (t ())
@@ -396,7 +453,7 @@ getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMay
                     -> m (t (Maybe (AppendMap token vp), AppendMap token state))
 getPatchesForTokens getPatches alignedVs selectors =
   -- TODO: Do something better than expecting these two to come aligned.
-  let stateWithSelectors (This vs) = trace "Warning: missing state in getPatchesForTokens" $ Just (vs, def)
+  let stateWithSelectors (This _vs) = trace "Warning: missing state in getPatchesForTokens" Nothing
       stateWithSelectors (That _state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
       stateWithSelectors (These vs state) = Just (vs, state)
       selectors' = AlignCompose $ ffor selectors (imap (\token (vs, state) -> (vs, state, token))
@@ -408,26 +465,6 @@ getPatchesForTokens getPatches alignedVs selectors =
   in fmap separateStateAndPatches . getAlignCompose <$>
      getPatches (fmap (AlignCompose . fmapMaybe id . alignWith tokenizeAlignedVs selectors) alignedVs) selectors'
 
--- | Compose an instance of 'FunctorMaybe' and 'Align' with
---   'AppendMap'. 'FunctorMaybe's don't compose by nature. You have
---   to define a curated instance to get the desired effect.
---
---   Note: If there were a class for endofunctors on @Kleisli Maybe@,
---   'AppendMap' would fit like this:
---
--- @
--- instance EndoFunctorMaybe (AppendMap token) where
---   maybeMapMaybe :: (a -> Maybe b) -> AppendMap token a -> Maybe (AppendMap token b)
---   maybeMapMaybe f as = let bs = fmapMaybe f as
---     in if null bs
---        then Nothing
---        else Just bs
--- @
---
---   This class of functors does compose with 'FunctorMaybe', and is
---   hard-coded into this implementation, as there is no class for
---   these Kleisli endofunctors.
---
 --   TODO: Find a better home for this type. It's currently only used
 --   in 'getPatchesForTokens', hence this awkward placement.
 newtype AlignCompose token t a = AlignCompose { getAlignCompose :: t (AppendMap token a) }
@@ -441,16 +478,19 @@ instance (Align t, Ord token) => Align (AlignCompose token t) where
   alignWith f (AlignCompose as) (AlignCompose bs) = AlignCompose $
     alignWith (these (fmap (f . This)) (fmap (f . That)) (alignWith f)) as bs
 
-listenDB :: FromJSON a => Text -> (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
-listenDB schema withConn' = do
+notifyChannel :: String
+notifyChannel = "updates"
+
+listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
+listenDB withConn' = do
   nChan <- newBroadcastTChanIO
   daemonThread <- forkIO $ withConn' $ \conn -> do
-    let cmd = "LISTEN " <> T.unpack schema
+    let cmd = "LISTEN " <> notifyChannel
     _ <- execute_ conn $ fromString cmd
     forever $ do
       PG.Notification _ channel message <- PG.getNotification conn
       case channel of
-        _ | channel == encodeUtf8 schema -> do
+        _ | channel == encodeUtf8 (T.pack notifyChannel) -> do
           case decodeValue' $ LBS.fromStrict message of
             Just a -> atomically $ writeTChan nChan a
             _ -> putStrLn $ "listenDB: Could not parse message on updates channel: " <> show message

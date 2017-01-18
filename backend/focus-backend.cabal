@@ -82,6 +82,7 @@ library
     , Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen
+    , Focus.Backend.Listen.Session
     , Focus.Backend.Email
     , Focus.Backend.EmailWorker
     , Focus.Backend.Mustache
