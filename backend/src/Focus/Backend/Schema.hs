@@ -24,7 +24,17 @@ deriving instance PrimitivePersistField SchemaName
 
 instance NeverNull SchemaName
 
-makePersistFieldNewtype ''LargeObjectId
+instance PersistField LargeObjectId where
+  persistName _ = "LargeObjectId"
+  toPersistValues (LargeObjectId n) = toPersistValues n
+  fromPersistValues pv = do
+    (x, pv') <- fromPersistValues pv
+    return (LargeObjectId x, pv')
+  dbType _ _ = DbTypePrimitive
+    (DbOther $ OtherTypeDef [Left "oid"]) -- From https://www.postgresql.org/docs/current/static/lo-funcs.html
+    False -- Not nullable
+    Nothing -- No default value
+    Nothing -- No parent table reference
 
 deriving instance PrimitivePersistField LargeObjectId
 
