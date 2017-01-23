@@ -74,7 +74,9 @@ library
     vector,
     word8,
     split,
-    reflex
+    reflex,
+    io-streams,
+    lifted-base
 
   exposed-modules:
       Focus.Backend

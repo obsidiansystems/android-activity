@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Focus.Backend.Schema where
 
 import Data.Aeson
@@ -12,7 +13,7 @@ import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.Types
 
 import Focus.Backend.DB.Groundhog
-import Focus.Schema (Json (..), SchemaName(..))
+import Focus.Schema (Json (..), SchemaName(..), LargeObjectId(..))
 
 instance ToField SchemaName where
   toField (SchemaName t) = toField (Identifier t)
@@ -22,6 +23,12 @@ makePersistFieldNewtype ''SchemaName
 deriving instance PrimitivePersistField SchemaName
 
 instance NeverNull SchemaName
+
+makePersistFieldNewtype ''LargeObjectId
+
+deriving instance PrimitivePersistField LargeObjectId
+
+instance NeverNull LargeObjectId
 
 instance (ToJSON a, FromJSON a) => PersistField (Json a) where
   --TODO: Should this include the name of the underlying type

@@ -11,6 +11,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Word
 
 newtype SchemaName = SchemaName { unSchemaName :: Text }
   deriving (Eq, Ord, Read, Show, FromJSON, ToJSON, Typeable, Generic)
@@ -68,3 +69,10 @@ type Email = Text --TODO: Validation
 -- focus-backend:Focus.Backend.Schema
 newtype Json a = Json { unJson :: a }
   deriving (Eq, Ord, Show, Read, ToJSON, FromJSON)
+
+-- | Newtype for referring to database large objects. This generally shouldn't have to go over the wire
+-- but I'm putting it here where it can be placed in types in the common schema, because often the Ids of
+-- those types will want to be shared with the frontend. We're using Word64 here rather than CUInt, which
+-- is the type that Oid wraps, because Word64 has Groundhog instances to steal.
+newtype LargeObjectId = LargeObjectId Word64
+  deriving (Eq, Ord, Show, Read, Typeable)

@@ -19,7 +19,7 @@ import Focus.Backend.Schema ()
 import Focus.Backend.Schema.TH
 import Focus.Backend.DB.PsqlSimple
 
-import Database.Groundhog.Generic hiding (runDb)
+import Database.Groundhog.Generic hiding (runDb, bracket)
 import Database.Groundhog.Core
 import Database.Groundhog.Expression
 import Database.Groundhog.Generic.Sql
@@ -37,7 +37,6 @@ import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Time
-
 
 type FocusPersist = DbPersist Postgresql (NoLoggingT IO)
 
