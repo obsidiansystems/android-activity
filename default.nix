@@ -319,7 +319,7 @@ rec {
             script = ''
               ln -sft . "${result}"/*
               mkdir -p log
-              exec ./backend -p "${builtins.toString port}" ${if runWithHeapProfiling then "+RTS -hc -RTS" else ""} >>backend.out 2>>backend.err </dev/null
+              exec ./backend -p "${builtins.toString port}" ${if runWithHeapProfiling then "+RTS -hc -L200 -RTS" else ""} >>backend.out 2>>backend.err </dev/null
             '';
             serviceConfig = {
               User = user;
