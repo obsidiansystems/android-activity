@@ -208,6 +208,7 @@ mapQuery = _queryMorphism_mapQuery
 mapQueryResult :: QueryMorphism q q' -> QueryResult q' -> QueryResult q
 mapQueryResult = _queryMorphism_mapQueryResult
 
+-- | withQueryT's QueryMorphism argument needs to be a group homomorphism in order to behave correctly
 withQueryT :: (MonadFix m, PostBuild t m, Group q, Group q', Additive q, Additive q', Query q')
            => QueryMorphism q q'
            -> QueryT t q m a
@@ -220,6 +221,7 @@ withQueryT f a = do
     (fmapCheap (AdditivePatch . mapQuery f . unAdditivePatch) $ updatedIncremental q)
   return result
 
+-- | dynWithQueryT's (Dynamic t QueryMorphism) argument needs to be a group homomorphism at all times in order to behave correctly
 dynWithQueryT :: (MonadFix m, PostBuild t m, Group q, Additive q, Group q', Additive q', Query q')
            => Dynamic t (QueryMorphism q q')
            -> QueryT t q m a
@@ -238,7 +240,7 @@ dynWithQueryT f q = do
                    return $ Just $ AdditivePatch (g a b ~~ g aOld b)
                  That (AdditivePatch b) -> do
                    a <- sample $ current da
-                   return $ Just $ AdditivePatch $ (g a b)
+                   return $ Just $ AdditivePatch $ g a b
                  These a (AdditivePatch b) -> do
                    aOld <- sample $ current da
                    bOld <- sample $ currentIncremental ib
