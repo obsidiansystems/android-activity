@@ -1,11 +1,15 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes, OverloadedStrings, CPP #-}
 module Focus.JS.DesktopNotification where
 
 import Foreign.JavaScript.TH
 import Data.Default
 import Data.Maybe
 import Data.Text
+#ifdef ghcjs_HOST_OS
 import Data.Monoid
+#endif
+
+#ifdef ghcjs_HOST_OS
 
 importJS Unsafe "Notification['requestPermission']()" "notificationRequestPermission" [t| forall x m. MonadJS x m => m () |]
 importJS Unsafe "Notification['permission']" "notificationPermission" [t| forall x m. MonadJS x m => m Text |]
@@ -21,6 +25,22 @@ importJS Unsafe ("(function(that){ " <>
                  "return n; " <>
                  "})(this)") "newDesktopNotification_" [t| forall x m. MonadJS x m => Text -> Text -> Text -> Text -> Text -> m () |]
 importJS Unsafe "window['Notification'] !== undefined" "notificationSupported" [t| forall x m. MonadJS x m => m Bool |]
+
+#else
+
+notificationRequestPermission :: forall x m. MonadJS x m => m ()
+notificationRequestPermission = return ()
+
+notificationPermission :: forall x m. MonadJS x m => m Text
+notificationPermission = return ""
+
+newDesktopNotification_ :: forall x m. MonadJS x m => Text -> Text -> Text -> Text -> Text -> m ()
+newDesktopNotification_ _ _ _ _ _ = return ()
+
+notificationSupported :: forall x m. MonadJS x m => m Bool
+notificationSupported = return False
+
+#endif
 
 data DesktopNotificationConfig = DesktopNotificationConfig { _desktopNotificationConfig_image :: Maybe Text
                                                            , _desktopNotificationConfig_icon :: Maybe Text
@@ -40,32 +60,6 @@ desktopNotificationEnabled :: MonadJS x m => m Bool
 desktopNotificationEnabled = do
   p <- notificationPermission
   return $ p == "granted"
-
-{-
-#ifdef __GHCJS__
-#define JS(name, js, type) foreign import javascript unsafe js name :: type
-#else
-#define JS(name, js, type) name :: type ; name = undefined
-#endif
-
-JS(notificationRequestPermission_, "Notification.requestPermission()", IO ())
-JS(notificationPermission_, "Notification.permission", IO JSString)
-JS(newNotification_, "new Notification($1, {body: $2, icon: $3})", JSRef Text -> JSRef Text -> JSRef Text -> IO ())
-
-newDesktopNotification :: Text -> Text -> Text -> IO ()
-newDesktopNotification title body icon = do
-  t <- toJSRef title
-  b <- toJSRef body
-  i <- toJSRef icon
-  newNotification_ t b i
-
-desktopNotificationEnabled :: IO Bool
-desktopNotificationEnabled = do
-  p <- liftM fromJSString $ notificationPermission_
-  return $ case p of
-                "granted" -> True
-                _ -> False
--}
 
 enableDesktopNotification :: MonadJS x m => m ()
 enableDesktopNotification = do

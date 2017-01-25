@@ -127,7 +127,7 @@ extensibleListWidgetWithSize n x0 xs0 itemWidget = do
 typeaheadSearch :: (MonadFocusWidget f app t m)
                 => Text
                 -- ^ text input placeholder
-                -> (Text -> ViewSelector app ())
+                -> (Text -> ViewSelector app SelectedCount)
                 -- ^ setter for query field of view selector
                 -> (View app -> s)
                 -- ^ extractor for relevant things from the view
@@ -142,7 +142,7 @@ typeaheadSearch ph vsQuery extractor = do
 typeaheadSearchDropdown :: (MonadFocusWidget f app t m, Ord k)
                         => Text
                         -- ^ text input placeholder
-                        -> (Text -> ViewSelector app ())
+                        -> (Text -> ViewSelector app SelectedCount)
                         -- ^ setter for query field of view selector
                         -> (View app -> s)
                         -- ^ extractor for relevant things from the view
@@ -157,7 +157,7 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
 typeaheadSearchMultiselect :: (MonadFocusWidget f app t m, Ord k)
                            => Text
                            -- ^ text input placeholder
-                           -> (Text -> ViewSelector app ())
+                           -> (Text -> ViewSelector app SelectedCount)
                            -- ^ setter for query field of view selector
                            -> (View app -> s)
                            -- ^ extractor for relevant things from the view
@@ -276,8 +276,8 @@ comboBox cfg getOptions li toStr wrapper = do
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
 
-simpleCombobox :: forall app t m k v f. (HasView app, MonadFocusWidget f app t m, Ord k)
-               => (Text -> ViewSelector app ()) -- ^ Convert query to ViewSelector
+simpleCombobox :: forall app f t m k v. (HasView app, MonadFocusWidget f app t m, Ord k)
+               => (Text -> ViewSelector app SelectedCount) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display
                -> (Text -> Text -> HighlightedText) -- ^ Highlight results
