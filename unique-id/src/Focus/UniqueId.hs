@@ -11,4 +11,7 @@ base32digits :: Map Int Char
 base32digits = Map.fromList $ zip [0..] "0123456789abcdefghjkmnpqrstvwxyz"
 
 generateBase32UID :: IO Text
-generateBase32UID = fmap (T.pack . map (\k -> Map.findWithDefault '0' k base32digits) . take 22 . randomRs (0,31)) $ initTFGen
+generateBase32UID = fmap (T.pack . map (\k -> Map.findWithDefault '0' k base32digits) . take base32UIDLength . randomRs (0,31)) $ initTFGen
+
+base32UIDLength :: Int
+base32UIDLength = 22

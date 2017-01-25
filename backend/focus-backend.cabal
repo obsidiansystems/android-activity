@@ -74,7 +74,9 @@ library
     vector,
     word8,
     split,
-    reflex
+    reflex,
+    io-streams,
+    lifted-base
 
   exposed-modules:
       Focus.Backend
@@ -82,6 +84,7 @@ library
     , Focus.Backend.Account
     , Focus.Backend.DB
     , Focus.Backend.Listen
+    , Focus.Backend.Listen.Session
     , Focus.Backend.Email
     , Focus.Backend.EmailWorker
     , Focus.Backend.Mustache

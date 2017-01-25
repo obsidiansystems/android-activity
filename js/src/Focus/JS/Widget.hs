@@ -12,6 +12,7 @@ module Focus.JS.Widget where
 import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
+import qualified Data.Dependent.Map as DMap
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -382,3 +383,17 @@ widgetForDynUniqWithInitial a0 da f = do
   postBuild <- getPostBuild
   deduped <- uniqDyn <$> holdDyn a0 (leftmost [updated da, tag (current da) postBuild])
   widgetHold (f a0) $ f <$> updated deduped
+
+elAttrWithoutPropagation' :: forall t m a. (DomBuilder t m, DomBuilderSpace m ~ GhcjsDomSpace)
+                          => Text
+                          -> Map Text Text
+                          -> m a
+                          -> m (Element EventResult (DomBuilderSpace m) t, a)
+elAttrWithoutPropagation' tagName attrs i = do
+  let attrs' = Map.mapKeys (AttributeName Nothing) attrs
+  let f = GhcjsEventFilter $ \_ -> return (Reflex.Dom.stopPropagation, return $ Just $ EventResult ())
+      cfg = (def :: ElementConfig EventResult t m)
+        & elementConfig_initialAttributes .~ attrs'
+        & elementConfig_modifyAttributes .~ never
+        & elementConfig_eventSpec . ghcjsEventSpec_filters .~ DMap.singleton Click f
+  Reflex.Dom.element tagName cfg i
