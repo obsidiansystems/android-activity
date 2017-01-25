@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -13,6 +14,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , Query (..), sql, traceQuery
                                    , liftWithConn
                                    , PostgresLargeObject (..)
+                                   , withStreamedLargeObject
                                    ) where
 
 import Control.Exception.Lifted
@@ -22,10 +24,12 @@ import qualified Control.Monad.State.Strict as Strict
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Builder
 import Data.Int
+import Data.IORef
 import Data.Semigroup
 import Database.Groundhog.Core
 import Database.Groundhog.Postgresql
@@ -40,7 +44,7 @@ import qualified Database.PostgreSQL.Simple as Sql
 import Database.PostgreSQL.Simple.LargeObjects (Oid(..), LoFd)
 import qualified Database.PostgreSQL.Simple.LargeObjects as Sql
 import System.IO
-import System.IO.Streams (OutputStream)
+import System.IO.Streams (OutputStream, makeOutputStream)
 import qualified System.IO.Streams as Streams
 
 import Focus.Schema
@@ -150,7 +154,7 @@ class PostgresRaw m => PostgresLargeObject m where
   newEmptyLargeObject :: m LargeObjectId
   -- | Act on a large object given by id, opening and closing the file descriptor appropriately.
   withLargeObject :: LargeObjectId -> IOMode -> (LoFd -> m a) -> m a
-  -- | Import a file into the database as a large object.  
+  -- | Import a file into the database as a large object.
   newLargeObjectFromFile :: FilePath -> m LargeObjectId
   -- | Given a strict ByteString, create a postgres large object and fill it with those contents.
   newLargeObjectBS :: BS.ByteString -> m LargeObjectId
@@ -159,6 +163,8 @@ class PostgresRaw m => PostgresLargeObject m where
   newLargeObjectLBS :: LBS.ByteString -> m (LargeObjectId, Int)
   -- | Stream the contents of a database large object to the given output stream. Useful with Snap's addToOutput.
   streamLargeObject :: LargeObjectId -> OutputStream Builder -> m ()
+  -- | Deletes the large object with the specified object id.
+  deleteLargeObject :: LargeObjectId -> m ()
 
 fromOid :: Oid -> LargeObjectId
 fromOid (Oid n) = LargeObjectId (fromIntegral n)
@@ -204,8 +210,8 @@ instance (MonadIO m, MonadBaseControl IO m) => PostgresLargeObject (DbPersist Po
       -- Read a chunk of an opened large object. Returns Nothing when there's an error such as the end of file.
       -- NB: postgresql-simple seems to have a less useful type here than postgresql-libpq...
       readLargeObject :: LoFd -> Int -> DbPersist Postgresql m BS.ByteString
-      readLargeObject lofd size = do
-        liftWithConn $ \conn -> Sql.loRead conn lofd size
+      readLargeObject lofd size = liftWithConn $ \conn -> Sql.loRead conn lofd size
+  deleteLargeObject oid = liftWithConn $ \conn -> Sql.loUnlink conn $ toOid oid
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (StateT s m) where
   newEmptyLargeObject = lift newEmptyLargeObject
@@ -218,6 +224,7 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (StateT s m) wh
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  deleteLargeObject = lift . deleteLargeObject
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (Strict.StateT s m) where
   newEmptyLargeObject = lift newEmptyLargeObject
@@ -230,6 +237,7 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (Strict.StateT 
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  deleteLargeObject = lift . deleteLargeObject
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (MaybeT m) where
   newEmptyLargeObject = lift newEmptyLargeObject
@@ -239,6 +247,18 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (MaybeT m) wher
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  deleteLargeObject = lift . deleteLargeObject
+
+withStreamedLargeObject :: (PostgresLargeObject m, MonadIO m) => LargeObjectId -> (LBS.ByteString -> IO ()) -> m ()
+withStreamedLargeObject oid f = do
+  lo <- liftIO $ newIORef mempty
+  cb <- liftIO $ makeOutputStream $ \case
+    Just chunk -> modifyIORef lo $ \chunks -> chunks <> chunk
+    Nothing -> do
+      payload <- readIORef lo
+      f $ BS.toLazyByteString payload
+  streamLargeObject oid cb
+  liftIO $ Streams.write Nothing cb
 
 ---------------------------------
 -- PostgreSQL.Simple instances --

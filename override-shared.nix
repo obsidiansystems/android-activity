@@ -384,4 +384,12 @@ self: super: {
       version = "0.1.5.0";
       sha256 = "1rq41mlvfsjqf21hnv5jslnfk39z52p0a6a0yk2ng8q971pj70gd";
     });
+    smtp-mail = overrideCabal super.smtp-mail (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "smtp-mail";
+        rev = "5e6f78e4eb073c6e167daac7f50cc00a04c65d4e";
+        sha256 = "0c2xcgigxgjlwci594s3p1ydy0g3c1c1wjblrr6d08iibvlh23y0";
+      };
+    });
   }
