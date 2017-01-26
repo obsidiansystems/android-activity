@@ -198,9 +198,9 @@ rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets (fixupStatic staticSrc);
+        staticAssets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
+        frontendJsAssets = mkAssets "${ghcjsApp}";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
@@ -211,12 +211,12 @@ rec {
           set -x
 
           mkdir -p "$out"
-          ln -s "$assets" "$out/assets"
+          ln -s "$staticAssets" "$out/static.assets"
           if ! [ -z "''${marketing+x}" ] ; then
             ln -s "$marketing" "$out/marketing"
           fi
           ln -s "$backend/bin/"* "$out"
-          ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
+          ln -s "$frontendJsAssets" "$out/frontendJs.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
           if [ -n "''${emails+x}" ] ; then
@@ -314,7 +314,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
-          inherit assets;
+          inherit staticAssets;
           frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {

@@ -42,6 +42,7 @@ data AppConfig m
                , _appConfig_initialBody :: Maybe (m ByteString)
                , _appConfig_initialHead :: Maybe ByteString
                , _appConfig_serveJsexe :: Bool
+               , _appConfig_jsexe :: FilePath
                }
 
 instance Default (AppConfig m) where
@@ -51,28 +52,32 @@ instance Default (AppConfig m) where
                   , _appConfig_initialBody = Nothing
                   , _appConfig_initialHead = mempty
                   , _appConfig_serveJsexe = True
+                  , _appConfig_jsexe = "frontend.jsexe"
                   }
-
-frontendJsexeAssets :: FilePath
-frontendJsexeAssets = "frontend.jsexe.assets"
 
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig m -> m ()
 serveAppAt loc app cfg = do
   route $ [ (loc, ifTop $ serveStaticIndex cfg)
-          , (loc, serveAssets (app </> "assets") (app </> "static"))
+          , (loc, serveAssets (app </> "static.assets") (app </> "static"))
           , (loc <> "/version", doNotCache >> serveFileIfExistsAs "text/plain" (app </> "version"))
           ]
        ++ if _appConfig_serveJsexe cfg
-            then [(loc, serveAssets (app </> frontendJsexeAssets) (app </> "frontend.jsexe"))]
+            then [(loc, serveAssets (app </> frontendJsAssetsPath cfg) (app </> frontendJsPath cfg))]
             else []
        ++ [ (loc, doNotCache >> error404) ]
 
 serveApp :: MonadSnap m => FilePath -> AppConfig m -> m ()
 serveApp = serveAppAt ""
 
+frontendJsPath :: AppConfig m -> FilePath
+frontendJsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs" </> jsexe
+
+frontendJsAssetsPath :: AppConfig m -> FilePath
+frontendJsAssetsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs.assets" </> jsexe
+
 serveStaticIndex :: MonadSnap m => AppConfig m -> m ()
 serveStaticIndex cfg = do
-  appJsPath <- liftIO $ getAssetPath frontendJsexeAssets "all.js"
+  appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "all.js"
   initialBody <- fromMaybe (return "") $ _appConfig_initialBody cfg
   let initialHead = fromMaybe "" $ _appConfig_initialHead cfg
   let initialStyles = fromMaybe "" $ _appConfig_initialStyles cfg
@@ -92,7 +97,7 @@ serveStaticIndex cfg = do
 
 serveIndex :: MonadSnap m => AppConfig m -> m ()
 serveIndex cfg = do
-  appJsPath <- liftIO $ getAssetPath frontendJsexeAssets "all.js"
+  appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "all.js"
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
       meta_ [charset_ "utf-8"]
