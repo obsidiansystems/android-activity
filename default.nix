@@ -177,11 +177,17 @@ rec {
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
-          mkdir -p "$out/frontend.jsexe"
-          cd "$out/frontend.jsexe"
-          ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
-          java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
-          echo "//# sourceMappingURL=all.js.map" >> all.js
+          mkdir -p "$out"
+          cd "$out"
+          for x in $(ls "$unminified/bin" | sed -n 's/\([a-z].*\)\.jsexe$/\1/p' $) ; do
+            mkdir "$x.jsexe"
+            pushd "$x.jsexe"
+            ln -s "$unminified/bin/$x.jsexe/all.js" all.unminified.js
+            java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+            echo "//# sourceMappingURL=all.js.map" >> all.js
+            popd
+          done
+
         '';
         buildInputs = with pkgs; [
           jre
