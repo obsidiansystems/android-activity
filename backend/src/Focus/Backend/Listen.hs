@@ -368,7 +368,8 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
 -- | Creates a function that iterates the argument function.
 getPatchesFor :: (Applicative m, Traversable t)
               => (vs -> StateT state m (Maybe vp))
-              -> t (vs, state) -> m (t (Maybe vp, state))
+              -> t (vs, state)
+              -> m (t (Maybe vp, state))
 getPatchesFor getPatch selectors = for selectors $
   \(vs, state) -> runStateT (getPatch vs) state
 
