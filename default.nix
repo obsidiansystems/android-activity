@@ -150,7 +150,7 @@ rec {
               buildCommand = ''
                 mkdir "$out"
                 ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src/* "$out"/
+                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
               '';
             } "";
             preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
