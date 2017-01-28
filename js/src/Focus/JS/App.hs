@@ -337,8 +337,8 @@ instance Requester t m => R.Requester t (QueryT t q m) where
   withRequesting f = QueryT $ withRequesting $ unQueryT . f
 
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
-type MonadFocusFrontendWidget f app t m =
-    ( MonadFocusWidget f app t m
+type MonadFocusFrontendWidget app t m =
+    ( MonadFocusWidget app t m
     , DomBuilderSpace m ~ GhcjsDomSpace
     )
 
@@ -352,20 +352,20 @@ class (HasRequest app f, HasView app, Group (ViewSelector app SelectedCount), Ad
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
-      , R.Request m ~ AppRequest f app
+      , R.Request m ~ AppRequest Identity app
       , Response m ~ Identity
-      , HasFocus f app
+      , HasFocus Identity app
       , MonadQuery t (ViewSelector app SelectedCount) m
-      ) => MonadFocusWidget f app t m | m -> app t where
+      ) => MonadFocusWidget app t m | m -> app t where
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
          , Requester t m
-         , R.Request m ~ AppRequest f app
+         , R.Request m ~ AppRequest Identity app
          , Response m ~ Identity
-         , HasFocus f app
+         , HasFocus Identity app
          , MonadQuery t (ViewSelector app SelectedCount) m
-         ) => MonadFocusWidget f app t m
+         ) => MonadFocusWidget app t m
 
 queryDynUniq :: ( Monad m
                 , Reflex t
