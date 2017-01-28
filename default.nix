@@ -1,8 +1,10 @@
 { enableProfiling ? false
 , runWithHeapProfiling ? false
+, enableExposeAllUnfoldings ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = true;
     };
