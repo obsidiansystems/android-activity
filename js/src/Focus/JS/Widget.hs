@@ -267,7 +267,7 @@ comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
          -> (forall a. m a -> m a)
          -> m (Event t k)
 comboBox cfg getOptions li toStr wrapper = do
-  rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, selectionString]
+  rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [fromMaybe never $ _inputElementConfig_setValue cfg, selectionString]
       userInput <- holdDyn "" $ leftmost [ _inputElement_input t
                                          , "" <$ selectionE
                                          ]
@@ -349,7 +349,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
   where
     noHighlight _ x = (:[]) $ Highlight_Off x
     comboBox' cfg getOptions li wrapper = do
-      rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, "" <$ selectionE']
+      rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [fromMaybe never $ _inputElementConfig_setValue cfg, "" <$ selectionE']
           options <- getOptions $ _inputElement_value t
           selectionE <- wrapper $ comboBoxList options li (_inputElement_value t) inputActions
           let selectionE' = attachWithMaybe (\opts k -> fmap (\v -> (k, v)) $ Map.lookup k opts) (current options) selectionE
