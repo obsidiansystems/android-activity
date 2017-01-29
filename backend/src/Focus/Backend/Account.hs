@@ -26,6 +26,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Writer
 import Crypto.PasswordStore
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Default
 import Data.Maybe
 import Data.String
@@ -127,10 +128,15 @@ generatePasswordResetTokenFromNonce aid nonce = sign $ PasswordResetToken (aid, 
 
 setAccountPassword :: (PersistBackend m, MonadIO m) => Id Account -> Text -> m ()
 setAccountPassword aid password = do
-  salt <- liftIO genSaltIO
-  update [ Account_passwordHashField =. Just (makePasswordSaltWith pbkdf2 (2^) (encodeUtf8 password) salt 14)
+  pw <- makePasswordHash password
+  update [ Account_passwordHashField =. Just pw
          , Account_passwordResetNonceField =. (Nothing :: Maybe UTCTime) ]
          (AutoKeyField ==. fromId aid)
+
+makePasswordHash :: MonadIO m => Text -> m ByteString
+makePasswordHash pw = do
+  salt <- liftIO genSaltIO
+  return $ makePasswordSaltWith pbkdf2 (2^) (encodeUtf8 pw) salt 14
 
 resetPassword :: (MonadIO m, PersistBackend m) 
               => Id Account
