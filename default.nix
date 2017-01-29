@@ -17,6 +17,7 @@ rec {
   inherit (nixpkgs) stdenv;
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
+  iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
   filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
   mkDerivation = nixpkgs.lib.makeOverridable (
@@ -90,6 +91,9 @@ rec {
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+        overrides = sharedOverrides;
+      };
       mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
 
       libraryHeader = ''
@@ -313,6 +317,7 @@ rec {
           frontend = frontend_.unminified;
           inherit assets;
           frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
+          frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
