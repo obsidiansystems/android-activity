@@ -86,7 +86,7 @@ serveStaticIndex cfg = do
       style_ initialStyles
     body_ $ do
       toHtmlRaw initialBody
-      script_ [type_ "text/javascript", src_ (maybe "all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
       return ()
 
 
@@ -134,6 +134,6 @@ serveIndex cfg = do
     body_ $ do
       let svgOpts = SVGOptions (mkWidth 400) Nothing "preload-logo-" [makeAttribute "id" "preload-logo"] False
       renderDia SVG svgOpts $ svgId "preload-logo" $ _appConfig_logo cfg
-      script_ [type_ "text/javascript", src_ (maybe "all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
+      script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
