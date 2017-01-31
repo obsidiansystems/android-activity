@@ -11,9 +11,9 @@ import Data.Monoid hiding ((<>), First (..))
 import Data.Semigroup
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Focus.AppendMap (AppendMap (..))
-import qualified Focus.AppendMap as Map
-import Focus.Request ()
+import Data.AppendMap (AppendMap (..))
+import qualified Data.AppendMap as Map
+import Focus.Aeson.Orphans ()
 import GHC.Generics
 
 data SemiMap k v
@@ -69,9 +69,6 @@ instance Ord k => Monoid (SemiMap k v) where
 
 instance Ord k => Semigroup (SemiMap k v) where
   (<>) = mappend
-
-instance (ToJSON (f a)) => ToJSON (Alt f a)
-instance (FromJSON (f a)) => FromJSON (Alt f a)
 
 instance (ToJSON k, ToJSON v) => ToJSON (SemiMap k v)
 instance (Ord k, FromJSON k, FromJSON v) => FromJSON (SemiMap k v)

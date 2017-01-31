@@ -26,6 +26,7 @@ library
                , dependent-map
                , dependent-sum
                , directory-tree
+               , focus-datastructures
                , haskell-src-exts
                , http-conduit
                , http-types
@@ -48,9 +49,17 @@ library
                , vector
                , SHA
 
+  reexported-modules:
+      Focus.AppendMap
+    , Data.AppendMap
+    , Data.Indexed
+    , Data.Indexed.Projections
+    , Data.SemiMap
+    , Data.SortedPair
+    , Data.Min
+
   exposed-modules:
       Focus.Account
-    , Focus.AppendMap
     , Focus.Api
     , Focus.Brand
     , Focus.Email
@@ -64,11 +73,6 @@ library
     , Focus.Concurrent
     , Focus.WebSocket
     , Control.Monad.TypedUnique
-    , Data.Indexed
-    , Data.Indexed.Projections
-    , Data.SemiMap
-    , Data.SortedPair
-    , Data.Min
     , Data.RequestInterval
     , Focus.Patch
     , Focus.App

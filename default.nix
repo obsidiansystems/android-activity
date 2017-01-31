@@ -50,7 +50,9 @@ rec {
       testsSrc = filterGitSource ../tests;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+        // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
+             focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});

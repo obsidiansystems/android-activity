@@ -1,5 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, TypeFamilies, TemplateHaskell, DeriveGeneric, DeriveFunctor, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts #-}
-module Focus.AppendMap where
+-- | 'Data.Map' with a better 'Monoid' instance
+--
+-- 'Data.Map' has @mappend = union@, which is left-biased.  AppendMap has 
+-- @mappend = unionWith mappend@ instead.
+module Data.AppendMap where
 
 import Prelude hiding (map)
 
@@ -14,7 +18,6 @@ import Data.Semigroup
 import Data.Set (Set)
 import Data.Typeable
 import GHC.Generics (Generic)
-import Focus.Patch
 import Reflex (FunctorMaybe(..))
 import Reflex.Patch (Additive, Group (..))
 
@@ -37,7 +40,7 @@ instance FunctorMaybe (AppendMap k) where
 nonEmptyDelete :: Ord k => k -> AppendMap k v -> Maybe (AppendMap k v)
 nonEmptyDelete k vs =
   let deleted = delete k vs
-  in if Focus.AppendMap.null deleted
+  in if Data.AppendMap.null deleted
        then Nothing
        else Just deleted
 
@@ -46,7 +49,7 @@ mapMaybeNoNull :: (a -> Maybe b)
                -> Maybe (AppendMap token b)
 mapMaybeNoNull f as =
   let bs = fmapMaybe f as
-  in if Focus.AppendMap.null bs
+  in if Data.AppendMap.null bs
        then Nothing
        else Just bs
 
@@ -407,37 +410,11 @@ valid = Map.valid . _unAppendMap
 instance Default (AppendMap k v) where
   def = empty
 
-newtype AppendMapPatch k a = AppendMapPatch
-          { unAppendMapPatch :: AppendMap k (ElemPatch a)
-          }
-  deriving (Generic, Typeable)
+instance AppendMap k' v' ~ t => Rewrapped (AppendMap k v) t
 
-instance (Ord k, Patchable a) => Semigroup (AppendMapPatch k a) where
-  (AppendMapPatch mp) <> (AppendMapPatch mq) = AppendMapPatch $ (<>) mp mq
-
-instance (Ord k, Patchable a) => Monoid (AppendMapPatch k a) where
-  mempty = AppendMapPatch empty
-  mappend = (<>)
-
-instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
-  type Patch (AppendMap k v) = AppendMapPatch k v
-  patch (AppendMapPatch (AppendMap p)) (AppendMap m) = AppendMap $ patch (MapPatch p) m
-
-(~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (AppendMap k v)
-k ~: p = AppendMapPatch (singleton k (ElemPatch_Upsert p (Just (patch p def))))
-infixr 5 ~:
-
-appendMapInsert :: AppendMap k a -> AppendMapPatch k a
-appendMapInsert = AppendMapPatch . fmap ElemPatch_Insert
-
-deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (AppendMapPatch k a)
-deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (AppendMapPatch k a)
-deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (AppendMapPatch k a)
-deriving instance (Ord k, Read k, Read a, Read (Patch a)) => Read (AppendMapPatch k a)
-deriving instance (ToJSON k, ToJSON a, ToJSON (Patch a)) => ToJSON (AppendMapPatch k a)
-deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSON (AppendMapPatch k a)
-
-makeWrapped ''AppendMap
+instance Wrapped (AppendMap k v) where
+  type Unwrapped (AppendMap k v) = Map k v
+  _Wrapped' = iso (\(AppendMap m) -> m) AppendMap
 
 -- | Operator for creating a singleton 'Map'
 (=:) :: k -> a -> AppendMap k a

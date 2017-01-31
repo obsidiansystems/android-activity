@@ -1,0 +1,24 @@
+Name: focus-aeson-orphans
+Version: 0.1
+Synopsis: Orphan Aeson instances for various types
+License: AllRightsReserved
+Author: Author
+Maintainer: maintainer@example.com
+Stability: Experimental
+Category: Web
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  build-depends: base
+               , aeson
+               , bytestring
+               , base64-bytestring
+               , text
+
+  exposed-modules: Focus.Aeson.Orphans
+
+  other-extensions: TemplateHaskell
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

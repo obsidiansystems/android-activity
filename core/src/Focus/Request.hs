@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -38,17 +36,13 @@ import Data.Aeson.Types
 import Data.Aeson.Parser
 import Data.Align
 import qualified Data.Attoparsec.Lazy as LA
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Base64 as B64
 import Data.Constraint
 import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import Data.List (isPrefixOf)
 import Data.Maybe
 import Data.Monoid hiding (First)
-import Data.Semigroup hiding ((<>))
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.These
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -310,19 +304,6 @@ conArity c = case c of
   RecGadtC _ ts _ -> length ts
 #endif
 
-instance ToJSON ByteString where
-    toJSON = toJSON . decodeUtf8 . B64.encode
-
-instance FromJSON ByteString where
-    parseJSON o = either fail return . B64.decode . encodeUtf8 =<< parseJSON o
-
-instance ToJSON LBS.ByteString where
-    toJSON = toJSON . decodeUtf8 . B64.encode . LBS.toStrict
-
-instance FromJSON LBS.ByteString where
-    parseJSON o = either fail (return . LBS.fromStrict) . B64.decode . encodeUtf8 =<< parseJSON o
-
-
 class Functor' (f :: (k -> *) -> *) where
   fmap' :: (forall x. a x -> b x) -> f a -> f b
 
@@ -533,9 +514,3 @@ sendApi = undefined
 
 encodeURIComponent :: String -> String
 encodeURIComponent = escapeURIString (`elem` ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_.!~*'()")
-
-deriving instance FromJSON a => FromJSON (First a)
-deriving instance ToJSON a => ToJSON (First a)
-
-deriving instance FromJSON Any
-deriving instance ToJSON Any
