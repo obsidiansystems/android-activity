@@ -56,7 +56,7 @@ instance PrimMonad m => PrimMonad (PreprocessedCSSClassesT m) where
 processCssElementConfig :: Reflex t => ElementConfig er t m -> ElementConfig er t m
 processCssElementConfig cfg = cfg
   { _elementConfig_initialAttributes = Map.adjust (T.unwords . map removePrefix . T.words) "class" $ _elementConfig_initialAttributes cfg
-  , _elementConfig_modifyAttributes = Map.adjust (fmap (T.unwords . map addPrefix . T.words)) "class" <$> _elementConfig_modifyAttributes cfg
+  , _elementConfig_modifyAttributes = fmap (Map.adjust (fmap (T.unwords . map addPrefix . T.words)) "class") <$> _elementConfig_modifyAttributes cfg
   }
   where
     classPrefix = "preprocess-"

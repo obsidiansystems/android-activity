@@ -93,4 +93,4 @@ library
     Focus.JS.Window
 
   other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -fplugin=Reflex.Optimizer
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fplugin=Reflex.Optimizer

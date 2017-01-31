@@ -1,8 +1,11 @@
 { enableProfiling ? false
 , runWithHeapProfiling ? false
+, enableExposeAllUnfoldings ? false
+, enableTraceReflexEvents ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = true;
     };
@@ -106,7 +109,7 @@ rec {
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts, NondecreasingIndentation
                 if impl(ghcjs)
