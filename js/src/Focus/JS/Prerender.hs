@@ -16,8 +16,8 @@ import Focus.JS.PreprocessedCSSClasses
 type PrerenderClientConstraint js m =
   ( HasJS js m
   , HasJS js (Performable m)
-  , HasWebView m
-  , HasWebView (Performable m)
+  , HasJSContext m
+  , HasJSContext (Performable m)
   , MonadFix m
   , MonadFix (Performable m)
   )
@@ -33,7 +33,7 @@ prerender server client = case prerenderClientDict :: Maybe (Dict (PrerenderClie
   Nothing -> server
   Just Dict -> client
 
-instance (HasJS js m, HasJS js (Performable m), HasWebView m, HasWebView (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
+instance (HasJS js m, HasJS js (Performable m), HasJSContext m, HasJSContext (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
   prerenderClientDict = Just Dict
 
 data NoJavaScript -- This type should never have a HasJS instance

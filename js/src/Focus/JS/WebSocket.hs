@@ -8,7 +8,6 @@ import Prelude hiding (div, span, mapM, mapM_, concat, concatMap, all, sequence)
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.Fix
-import Control.Monad.IO.Class
 import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
 
@@ -28,6 +27,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
 import Debug.Trace.LocationTH
+import GHCJS.DOM.Types (MonadJSM)
 #ifdef __GHCJS__
 import GHCJS.Types (JSVal)
 import GHCJS.Marshal
@@ -52,15 +52,15 @@ data WebSocketUrl = WebSocketUrl
        } deriving (Eq, Ord, Show, Read)
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
+webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
 webSocket murl config
   | Left url <- murl = do
     RDWS.webSocket (mconcat [ _websocket_protocol url, "://"
                             , _websocket_host url, ":", T.pack (show (_websocket_port url))
                             , "/", _websocket_path url ]) config
   | Right path <- murl = do
-    pageHost <- liftIO . getLocationHost =<< askWebView
-    pageProtocol <- liftIO . getLocationProtocol =<< askWebView
+    pageHost <- getLocationHost
+    pageProtocol <- getLocationProtocol
     let wsProtocol = case pageProtocol of
           "http:" -> "ws:"
           "https:" -> "wss:"
@@ -81,11 +81,11 @@ fromJSONViaAllArgsHave req rspRaw = case getArgDict req :: Dict (ComposeConstrai
 apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
              ( HasJS x m
              , HasJS x (WidgetHost m)
-             , HasWebView m
+             , HasJSContext m
              , MonadFix m
              , MonadHold t m
-             , MonadIO m
-             , MonadIO (Performable m)
+             , MonadJSM m
+             , MonadJSM (Performable m)
              , PostBuild t m
              , PerformEvent t m
              , TriggerEvent t m
@@ -145,7 +145,7 @@ rawDecode jsv = do
       Aeson.Success a -> Just a
       _ -> Nothing
 
-rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
+rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
 rawWebSocket murl config
   | Left url <- murl
   = do
@@ -153,8 +153,8 @@ rawWebSocket murl config
                              , _websocket_host url, ":", T.pack (show (_websocket_port url))
                              , _websocket_path url ]) config (either (error "websocket': expected JSVal") id)
   | Right path <- murl = do
-    pageHost <- liftIO . getLocationHost =<< askWebView
-    pageProtocol <- liftIO . getLocationProtocol =<< askWebView
+    pageHost <- liftIO . getLocationHost =<< askJSContext
+    pageProtocol <- liftIO . getLocationProtocol =<< askJSContext
     let wsProtocol = case pageProtocol of
           "http:" -> "ws:"
           "https:" -> "wss:"

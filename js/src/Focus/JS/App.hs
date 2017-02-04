@@ -41,6 +41,7 @@ import qualified Reflex as R
 import Reflex.EventWriter
 import Reflex.Dom hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
+import GHCJS.DOM.Types (MonadJSM)
 
 newtype QueryT t q m a = QueryT { unQueryT :: StateT [Behavior t q] (EventWriterT t q (ReaderT (Dynamic t (QueryResult q)) m)) a }
   deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
@@ -160,7 +161,7 @@ instance PerformEvent t m => PerformEvent t (QueryT t q m) where
   performEvent = lift . performEvent
 
 instance HasJS x m => HasJS x (QueryT t q m) where
-  type JSM (QueryT t q m) = JSM m
+  type JSX (QueryT t q m) = JSX m
   liftJS = lift . liftJS
 
 instance (DomBuilder t m, MonadFix m, MonadHold t m, Group q, Query q, Additive q) => DomBuilder t (QueryT t q m) where
@@ -194,9 +195,9 @@ instance MonadRef m => MonadRef (QueryT t q m) where
   readRef = QueryT . readRef
   writeRef r = QueryT . writeRef r
 
-instance HasWebView m => HasWebView (QueryT t q m) where
-  type WebViewPhantom (QueryT t q m) = WebViewPhantom m
-  askWebView = QueryT askWebView
+instance HasJSContext m => HasJSContext (QueryT t q m) where
+  type JSContextPhantom (QueryT t q m) = JSContextPhantom m
+  askJSContext = QueryT askJSContext
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (QueryT t q m) where
   newEventWithTrigger = QueryT . newEventWithTrigger
@@ -256,7 +257,7 @@ instance MonadTrans (FocusWidget f app t) where
   lift = FocusWidget . lift . lift
 
 instance HasJS x m => HasJS x (FocusWidget f app t m) where
-  type JSM (FocusWidget f app t m) = JSM m
+  type JSX (FocusWidget f app t m) = JSX m
   liftJS = lift . liftJS
 
 instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
@@ -305,9 +306,9 @@ instance MonadHold t m => MonadHold t (FocusWidget f app t m) where
 instance MonadSample t m => MonadSample t (FocusWidget f app t m) where
   sample = FocusWidget . sample
 
-instance HasWebView m => HasWebView (FocusWidget f app t m) where
-  type WebViewPhantom (FocusWidget f app t m) = WebViewPhantom m
-  askWebView = FocusWidget askWebView
+instance HasJSContext m => HasJSContext (FocusWidget f app t m) where
+  type JSContextPhantom (FocusWidget f app t m) = JSContextPhantom m
+  askJSContext = FocusWidget askJSContext
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget f app t m) where
   newEventWithTrigger = FocusWidget . newEventWithTrigger
@@ -361,11 +362,11 @@ type MonadWidget' t m =
   , MonadReflexCreateTrigger t m
   , PostBuild t m
   , PerformEvent t m
-  , MonadIO m
-  , MonadIO (Performable m)
+  , MonadJSM m
+  , MonadJSM (Performable m)
   , TriggerEvent t m
-  -- , HasWebView m
-  -- , HasWebView (Performable m)
+  -- , HasJSContext m
+  -- , HasJSContext (Performable m)
   -- , MonadAsyncException m
   -- , MonadAsyncException (Performable m)
   , MonadRef m
@@ -376,7 +377,7 @@ type MonadWidget' t m =
 
 runFocusWidget :: forall t m a x f app.
                 ( MonadWidget' t m
-                , HasWebView m
+                , HasJSContext m
                 , HasJS x m
                 , HasFocus f app
                 , Eq (ViewSelector app SelectedCount)
@@ -388,7 +389,7 @@ runFocusWidget = runFocusWidget' (Right "/listen")
 
 runFocusWidget' :: forall t m a x f app.
                  ( MonadWidget' t m
-                 , HasWebView m
+                 , HasJSContext m
                  , HasJS x m
                  , HasFocus f app
                  , Eq (ViewSelector app SelectedCount)
@@ -455,12 +456,12 @@ identifyTags send recv = do
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
 openWebSocket' :: forall t x m vs v.
-                 ( MonadIO m
-                 , MonadIO (Performable m)
+                 ( MonadJSM m
+                 , MonadJSM (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
                  , PerformEvent t m
-                 , HasWebView m
+                 , HasJSContext m
                  , HasJS x m
                  , MonadFix m
                  , FromJSON v
@@ -494,12 +495,12 @@ openWebSocket' murl request vs = do
   return (notification, response, version)
 
 openWebSocket :: forall t x m vs v.
-                 ( MonadIO m
-                 , MonadIO (Performable m)
+                 ( MonadJSM m
+                 , MonadJSM (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
                  , PerformEvent t m
-                 , HasWebView m
+                 , HasJSContext m
                  , HasJS x m
                  , MonadFix m
                  , MonadHold t m

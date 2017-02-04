@@ -1,5 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, FunctionalDependencies, AllowAmbiguousTypes, TypeApplications #-}
-module Focus.JS.Intercom
+module Focus.JS.Intercom where
+
+#if 0
        ( IntercomUserHash (..)
        , IntercomVisitor (..)
        , IntercomUserSettings (..)
@@ -78,3 +80,5 @@ setupIntercom v0 v' = void . intercom . fmap Just =<< holdDyn v0 v'
 -- | Show or hide intercom chat widget
 displayIntercomChat :: (PerformEvent t m, Prerender js m) => Event t Bool -> m (Event t ())
 displayIntercomChat eTrigger = prerender (return never) $ performEvent $ ffor eTrigger $ liftJS . intercomShow
+
+#endif
