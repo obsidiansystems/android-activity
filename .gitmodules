@@ -65,3 +65,6 @@
 [submodule "stripe"]
 	path = stripe
 	url = git@github.com:obsidiansystems/stripe.git
+[submodule "webdriver"]
+	path = webdriver
+	url = git@gitlab.com:obsidian.systems/focus-webdriver.git
