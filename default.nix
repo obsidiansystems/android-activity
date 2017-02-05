@@ -28,8 +28,10 @@ rec {
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
     , frontendTools ? (p: [])
-    , testDepends ? (p: [])
-    , testTools ? (p : [])
+    , backendTestDepends ? (p: [])
+    , webDriverTestDepends ? (p: [])
+    , backendTestTools ? (p: [])
+    , webDriverTestTools ? (p: [])
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
@@ -46,7 +48,8 @@ rec {
       backendSrc = filterGitSource ../backend;
       marketingSrc = filterGitSource ../marketing;
       staticSrc = filterGitSource ../static;
-      testsSrc = filterGitSource ../tests;
+      backendTestsSrc = filterGitSource ../tests/backend;
+      webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
         // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
@@ -59,6 +62,7 @@ rec {
              });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
+             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
              email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
@@ -287,29 +291,61 @@ rec {
             doHaddock = false;
           })) {};
         passthru = rec {
-          ${if builtins.pathExists ../tests then "tests" else null} =
+          ${if builtins.pathExists ../tests/webdriver then "webdriver-tests" else null} =
+            backendHaskellPackages.callPackage ({mkDerivation, webdriver, focus-webdriver}: mkDerivation (rec {
+              pname = "${appName}-webdriver-tests";
+              license = null;
+              version = appVersion;
+              src = nixpkgs.runCommand "webdriver-tests-src" {
+                buildCommand = ''
+                  mkdir "$out"
+                  ln -sf "${webDriverTestsSrc}"/src/* "$out"/
+                '';
+              } "";
+              preConfigure = mkPreConfigure backendHaskellPackages pname "webdriver-tests" buildDepends;
+              preBuild = ''
+                ln -sfT ${staticSrc} static
+              '';
+              buildDepends = [ webdriver focus-webdriver ] ++ webDriverTestDepends backendHaskellPackages;
+              buildTools = [] ++ webDriverTestTools pkgs;
+              isExecutable = true;
+              configureFlags = [ ];
+              passthru = {
+                haskellPackages = backendHaskellPackages;
+              };
+              doHaddock = false;
+          })) {};
+          ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+               '';
+          ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
-                pname = "${appName}-tests";
+                pname = "${appName}-backend-tests";
                 license = null;
                 version = appVersion;
-                src = nixpkgs.runCommand "tests-src" {
+                src = nixpkgs.runCommand "backend-tests-src" {
                   buildCommand = ''
                     mkdir "$out"
                     ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                     ln -s "${backendSrc}"/src/* "$out"/
-                    ln -sf "${testsSrc}"/src/* "$out"/
+                    ln -sf "${backendTestsSrc}"/src/* "$out"/
                   '';
                 } "";
 
-                preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
+                preConfigure = mkPreConfigure backendHaskellPackages pname "backend-tests" buildDepends;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
                 '';
                 buildDepends = [
                   vector-algorithms
                   focus-core focus-backend focus-client
-                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
-                buildTools = [] ++ testTools pkgs;
+                ] ++ backendTestDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
+                buildTools = [] ++ backendTestTools pkgs;
                 isExecutable = true;
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
                 passthru = {

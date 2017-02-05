@@ -392,4 +392,12 @@ self: super: {
         sha256 = "0c2xcgigxgjlwci594s3p1ydy0g3c1c1wjblrr6d08iibvlh23y0";
       };
     });
+    webdriver = overrideCabal super.webdriver (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "hs-webdriver";
+        rev = "e9d2c7a7087ca3a88e517dafc6d2de4323fb177e";
+        sha256 = "0vsvb5k9k42r5hpdqr87qy0yahqapyldzmdqr5nxpkyyddsn2bfs";
+      };
+    });
   }
