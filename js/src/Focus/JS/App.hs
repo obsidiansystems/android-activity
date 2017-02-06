@@ -1,6 +1,24 @@
-{-# LANGUAGE ConstraintKinds, PolyKinds, GADTs, AllowAmbiguousTypes, DefaultSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification, LambdaCase #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Focus.JS.App where
 
 import Control.Lens ( (%~), (^?), _Right, iforM)
@@ -350,8 +368,23 @@ instance ( MonadWidget' t m
          , MonadQuery t (ViewSelector app SelectedCount) m
          ) => MonadFocusWidget app t m
 
-watchViewSelector :: (MonadFocusWidget app t m) => Dynamic t (ViewSelector app SelectedCount) -> m (Dynamic t (View app))
-watchViewSelector = fmap uniqDyn . queryDyn
+queryDynUniq :: ( Monad m
+                , Reflex t
+                , MonadQuery t q m
+                , Eq (QueryResult q)
+                )
+             => Dynamic t q
+             -> m (Dynamic t (QueryResult q))
+queryDynUniq = fmap uniqDyn . queryDyn
+
+watchViewSelector :: ( Monad m
+                     , Reflex t
+                     , MonadQuery t q m
+                     , Eq (QueryResult q)
+                     )
+                  => Dynamic t q
+                  -> m (Dynamic t (QueryResult q))
+watchViewSelector = queryDynUniq
 
 --TODO: HasDocument is still not accounted for
 type MonadWidget' t m =

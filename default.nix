@@ -29,8 +29,10 @@ rec {
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
     , frontendTools ? (p: [])
-    , testDepends ? (p: [])
-    , testTools ? (p : [])
+    , backendTestDepends ? (p: [])
+    , webDriverTestDepends ? (p: [])
+    , backendTestTools ? (p: [])
+    , webDriverTestTools ? (p: [])
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
@@ -47,7 +49,8 @@ rec {
       backendSrc = filterGitSource ../backend;
       marketingSrc = filterGitSource ../marketing;
       staticSrc = filterGitSource ../static;
-      testsSrc = filterGitSource ../tests;
+      backendTestsSrc = filterGitSource ../tests/backend;
+      webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
         // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
@@ -62,9 +65,11 @@ rec {
              });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
+             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
              email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
+             touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
@@ -113,7 +118,7 @@ rec {
         let mkCabalTarget = header: ''
               ${header}
                 hs-source-dirs: .
-                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix" "ghc-prim"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
                 ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
                 default-language: Haskell2010
@@ -159,7 +164,7 @@ rec {
               buildCommand = ''
                 mkdir "$out"
                 ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src/* "$out"/
+                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
               '';
             } "";
             preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
@@ -186,11 +191,17 @@ rec {
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
-          mkdir -p "$out/frontend.jsexe"
-          cd "$out/frontend.jsexe"
-          ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
-          java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
-          echo "//# sourceMappingURL=all.js.map" >> all.js
+          mkdir -p "$out"
+          cd "$out"
+          for x in $(ls "$unminified/bin") ; do
+            mkdir "$x"
+            pushd "$x"
+            ln -s "$unminified/bin/$x/all.js" all.unminified.js
+            java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+            echo "//# sourceMappingURL=all.js.map" >> all.js
+            popd
+          done
+
         '';
         buildInputs = with pkgs; [
           jre
@@ -201,9 +212,9 @@ rec {
       });
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets (fixupStatic staticSrc);
+        staticAssets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
+        frontendJsAssets = mkAssets "${ghcjsApp}";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
@@ -214,12 +225,12 @@ rec {
           set -x
 
           mkdir -p "$out"
-          ln -s "$assets" "$out/assets"
+          ln -s "$staticAssets" "$out/static.assets"
           if ! [ -z "''${marketing+x}" ] ; then
             ln -s "$marketing" "$out/marketing"
           fi
           ln -s "$backend/bin/"* "$out"
-          ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
+          ln -s "$frontendJsAssets" "$out/frontendJs.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
           # ln -s "$androidApp" "$out/android"
           if [ -n "''${emails+x}" ] ; then
@@ -286,29 +297,61 @@ rec {
             doHaddock = false;
           })) {};
         passthru = rec {
-          ${if builtins.pathExists ../tests then "tests" else null} =
+          ${if builtins.pathExists ../tests/webdriver then "webdriver-tests" else null} =
+            backendHaskellPackages.callPackage ({mkDerivation, webdriver, focus-webdriver}: mkDerivation (rec {
+              pname = "${appName}-webdriver-tests";
+              license = null;
+              version = appVersion;
+              src = nixpkgs.runCommand "webdriver-tests-src" {
+                buildCommand = ''
+                  mkdir "$out"
+                  ln -sf "${webDriverTestsSrc}"/src/* "$out"/
+                '';
+              } "";
+              preConfigure = mkPreConfigure backendHaskellPackages pname "webdriver-tests" buildDepends;
+              preBuild = ''
+                ln -sfT ${staticSrc} static
+              '';
+              buildDepends = [ webdriver focus-webdriver ] ++ webDriverTestDepends backendHaskellPackages;
+              buildTools = [] ++ webDriverTestTools pkgs;
+              isExecutable = true;
+              configureFlags = [ ];
+              passthru = {
+                haskellPackages = backendHaskellPackages;
+              };
+              doHaddock = false;
+          })) {};
+          ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+               '';
+          ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
-                pname = "${appName}-tests";
+                pname = "${appName}-backend-tests";
                 license = null;
                 version = appVersion;
-                src = nixpkgs.runCommand "tests-src" {
+                src = nixpkgs.runCommand "backend-tests-src" {
                   buildCommand = ''
                     mkdir "$out"
                     ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                     ln -s "${backendSrc}"/src/* "$out"/
-                    ln -sf "${testsSrc}"/src/* "$out"/
+                    ln -sf "${backendTestsSrc}"/src/* "$out"/
                   '';
                 } "";
 
-                preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
+                preConfigure = mkPreConfigure backendHaskellPackages pname "backend-tests" buildDepends;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
                 '';
                 buildDepends = [
                   vector-algorithms
                   focus-core focus-backend focus-client
-                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
-                buildTools = [] ++ testTools pkgs;
+                ] ++ backendTestDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
+                buildTools = [] ++ backendTestTools pkgs;
                 isExecutable = true;
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
                 passthru = {
@@ -317,7 +360,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
-          inherit assets;
+          inherit staticAssets;
           frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc;
           nixpkgs = pkgs;

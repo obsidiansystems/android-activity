@@ -98,15 +98,14 @@ data NotificationType = NotificationType_Insert
 
 makeJson ''NotificationType
 
-data Connections alignedVs vs vp state = Connections
+data Connections vs vp state = Connections
   { _connections_connState :: AppendMap ThreadId (vp -> IO (), MVar (vs, state))
-  , _connections_alignedViewSelector :: alignedVs (AppendMap ThreadId ())
   }
 makeLenses ''Connections
 
 -- | Contains synchronization tools for websockets to communicate with listener thread.
-data ViewListener alignedVs vs vp state = ViewListener
-  { _viewListener_connections :: TVar (AppendMap SchemaName (TMVar (Connections alignedVs vs vp state)))
+data ViewListener vs vp state = ViewListener
+  { _viewListener_connections :: TVar (AppendMap SchemaName (TMVar (Connections vs vp state)))
   , _viewListener_thread :: ThreadId
   }
 
@@ -213,16 +212,15 @@ revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
 -- | Given a channel of notifications and a function for traversing view selectors to generate patches,
 --   starts a thread that listens for notifications, collects view selectors from websockets,
 --   and sends patches down to the user.
-makeViewListener :: forall alignedVs vs vp state a. Align alignedVs
-                 => TChan (NotifyMessage a) -- chan
+makeViewListener :: forall vs vp state a.
+                    TChan (NotifyMessage a) -- chan
                  -> (forall t. (Traversable t, Align t, FunctorMaybe t)
                              => NotifyMessage a
-                             -> alignedVs (t ())
                              -> t (vs, state)
                              -> IO (t (Maybe vp, state)))
-                 -> IO (ViewListener alignedVs vs vp state)
+                 -> IO (ViewListener vs vp state)
 makeViewListener chan getPatches = do
-  connections <- newTVarIO (AppendMap.empty :: AppendMap SchemaName (TMVar (Connections alignedVs vs vp state)))
+  connections <- newTVarIO (AppendMap.empty :: AppendMap SchemaName (TMVar (Connections vs vp state)))
   changes <- atomically $ dupTChan chan
 
   thread <- forkIO $ forever $ handle logNotificationError $ do
@@ -237,10 +235,9 @@ makeViewListener chan getPatches = do
                         }
   where
     -- TODO remove empty schema keys from the connections map
-    go :: NotifyMessage a -> Connections alignedVs vs vp state -> IO ()
+    go :: NotifyMessage a -> Connections vs vp state -> IO ()
     go notification conns = revise (_connections_connState conns) $ \selectors -> do
-      let alignedVs = _connections_alignedViewSelector conns
-      patches <- getPatches notification alignedVs (fmap snd selectors)
+      patches <- getPatches notification (fmap snd selectors)
       fmap (fmapMaybe id) . forM (align selectors patches) $ \case
         These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
         These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
@@ -248,38 +245,36 @@ makeViewListener chan getPatches = do
     logNotificationError :: SomeException -> IO ()
     logNotificationError e = putStrLn $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
 
-ensureSchemaViewListenerExists :: (Align alignedVs, Ord k)
+ensureSchemaViewListenerExists :: (Ord k)
                                => k
-                               -> TVar (AppendMap k (TMVar (Connections alignedVs vs vp state)))
-                               -> IO (TMVar (Connections alignedVs vs vp state))
+                               -> TVar (AppendMap k (TMVar (Connections vs vp state)))
+                               -> IO (TMVar (Connections vs vp state))
 ensureSchemaViewListenerExists schema connections = atomically $ do
   connsBySchema <- readTVar connections
   case AppendMap.lookup schema connsBySchema of
     Nothing -> do
       newSchemaConn <- newTMVar $
         Connections { _connections_connState = AppendMap.empty
-                    , _connections_alignedViewSelector = nil
                     }
       modifyTVar' connections $ AppendMap.insert schema newSchemaConn
       return newSchemaConn
     Just schemaConn -> return schemaConn
 
-handleListen :: forall m m' rsp rq alignedVs vs vp state.
+handleListen :: forall m m' rsp rq vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq
                 , FromJSON vs, ToJSON vp, Monoid vs
-                , Align alignedVs, FunctorMaybe alignedVs)
+                )
              => SchemaName
              -> (vs -> state -> m' ()) -- connectionCloseHook
              -> ((T.Text -> IO ()) -> IO ())
              -> (forall x. m' x -> IO x) -- runGroundhog
-             -> (vs -> alignedVs ()) -- alignViewSelector
-             -> ViewListener alignedVs vs vp state
+             -> ViewListener vs vp state
              -> vs
              -> state
              -> (vs -> vs -> StateT state m' vp) -- getView
              -> (state -> rq -> IO rsp) -- processRequest
              -> m ()
-handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignViewSelector viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
   connections <- ensureSchemaViewListenerExists schema $ _viewListener_connections viewListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen
@@ -296,12 +291,7 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
   let allocate = do
         stateRef <- newMVar (vs0, state0)
         modifyTMVar_ connections $ \currentConnections -> do
-          let initialAlignment (This ()) = AppendMap.singleton threadId ()
-              initialAlignment (That users) = users
-              initialAlignment (These () users) = AppendMap.insert threadId () users
-              -- ^ Add the initial view selector with the aligned view selector
           return $ currentConnections & connections_connState           %~ AppendMap.insert threadId (send', stateRef)
-                                      & connections_alignedViewSelector %~ alignWith initialAlignment (alignViewSelector vs0)
         return stateRef
       release stateRef = do
         modifyTMVar_ connections $ \currentConnections -> do
@@ -309,7 +299,6 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
             Just (vs, state) -> runGroundhog $ connectionCloseHook vs state
             Nothing -> return () -- TODO: The stateRef shouldn't be empty when the connection closes. This indicates an error.
           return $ currentConnections & connections_connState           %~ AppendMap.delete threadId
-                                      & connections_alignedViewSelector %~ fmapMaybe (AppendMap.nonEmptyDelete threadId)
   bracket allocate release $ \stateRef -> do
     vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
       -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
@@ -348,16 +337,14 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
           -- Acquire connections
           vp <- modifyTMVar connections $ \currentConnections -> do
             -- Now that connections are acquired, we can safely acquire the stateRef.
-            (vsOld, vp) <- modifyMVar stateRef $ \(vsOld, state) -> do
+            vp <- modifyMVar stateRef $ \(vsOld, state) -> do
               -- NB: newState is forced to be strict below to prevent a buildup of thunks in the IORef
               (vp, !newState) <- handle (\(e :: SomeException) -> print e >> throwIO e) $
                 runGroundhog (runStateT (getView vs vsOld) state)
-              return ((vs, newState), (vsOld, vp))
+              return ((vs, newState), vp)
 
             -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
-            return (currentConnections & connections_alignedViewSelector %~ diffAlign threadId
-                                                                                      (alignViewSelector vsOld)
-                                                                                      (alignViewSelector vs)
+            return (currentConnections
                    , vp)
           send' vp
 
@@ -368,42 +355,10 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog alignVie
 -- | Creates a function that iterates the argument function.
 getPatchesFor :: (Applicative m, Traversable t)
               => (vs -> StateT state m (Maybe vp))
-              -> t (vs, state) -> m (t (Maybe vp, state))
+              -> t (vs, state)
+              -> m (t (Maybe vp, state))
 getPatchesFor getPatch selectors = for selectors $
   \(vs, state) -> runStateT (getPatch vs) state
-
--- | Like 'alignWith', except the function may return 'Maybe'. Using
---   'FunctorMaybe', elements that return 'Nothing' will be removed.
-alignWithMaybe :: (Align f, FunctorMaybe f)
-               => (These a b -> Maybe c) -> f a -> f b -> f c
-alignWithMaybe f a b = fmapMaybe f $ align a b
-
--- | Diff two structures, and apply the diff to a key in a third structure.
-diffAlign :: (Align f, FunctorMaybe f, Ord token)
-          => token
-          -> f a -- ^ Remove these
-          -> f b -- ^ Add these
-          -> f (AppendMap token b) -- ^ Modify these
-          -> f (AppendMap token b)
-diffAlign token remove add xs = let
-  -- Remove elements that are only in the `remove` structure
-  diffAlignment (This _) = AppendMap.nonEmptyDelete token
-  -- Add elements that are only in the `add` structure
-  diffAlignment (That x) = Just . AppendMap.insert token x
-  -- Overwrite old elements with new elements
-  diffAlignment (These _ x) = Just . AppendMap.insert token x
-
-  diff = alignWith diffAlignment remove add
-
-  -- nothing to update; start with empty
-  realignment (This updateXs) = updateXs AppendMap.empty
-  -- No update to perform
-  realignment (That xs') = Just xs'
-  -- Perform update
-  realignment (These updateXs xs') = updateXs xs'
-
-  -- Use 'alignWithMaybe' to remove empty maps
-  in alignWithMaybe realignment diff xs
 
 getViewsForTokens :: (Monad m, Align (AppendMap token), Monoid vs)
                   => (token -> vs -> vs -> StateT state m vp)
@@ -445,13 +400,12 @@ getViewsForTokens getView loginHook logoutHook vs vsOld = do
   return $ fmap fst viewMap
 
 -- | Get the patches for authenticated view selectors.
-getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t, Align alignedVs)
+getPatchesForTokens :: (Functor m, Ord token, Traversable t, Align t, FunctorMaybe t)
                     => (forall t'. (Traversable t', Align t', FunctorMaybe t') =>
-                                   alignedVs (t' ()) -> t' (vs, state, token) -> m (t' (Maybe vp, state)))
-                    -> alignedVs (t ())
+                                   t' (vs, state, token) -> m (t' (Maybe vp, state)))
                     -> t (AppendMap token vs, AppendMap token state)
                     -> m (t (Maybe (AppendMap token vp), AppendMap token state))
-getPatchesForTokens getPatches alignedVs selectors =
+getPatchesForTokens getPatches selectors =
   -- TODO: Do something better than expecting these two to come aligned.
   let stateWithSelectors (This _vs) = trace "Warning: missing state in getPatchesForTokens" Nothing
       stateWithSelectors (That _state) = trace "Warning: missing view selector in getPatchesForTokens" Nothing
@@ -459,11 +413,8 @@ getPatchesForTokens getPatches alignedVs selectors =
       selectors' = AlignCompose $ ffor selectors (imap (\token (vs, state) -> (vs, state, token))
                                                   . fmapMaybe id . uncurry (alignWith stateWithSelectors))
       separateStateAndPatches vps = (AppendMap.mapMaybeNoNull fst vps, fmap snd vps)
-      tokenizeAlignedVs (This (vs, _)) = Just $ fmap (const ()) vs
-      tokenizeAlignedVs (That ()) = Nothing
-      tokenizeAlignedVs (These (vs, _) ()) = Just $ fmap (const ()) vs
   in fmap separateStateAndPatches . getAlignCompose <$>
-     getPatches (fmap (AlignCompose . fmapMaybe id . alignWith tokenizeAlignedVs selectors) alignedVs) selectors'
+     getPatches selectors'
 
 --   TODO: Find a better home for this type. It's currently only used
 --   in 'getPatchesForTokens', hence this awkward placement.
