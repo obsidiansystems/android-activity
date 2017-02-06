@@ -1,20 +1,31 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Focus.Touch where
+import Control.Monad
+import Control.Monad.Fix (MonadFix)
 import Control.Monad.IO.Class
 import Data.Align
 import Data.Default
+import Data.IORef
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Semigroup ((<>))
 import Data.These
 import Data.Time
-import Reflex.Dom
+import Reflex.Dom hiding (preventDefault)
+
+import GHCJS.DOM.EventM (on, preventDefault)
+import GHCJS.DOM.Element (touchMove, touchEnd)
+import GHCJS.DOM.Types (IsElement)
 
 mkTouchStart :: MonadIO m => TouchEventResult -> m TouchEventStage
 mkTouchStart r = liftIO $ do
@@ -42,8 +53,8 @@ data TouchEventStage = TouchEventStage_Start UTCTime TouchEventResult
                      deriving (Show, Eq)
 
 data Swipe = Swipe
-  { _swipe_direction :: Float
-  , _swipe_distance :: Float
+  { _swipe_direction :: Double
+  , _swipe_distance :: Double
   }
   deriving (Show, Eq)
 
@@ -61,7 +72,7 @@ data UnfinishedGesture = UnfinishedGesture UTCTime (NonEmpty TouchResult)
 data TouchConfig = TouchConfig
   { _touchConfig_longPress :: NominalDiffTime
   -- ^ How long before a tap is considered a long press
-  , _touchConfig_minimumSwipeDistance :: Float
+  , _touchConfig_minimumSwipeDistance :: Double
   -- ^ How far a touch must travel (in pixels) before being considered a swipe
   }
 
@@ -116,8 +127,8 @@ distance :: Floating a => (a, a) -> (a, a) -> a
 distance (x1, y1) (x2, y2) = sqrt ((x2 - x1)^(2::Int) + (y2 - y1)^(2::Int))
 
 -- | (x, y) coordinates of a TouchResult
-coords :: Floating a => TouchResult -> (a, a)
-coords tr = (fromIntegral $ _touchResult_clientX tr, fromIntegral $ _touchResult_clientY tr)
+coords :: TouchResult -> (Double, Double)
+coords tr = (fromIntegral $ _touchResult_screenX tr, fromIntegral $ _touchResult_screenY tr)
 
 -- | Angle in degrees
 --          3π/2
@@ -127,3 +138,109 @@ coords tr = (fromIntegral $ _touchResult_clientX tr, fromIntegral $ _touchResult
 --           π/2
 angle :: RealFloat a => (a, a) -> (a, a) -> a
 angle (x1, y1) (x2, y2) = atan2 (y2 - y1) (x2 - x1)
+
+-- | Get gestures for a particular element
+gestureEvent :: ( DomEventType target 'TouchcancelTag ~ TouchEventResult
+                , DomEventType target 'TouchmoveTag ~ TouchEventResult
+                , DomEventType target 'TouchendTag ~ TouchEventResult
+                , DomEventType target 'TouchstartTag ~ TouchEventResult
+                , MonadHold t m
+                , PerformEvent t m
+                , HasDomEvent t target 'TouchcancelTag
+                , HasDomEvent t target 'TouchendTag
+                , HasDomEvent t target 'TouchmoveTag
+                , HasDomEvent t target 'TouchstartTag
+                , MonadIO (Performable m)
+                , MonadFix m
+                )
+             => TouchConfig
+             -> target
+             -> m (Event t [Gesture])
+gestureEvent cfg e = do
+  start <- performEvent $ mkTouchStart <$> domEvent Touchstart e
+  end <- performEvent $ mkTouchEnd <$> domEvent Touchend e
+  fmap (updated . fmap snd) $
+    foldDyn (\newTouch (unfinished, _) -> resolveTouchEvents cfg newTouch unfinished) (Map.empty, []) $ leftmost
+      [ start
+      , end
+      , TouchEventStage_Move <$> domEvent Touchmove e
+      , TouchEventStage_Cancel <$> domEvent Touchcancel e
+      ]
+
+data Axis = Axis_X
+          | Axis_Y
+          deriving (Eq)
+
+-- | Get gestures for an element that is expected to scroll on the y-axis
+--   When it looks like the user is swiping on the x-axis, y-axis scrolling is prevented
+--   and when it looks like the user is scrolling, swiping is prevented
+gestureEventScrollLockY :: ( MonadIO m
+                           , PerformEvent t m
+                           , MonadIO (Performable m)
+                           , TriggerEvent t m
+                           , MonadFix m
+                           , MonadHold t m
+                           , IsElement (RawElement (DomBuilderSpace m))
+                           )
+                        => TouchConfig
+                        -> Element EventResult (DomBuilderSpace m) t
+                        -> m (Event t [Gesture])
+gestureEventScrollLockY cfg e = do
+  touch0 :: IORef (Map Word ((Double, Double), Maybe Axis)) <- liftIO $ newIORef Map.empty
+  start <- performEvent $ ffor (domEvent Touchstart e) $ \r -> do
+    case _touchEventResult_changedTouches r of
+      [] -> return ()
+      (x:_) -> liftIO $ modifyIORef touch0 $ Map.insert (_touchResult_identifier x) (coords x, Nothing)
+    mkTouchStart r
+  end <- fmap (fmapMaybe id) $ wrapDomEvent (_element_raw e) (`on` touchEnd) $ do
+    tstate <- liftIO $ readIORef touch0
+    newTouch <- getTouchEvent
+    case reverse (_touchEventResult_changedTouches newTouch) of
+      [] -> return Nothing
+      (x:_) -> do
+        liftIO $ modifyIORef touch0 $ Map.delete (_touchResult_identifier x)
+        case Map.lookup (_touchResult_identifier x) tstate of
+          Nothing -> return Nothing
+          Just (coords0, Nothing) -> do
+            let coords1 = coords x
+                ax = fromMaybe Axis_Y $ axis coords0 coords1
+            suppressY newTouch ax
+          Just (_, Just ax) -> suppressY newTouch ax
+  move <- fmap (fmapMaybe id) $ wrapDomEvent (_element_raw e) (`on` touchMove) $ do
+    tstate <- liftIO $ readIORef touch0
+    newTouch <- getTouchEvent
+    case reverse (_touchEventResult_changedTouches newTouch) of
+      [] -> return Nothing
+      (x:_) -> case Map.lookup (_touchResult_identifier x) tstate of
+        Nothing -> return Nothing -- Should never happen
+        Just (coords0, Nothing) -> do
+          let coords1 = coords x
+              ax = axis coords0 coords1
+          when (distance coords0 coords1 > _touchConfig_minimumSwipeDistance cfg) $
+            liftIO $ modifyIORef touch0 $ Map.insert (_touchResult_identifier x) (coords0, ax)
+          case ax of
+            Just Axis_X -> do
+              preventDefault
+              return . Just $ TouchEventStage_Move newTouch
+            Just Axis_Y -> return Nothing
+            Nothing -> return Nothing
+        Just (_, Just Axis_X) -> preventDefault >> return (Just $ TouchEventStage_Move newTouch)
+        Just (_, Just Axis_Y) -> return Nothing
+  fmap (ffilter (not . null) . updated . fmap snd) $
+    foldDyn (\newTouch (unfinished, _) -> resolveTouchEvents cfg newTouch unfinished) (Map.empty, []) $ leftmost
+      [ start
+      , end
+      , move
+      , TouchEventStage_Cancel <$> domEvent Touchcancel e
+      ]
+  where
+    axis (x1, y1) (x2, y2) = case compare (abs (x2 - x1)) (abs (y2 - y1)) of
+      GT -> Just Axis_X
+      LT -> Just Axis_Y
+      EQ -> Nothing
+    suppressY t = \case
+      Axis_X -> do
+        preventDefault
+        fmap Just $ mkTouchEnd t
+      Axis_Y -> return Nothing
+
