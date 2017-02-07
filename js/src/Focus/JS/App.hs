@@ -59,10 +59,15 @@ import qualified Reflex as R
 import Reflex.EventWriter
 import Reflex.Dom hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
-import GHCJS.DOM.Types (MonadJSM)
+import GHCJS.DOM.Types (MonadJSM(..))
 
 newtype QueryT t q m a = QueryT { unQueryT :: StateT [Behavior t q] (EventWriterT t q (ReaderT (Dynamic t (QueryResult q)) m)) a }
   deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
+
+#ifndef __GHCJS__
+instance MonadJSM m => MonadJSM (QueryT t q m) where
+  liftJSM' = lift . liftJSM'
+#endif
 
 runQueryT :: (MonadFix m, Additive q, Group q, Reflex t) => QueryT t q m a -> Dynamic t (QueryResult q) -> m (a, Incremental t (AdditivePatch q))
 runQueryT (QueryT a) qr = do
@@ -270,6 +275,11 @@ type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (
 
 newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
+
+#ifndef __GHCJS__
+instance MonadJSM m => MonadJSM (FocusWidget f app t m) where
+  liftJSM' = lift . liftJSM'
+#endif
 
 instance MonadTrans (FocusWidget f app t) where
   lift = FocusWidget . lift . lift
