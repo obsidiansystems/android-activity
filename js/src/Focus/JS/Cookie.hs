@@ -5,6 +5,7 @@ module Focus.JS.Cookie where
 
 import Control.Monad.IO.Class
 import Data.Aeson as Aeson
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Text (Text)
@@ -16,8 +17,12 @@ import qualified GHCJS.DOM.Document as DOM
 import Reflex.Dom
 import Web.Cookie
 
+
 setPermanentCookie :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> Maybe Text -> m ()
-setPermanentCookie doc key mv = do
+setPermanentCookie doc = setPermanentCookieWithLocation doc Nothing
+
+setPermanentCookieWithLocation :: (MonadIO m, HasWebView m) => DOM.Document -> Maybe ByteString -> Text -> Maybe Text -> m ()
+setPermanentCookieWithLocation doc loc key mv = do
   wv <- askWebView
   currentProtocol <- Reflex.Dom.getLocationProtocol wv
   DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mv of
@@ -25,6 +30,7 @@ setPermanentCookie doc key mv = do
       { setCookieName = encodeUtf8 key
       , setCookieValue = ""
       , setCookieExpires = Just $ posixSecondsToUTCTime 0
+      , setCookieDomain = loc
       }
     Just val -> def
       { setCookieName = encodeUtf8 key
@@ -39,6 +45,7 @@ setPermanentCookie doc key mv = do
       -- because we don't take dangerous actions simply by executing a GET
       -- request.
       , setCookieSameSite = Just sameSiteLax
+      , setCookieDomain = loc
       }
 
 -- | Retrieve the current auth token from the given cookie
