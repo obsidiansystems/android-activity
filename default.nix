@@ -67,6 +67,7 @@ rec {
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
              touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
+             snap-stream = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
            };
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
