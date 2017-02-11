@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+echo -ne '\033]0;FRONTEND\007'
+nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-splices -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -o focus-dump-splices' | sed 's/^    //'

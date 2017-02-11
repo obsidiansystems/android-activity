@@ -23,9 +23,6 @@ instance ToJSON LBS.ByteString where
 instance FromJSON LBS.ByteString where
     parseJSON o = either fail (return . LBS.fromStrict) . B64.decode . encodeUtf8 =<< parseJSON o
 
-deriving instance FromJSON a => FromJSON (First a)
-deriving instance ToJSON a => ToJSON (First a)
-
 deriving instance FromJSON Any
 deriving instance ToJSON Any
 

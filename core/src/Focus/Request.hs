@@ -15,11 +15,13 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+#ifdef USE_TEMPLATE_HASKELL
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
+#endif
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -33,7 +35,7 @@ import Control.Monad.Identity
 import Control.Monad.State
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Aeson.Parser
+import Data.Aeson.Parser (value')
 import Data.Align
 import qualified Data.Attoparsec.Lazy as LA
 import qualified Data.ByteString.Lazy as LBS
@@ -134,7 +136,11 @@ decCons = \case
   DataD _ _ _ cs _ -> cs
   NewtypeD _ _ _ c _ -> [c]
 #endif
+#ifdef USE_TEMPLATE_HASKELL
   _ -> $undef
+#else
+  _ -> error "src/Focus/Request.hs: undefined"
+#endif
 
 decTvbs :: Dec -> [TyVarBndr]
 decTvbs = \case
@@ -145,8 +151,13 @@ decTvbs = \case
   DataD _ _ tvbs _ _ -> tvbs
   NewtypeD _ _ tvbs _ _ -> tvbs
 #endif
+#ifdef USE_TEMPLATE_HASKELL
   _ -> $undef
+#else
+  _ -> error "src/Focus/Request.hs: undefined"
+#endif
 
+#ifdef USE_TEMPLATE_HASKELL
 makeRequest :: Name -> DecsQ
 makeRequest n = do
   x <- reify n
@@ -193,13 +204,14 @@ makeRequestForDataInstance n n' = do
       requestResponseToJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
       requestResponseFromJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
     |]
-
+#endif
 
 -- | Extracts the name from a type variable binder.
 tvbName :: TyVarBndr -> Name
 tvbName (PlainTV  name  ) = name
 tvbName (KindedTV name _) = name
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson :: Name -> DecsQ
 makeJson n = do
   x <- reify n
@@ -280,6 +292,7 @@ conToJson modifyName c = do
   let tuple = foldr (\a b -> appsE [conE 'HCons, varE a, b]) (conE 'HNil) varNames
       body = [|toJSON (tag' :: String, toJSON $tuple)|]
   match (conP name $ map varP varNames) (normalB body) []
+#endif
 
 conName :: Con -> Name
 conName c = case c of
@@ -363,6 +376,7 @@ class FromJSON' f where
 fromJSON' :: FromJSON' f => Value -> Result (Some f)
 fromJSON' = parse parseJSON'
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson' :: Name -> DecsQ
 makeJson' n = do
   x <- reify n
@@ -381,6 +395,7 @@ makeJson' n = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
     |]
+#endif
 
 class AllArgsHave c f where
   getArgDict :: f x -> Dict (c x)

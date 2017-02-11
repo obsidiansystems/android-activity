@@ -2,11 +2,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Focus.JS.Bootstrap where
@@ -34,7 +32,6 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
 import Safe
-import Text.RawString.QQ
 
 bootstrapCDN :: DomBuilder t m => m ()
 bootstrapCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css") $ return ()
@@ -524,42 +521,42 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   return loginInfo
 
 styleTagSignin :: DomBuilder t m => m ()
-styleTagSignin = el "style" $ text [r|
-  .form-signin {
-    max-width: 330px;
-    padding: 15px;
-    margin: 0 auto;
-  }
-  .form-signin .form-signin-heading,
-  .form-signin .checkbox {
-    margin-bottom: 10px;
-  }
-  .form-signin .checkbox {
-    font-weight: normal;
-  }
-  .form-signin .form-control {
-    position: relative;
-    height: auto;
-    -webkit-box-sizing: border-box;
-       -moz-box-sizing: border-box;
-            box-sizing: border-box;
-    padding: 10px;
-    font-size: 16px;
-  }
-  .form-signin .form-control:focus {
-    z-index: 2;
-  }
-  .form-signin input[type="email"] {
-    margin-bottom: -1px;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-  .form-signin input[type="password"] {
-    margin-bottom: 10px;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-  }
-|]
+styleTagSignin = el "style" $ text
+    "\n\
+    \  .form-signin {\n\
+    \    max-width: 330px;\n\
+    \    padding: 15px;\n\
+    \    margin: 0 auto;\n\
+    \  }\n\
+    \  .form-signin .form-signin-heading,\n\
+    \  .form-signin .checkbox {\n\
+    \    margin-bottom: 10px;\n\
+    \  }\n\
+    \  .form-signin .checkbox {\n\
+    \    font-weight: normal;\n\
+    \  }\n\
+    \  .form-signin .form-control {\n\
+    \    position: relative;\n\
+    \    height: auto;\n\
+    \    -webkit-box-sizing: border-box;\n\
+    \       -moz-box-sizing: border-box;\n\
+    \            box-sizing: border-box;\n\
+    \    padding: 10px;\n\
+    \    font-size: 16px;\n\
+    \  }\n\
+    \  .form-signin .form-control:focus {\n\
+    \    z-index: 2;\n\
+    \  }\n\
+    \  .form-signin input[type=\"email\"] {\n\
+    \    margin-bottom: -1px;\n\
+    \    border-bottom-right-radius: 0;\n\
+    \    border-bottom-left-radius: 0;\n\
+    \  }\n\
+    \  .form-signin input[type=\"password\"] {\n\
+    \    margin-bottom: 10px;\n\
+    \    border-top-left-radius: 0;\n\
+    \    border-top-right-radius: 0;\n\
+    \  }\n"
 
 toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do

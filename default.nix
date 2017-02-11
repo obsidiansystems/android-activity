@@ -7,7 +7,7 @@ assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
       inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
-      useReflexOptimizer = true;
+      useReflexOptimizer = false;
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
 in with nixpkgs.haskell.lib;
@@ -126,6 +126,8 @@ rec {
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
+                if !os(ios)
+                  cpp-options: -DUSE_TEMPLATE_HASKELL
             '';
         in ''
         name: ${pname}

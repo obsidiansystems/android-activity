@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings, GADTs, ScopedTypeVariables, QuasiQuotes, TemplateHaskell, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, DeriveDataTypeable, DefaultSignatures, FlexibleContexts, StandaloneDeriving, UndecidableInstances, DeriveGeneric #-}
+{-# LANGUAGE CPP, OverloadedStrings, GADTs, ScopedTypeVariables, FlexibleInstances, TypeFamilies, GeneralizedNewtypeDeriving, DeriveDataTypeable, DefaultSignatures, FlexibleContexts, StandaloneDeriving, UndecidableInstances, DeriveGeneric #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+#endif
 module Focus.Account where
 
 import Focus.Schema
@@ -39,7 +42,25 @@ deriving instance (FromJSON (f (Id Account))) => FromJSON (PasswordResetToken f)
 
 data AccountRoute f = AccountRoute_PasswordReset (Signed (PasswordResetToken f)) deriving (Show, Read, Eq, Ord)
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson ''AccountRoute
+#else
+instance ToJSON (AccountRoute f_a2ovT) where
+  toJSON r_a2Ctk
+    = case r_a2Ctk of {
+        AccountRoute_PasswordReset f_a2Ctn
+          -> toJSON
+               ("AccountRoute_PasswordReset" :: String,
+              toJSON (HCons f_a2Ctn HNil)) }
+instance FromJSON (AccountRoute f_a2ovT) where
+  parseJSON v_a2Ctt
+    = do { (tag'_a2Ctu, v'_a2Ctw) <- parseJSON v_a2Ctt;
+           case tag'_a2Ctu :: String of
+             "AccountRoute_PasswordReset"
+               -> do { HCons f_a2Ctz HNil <- parseJSON v'_a2Ctw;
+                       return (AccountRoute_PasswordReset f_a2Ctz) }
+             _ -> fail "invalid message" }
+#endif
 
 data LoginError
   = LoginError_UserNotFound

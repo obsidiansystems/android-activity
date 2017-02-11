@@ -1,8 +1,15 @@
-{-# LANGUAGE RecordWildCards, TemplateHaskell, OverloadedStrings, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, RecordWildCards, OverloadedStrings, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.Intercom where
 
 import Control.Exception
+#ifdef USE_TEMPLATE_HASKELL
 import Control.Lens (makeLenses)
+#else
+import Control.Lens (Lens')
+#endif
 import Data.Maybe (fromMaybe)
 import Data.Aeson.Compat (decode)
 import Data.Aeson.Types
@@ -13,11 +20,17 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock.POSIX
+#ifdef FOCUS_BACKEND
 import Network.HTTP.Conduit
+#endif
 
 import Focus.Intercom.Common (IntercomUserHash(..), IntercomUser(..))
+#ifdef USE_TEMPLATE_HASKELL
 import Focus.Request (makeJson)
-
+#endif
+#if !defined(USE_TEMPLATE_HASKELL) || defined(DUMPING_SPLICES)
+import Focus.Request (HList(..))
+#endif
 
 newtype IntercomSecretKey = IntercomSecretKey { unIntercomSecretKey :: Text } deriving (Show, Read, Eq, Ord, FromJSON, ToJSON)
 
@@ -27,8 +40,38 @@ data IntercomEnv = IntercomEnv
   , _intercomEnv_secretKey :: IntercomSecretKey
   } deriving (Show, Read, Eq, Ord)
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson ''IntercomEnv
 makeLenses ''IntercomEnv
+#else
+instance ToJSON IntercomEnv where
+  toJSON r_a2zve
+    = case r_a2zve of {
+        IntercomEnv f_a2zvi f_a2zvk f_a2zvl
+          -> toJSON
+               ("IntercomEnv" :: String,
+              toJSON (HCons f_a2zvi (HCons f_a2zvk (HCons f_a2zvl HNil)))) }
+instance FromJSON IntercomEnv where
+  parseJSON v_a2zvp
+    = do { (tag'_a2zvq, v'_a2zvr) <- parseJSON v_a2zvp;
+           case tag'_a2zvq :: String of
+             "IntercomEnv"
+               -> do { HCons f_a2zvt
+                             (HCons f_a2zvv (HCons f_a2zvw HNil)) <- parseJSON v'_a2zvr;
+                       return (IntercomEnv f_a2zvt f_a2zvv f_a2zvw) }
+             _ -> fail "invalid message" }
+intercomEnv_appId :: Lens' IntercomEnv Text
+intercomEnv_appId f (IntercomEnv a b c) = (\a' -> IntercomEnv a' b c) <$> f a
+{-# INLINE intercomEnv_appId #-}
+
+intercomEnv_secureModeKey :: Lens' IntercomEnv IntercomSecretKey
+intercomEnv_secureModeKey f (IntercomEnv a b c) = (\b' -> IntercomEnv a b' c) <$> f b
+{-# INLINE intercomEnv_secureModeKey #-}
+
+intercomEnv_secretKey :: Lens' IntercomEnv IntercomSecretKey
+intercomEnv_secretKey f (IntercomEnv a b c) = (\c' -> IntercomEnv a b c') <$> f c
+{-# INLINE intercomEnv_secretKey #-}
+#endif
 
 intercomScript :: IntercomEnv -> Text
 intercomScript env = "(function(){var w=window;var ic=w.Intercom;w.intercom_app_id='" <> (_intercomEnv_appId env) <> "';if(typeof ic==='function'){ic('reattach_activator');ic('update',intercomSettings);}else{var d=document;var i=function(){i.c(arguments)};i.q=[];i.c=function(args){i.q.push(args)};w.Intercom=i;function l(){var s=d.createElement('script');s.type='text/javascript';s.async=true;s.src='https://widget.intercom.io/widget/'+w.intercom_app_id;var x=d.getElementsByTagName('script')[0];x.parentNode.insertBefore(s,x);}if(w.attachEvent){w.attachEvent('onload',l);}else{w.addEventListener('load',l,false);}}})()"
@@ -71,6 +114,7 @@ instance FromJSON IntercomUserInternal where
         | otherwise = "Unknown"
 
 
+#ifdef FOCUS_BACKEND
 getIntercomUsers :: IntercomEnv -> IO [IntercomUser]
 getIntercomUsers env = getIntercomUsers' Nothing []
   where
@@ -98,6 +142,7 @@ getIntercomUsers env = getIntercomUsers' Nothing []
           let newMScrollParam = either error Just $ parseEither (body .:) "scroll_param"
           let users = either error id $ parseEither (body .:) "users"
           if null users then return prev else getIntercomUsers' newMScrollParam (map unIntercomUserInternal users <> prev)
+#endif
 
 conversationsUrlFromId :: Text -> Text -> Text
 conversationsUrlFromId appId userId =

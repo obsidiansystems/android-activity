@@ -1,11 +1,12 @@
-{-# LANGUAGE RecordWildCards, TemplateHaskell, OverloadedStrings, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, RecordWildCards, TemplateHaskell, OverloadedStrings, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 module Focus.RightSignature where
 
-import Control.Exception
 import Data.Aeson.Compat
+import Data.Text (Text)
+#ifdef FOCUS_BACKEND
+import Control.Exception
 import Data.Aeson.Types
 import Data.Monoid ((<>))
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Network.HTTP.Conduit
@@ -13,9 +14,11 @@ import Network.HTTP.Types
 import qualified Data.Vector as V
 
 import Focus.RightSignature.Common
+#endif
 
 newtype RightSignatureSecretToken = RightSignatureSecretToken { unRightSignatureSecretToken :: Text } deriving (Show, Read, Eq, Ord, FromJSON, ToJSON)
 
+#ifdef FOCUS_BACKEND
 prepackageTemplate :: RightSignatureSecretToken -> Text -> IO (Maybe Text)
 prepackageTemplate tok templateId = do
   let url = "https://rightsignature.com/api/templates/" <> T.unpack templateId <> "/prepackage.json"
@@ -137,7 +140,6 @@ deleteDocument tok guid = do
           return mempty
         Right res' -> return $ responseBody res'
 
-
 makeEmbeddedSigningUrl :: Text -> Text
 makeEmbeddedSigningUrl signerToken = "https://rightsignature.com/signatures/embedded?height=800&rt=" <> signerToken
 
@@ -146,3 +148,4 @@ addSecureToken secretTok req =
   req { requestHeaders = ("api-token", T.encodeUtf8 tok) : (requestHeaders req) }
   where
     tok = unRightSignatureSecretToken secretTok
+#endif

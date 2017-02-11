@@ -1,28 +1,34 @@
-{ mkDerivation, attoparsec, base, base-orphans, bytestring
-, containers, deepseq, dlist, fail, ghc-prim, hashable, HUnit, mtl
-, QuickCheck, quickcheck-instances, scientific, semigroups, stdenv
-, syb, tagged, template-haskell, test-framework
+{ mkDerivation, attoparsec, base, base-compat, base-orphans
+, base16-bytestring, bytestring, containers, deepseq, directory
+, dlist, filepath, generic-deriving, ghc-prim, hashable
+, hashable-time, HUnit, QuickCheck, quickcheck-instances
+, scientific, stdenv, tagged, template-haskell, test-framework
 , test-framework-hunit, test-framework-quickcheck2, text, time
-, transformers, unordered-containers, vector
+, time-locale-compat, unordered-containers, uuid-types, vector
 }:
 mkDerivation {
   pname = "aeson";
-  version = "0.11.2.0";
-  sha256 = "0pi8s9zwirhg00q91sxg429hm22s24c5kg2r7fgcmmmqa55layj4";
-  revision = "1";
-  editedCabalFile = "680affa9ec12880014875ce8281efb2407efde69c30e9a82654e973e5dc2c8a1";
+  version = "1.1.0.0";
+  sha256 = "1048y5spv79lvkpgb23yl9h3xsbf2zyzy6fiaxjblma8crgzq42q";
   libraryHaskellDepends = [
-    attoparsec base bytestring containers deepseq dlist fail ghc-prim
-    hashable mtl scientific semigroups syb tagged template-haskell text
-    time transformers unordered-containers vector
+    attoparsec base base-compat bytestring containers deepseq dlist
+    ghc-prim hashable scientific tagged template-haskell text time
+    time-locale-compat unordered-containers uuid-types vector
   ];
   testHaskellDepends = [
-    attoparsec base base-orphans bytestring containers ghc-prim
-    hashable HUnit QuickCheck quickcheck-instances semigroups tagged
-    template-haskell test-framework test-framework-hunit
-    test-framework-quickcheck2 text time unordered-containers vector
+    attoparsec base base-compat base-orphans base16-bytestring
+    bytestring containers directory dlist filepath generic-deriving
+    ghc-prim hashable hashable-time HUnit QuickCheck
+    quickcheck-instances scientific tagged template-haskell
+    test-framework test-framework-hunit test-framework-quickcheck2 text
+    time time-locale-compat unordered-containers uuid-types vector
   ];
   homepage = "https://github.com/bos/aeson";
   description = "Fast JSON parsing and encoding";
   license = stdenv.lib.licenses.bsd3;
+  doCheck = false;
+  # Export functions used by TH splices so they can be used when TH is unavailable
+  preConfigure = ''
+    sed -i "s/^ *, defaultTaggedObject\$/\0, keyValuePairWith, lookupField, parseTypeMismatch', valueConName/" Data/Aeson/TH.hs
+  '';
 }

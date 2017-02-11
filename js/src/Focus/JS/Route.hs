@@ -1,4 +1,7 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes, PatternGuards, OverloadedStrings, CPP #-}
+{-# LANGUAGE CPP, OverloadedStrings, RankNTypes #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.JS.Route where
 
 import Foreign.JavaScript.TH
@@ -14,7 +17,12 @@ import Data.Map (Map)
 import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 
+#ifdef USE_TEMPLATE_HASKELL
 importJS Unsafe "window['location']['search']" "getWindowLocationSearch_" [t| forall x m. MonadJS x m => m T.Text |]
+#else
+getWindowLocationSearch_ :: MonadJS x m => m T.Text
+getWindowLocationSearch_ = runJS (JSFFI "window['location']['search']") [] >>= fromJS
+#endif
 
 #ifdef ghcjs_HOST_OS
 

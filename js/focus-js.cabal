@@ -94,5 +94,7 @@ library
     Focus.JS.Widget
     Focus.JS.Window
 
-  other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fplugin=Reflex.Optimizer
+  if !os(ios)
+    other-extensions: TemplateHaskell
+    cpp-options: -DUSE_TEMPLATE_HASKELL
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fexpose-all-unfoldings

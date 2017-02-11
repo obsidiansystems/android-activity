@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+echo -ne '\033]0;FRONTEND\007'
+nix-shell --show-trace -A frontendIosSimulator.env --run 'x86_64-apple-darwin14-ghc -i{common,frontend}/src Main -outputdir dist-frontend-ghc -fexpose-all-unfoldings -O2 -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file'

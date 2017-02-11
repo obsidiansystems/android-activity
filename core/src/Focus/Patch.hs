@@ -1,4 +1,7 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
+{-# LANGUAGE CPP, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.Patch where
 
 import Control.Applicative
@@ -156,8 +159,8 @@ deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (MapPatch k a)
 deriving instance (Ord k, Read k, Read a, Read (Patch a)) => Read (MapPatch k a)
-deriving instance (ToJSON k, ToJSON a, ToJSON (Patch a)) => ToJSON (MapPatch k a)
-deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSON (MapPatch k a)
+deriving instance (ToJSONKey k, ToJSON a, ToJSON (Patch a)) => ToJSON (MapPatch k a)
+deriving instance (Ord k, FromJSONKey k, FromJSON a, FromJSON (Patch a)) => FromJSON (MapPatch k a)
 
 instance (Ord k, Patchable a) => Semigroup (MapPatch k a) where
   (MapPatch mp) <> (MapPatch mq) = MapPatch $ Map.unionWith (<>) mp mq
@@ -172,8 +175,21 @@ elemUpsert p v = ElemPatch_Upsert p (Just (patch p v))
 elemUpdate :: Patch a -> ElemPatch a
 elemUpdate p = ElemPatch_Upsert p Nothing
 
+#ifdef USE_TEMPLATE_HASKELL
 makeWrapped ''SetPatch
 makeWrapped ''MapPatch
+#else
+instance SetPatch a_a2Epx ~ t_a2Epw =>
+         Rewrapped (SetPatch a_a2CjN) t_a2Epw
+instance Wrapped (SetPatch a_a2CjN) where
+  type Unwrapped (SetPatch a_a2CjN) = Map a_a2CjN Bool
+  _Wrapped' = iso (\ (SetPatch x_a2Epv) -> x_a2Epv) SetPatch
+instance MapPatch k_a2Ett a_a2Etu ~ t_a2Ets =>
+         Rewrapped (MapPatch k_a2CjK a_a2CjL) t_a2Ets
+instance Wrapped (MapPatch k_a2CjK a_a2CjL) where
+  type Unwrapped (MapPatch k_a2CjK a_a2CjL) = Map k_a2CjK (ElemPatch a_a2CjL)
+  _Wrapped' = iso (\ (MapPatch x_a2Etr) -> x_a2Etr) MapPatch
+#endif
 
 instance Patchable Text
 

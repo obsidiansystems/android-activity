@@ -1,12 +1,23 @@
-{-# LANGUAGE TemplateHaskell, MultiWayIf #-}
+{-# LANGUAGE CPP, MultiWayIf #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Data.RequestInterval where
 import Data.Min
 import Data.Semigroup hiding (Min)
 import qualified Focus.AppendMap as Map
 import Focus.AppendMap (AppendMap)
 import Data.Time
+#ifdef USE_TEMPLATE_HASKELL
 import Focus.Request
 import Control.Lens (makeLenses)
+#else
+import Control.Lens (Lens')
+#endif
+#if !defined(USE_TEMPLATE_HASKELL) || defined(DUMPING_SPLICES)
+import Data.Aeson
+import Focus.Request (HList(..))
+#endif
 
 data RequestInterval = RequestInterval { _requestInterval_point :: Min UTCTime
                                        , _requestInterval_count :: Int
@@ -35,5 +46,30 @@ cropRequestInterval proj (RequestInterval mp c) m =
                 (_,mOld') = Map.split k mOld -- get the rest of the messages we want to keep
              in Map.insert k v (Map.union mOld' mNew) -- put everything back together
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson ''RequestInterval
 makeLenses ''RequestInterval
+#else
+instance ToJSON RequestInterval where
+  toJSON r_a3prn
+    = case r_a3prn of {
+        RequestInterval f_a3pro f_a3prp
+          -> toJSON
+               ("RequestInterval" :: String,
+              toJSON (HCons f_a3pro (HCons f_a3prp HNil))) }
+instance FromJSON RequestInterval where
+  parseJSON v_a3prs
+    = do { (tag'_a3prt, v'_a3pru) <- parseJSON v_a3prs;
+           case tag'_a3prt :: String of
+             "RequestInterval"
+               -> do { HCons f_a3prx (HCons f_a3pry HNil) <- parseJSON v'_a3pru;
+                       return (RequestInterval f_a3prx f_a3pry) }
+             _ -> fail "invalid message" }
+
+requestInterval_point :: Lens' RequestInterval (Min UTCTime)
+requestInterval_point f (RequestInterval a b) = (\a' -> RequestInterval a' b) <$> f a
+{-# INLINE requestInterval_point #-}
+requestInterval_count :: Lens' RequestInterval Int
+requestInterval_count f (RequestInterval a b) = (\b' -> RequestInterval a b') <$> f b
+{-# INLINE requestInterval_count #-}
+#endif
