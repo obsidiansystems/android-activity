@@ -107,14 +107,7 @@ rec {
         library
           exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
-      executableHeader = executableName: mainFile: ''
-        executable ${executableName}
-          main-is: ${if mainFile == null
-                     then ''$(ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
-                     else mainFile
-                    }
-      '';
-      mkCabalFile = haskellPackages: pname: executableName: depends:
+      mkCabalFile = haskellPackages: pname: executableName: depends: src:
         let mkCabalTarget = header: ''
               ${header}
                 hs-source-dirs: .
@@ -129,7 +122,15 @@ rec {
                 if !os(ios)
                   cpp-options: -DUSE_TEMPLATE_HASKELL
             '';
-        in ''
+            executableHeader = executableName: mainFile: ''
+              executable ${executableName}
+                main-is: ${if mainFile == null
+                           then ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
+                           else mainFile
+                          }
+            '';
+        in nixpkgs.runCommand "${pname}.cabal" {} ''
+        cat > "$out" <<EOF
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
@@ -138,20 +139,19 @@ rec {
 
         ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
 
-        $(for x in $(ls | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
+        $(for x in $(ls "${src}" | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
             cat <<INNER_EOF
         ${mkCabalTarget (executableHeader "$x" "$x.hs")}
         INNER_EOF
         done
         )
+        EOF
       '';
 
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-      mkPreConfigure = haskellPackages: pname: executableName: depends: ''
+      mkPreConfigure = pname: cabalFile: /*haskellPackages: pname: executableName: depends: src:*/ ''
         if ! ls | grep ".*\\.cabal$" ; then
-          cat >"${pname}.cabal" <<EOF
-        ${mkCabalFile haskellPackages pname executableName depends}
-        EOF
+          ln -s "${cabalFile}" "${pname}.cabal"
         fi
         cat *.cabal
       '';
@@ -169,7 +169,7 @@ rec {
                 ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
               '';
             } "";
-            preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if static == null then "" else ''ln -sfT ${static} static''}
             '';
@@ -182,6 +182,7 @@ rec {
             isExecutable = true;
             passthru = {
               inherit haskellPackages;
+              cabalFile = mkCabalFile haskellPackages pname "frontend" buildDepends src;
             };
             doHaddock = false;
           })) {};
@@ -282,7 +283,7 @@ rec {
               '';
             } "";
 
-            preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if staticSrc == null then "" else ''ln -sfT ${staticSrc} static''}
             '';
@@ -295,6 +296,7 @@ rec {
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
               haskellPackages = backendHaskellPackages;
+              cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src;
             };
             doHaddock = false;
           })) {};
@@ -310,7 +312,7 @@ rec {
                   ln -sf "${webDriverTestsSrc}"/src/* "$out"/
                 '';
               } "";
-              preConfigure = mkPreConfigure backendHaskellPackages pname "webdriver-tests" buildDepends;
+              preConfigure = mkPreConfigure pname passthru.cabalFile;
               preBuild = ''
                 ln -sfT ${staticSrc} static
               '';
@@ -320,6 +322,7 @@ rec {
               configureFlags = [ ];
               passthru = {
                 haskellPackages = backendHaskellPackages;
+                cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src;
               };
               doHaddock = false;
           })) {};
@@ -345,7 +348,7 @@ rec {
                   '';
                 } "";
 
-                preConfigure = mkPreConfigure backendHaskellPackages pname "backend-tests" buildDepends;
+                preConfigure = mkPreConfigure pname passthru.cabalFile;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
                 '';
@@ -358,6 +361,7 @@ rec {
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
                 passthru = {
                   haskellPackages = backendHaskellPackages;
+                  cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src;
                 };
                 doHaddock = false;
           })) {};
