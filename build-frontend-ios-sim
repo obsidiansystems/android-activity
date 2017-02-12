@@ -5,7 +5,8 @@ echo -ne '\033]0;FRONTEND-IOS-SIM\007'
 
 OLDPWD="$PWD"
 BUILDDIR="$PWD/dist-ios-sim"
-CABAL_FILE="$(nix-build --no-out-link -A frontendIosSimulator.cabalFile)"
+mkdir -p "$BUILDDIR"
+CABAL_FILE="$(nix-build --no-out-link -A frontendIosSimulator.cabalFile --show-trace)"
 TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-sim)"
 function cleanup {
   rm -rf "$TMPDIR"
