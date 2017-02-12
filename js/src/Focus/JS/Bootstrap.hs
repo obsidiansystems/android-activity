@@ -9,7 +9,7 @@
 
 module Focus.JS.Bootstrap where
 
-import Reflex.Dom hiding (button)
+import Reflex.Dom.Core hiding (button)
 
 import Focus.Account
 import Focus.JS.FontAwesome

@@ -5,7 +5,7 @@ module Focus.JS.SmoothieCharts where
 #if 0
 
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 
 import Control.Lens hiding ((.=))
 import Control.Monad

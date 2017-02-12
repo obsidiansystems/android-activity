@@ -18,7 +18,7 @@ import Focus.Intercom.Common
 import Focus.JS.App
 import Focus.JS.Prerender
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 
 data IntercomVisitor
   = IntercomVisitor_Lead -- ^ Leads are anonymous

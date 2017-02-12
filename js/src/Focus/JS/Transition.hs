@@ -10,7 +10,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import GHCJS.DOM.Types (MonadJSM)
 
-import Reflex.Dom
+import Reflex.Dom.Core
 
 data Transition = Transition { transitionProperties :: Map Text (Text, Text, NominalDiffTime), additionalProperties :: Map Text Text }
 

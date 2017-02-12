@@ -343,15 +343,6 @@ self: super: {
       };
     });
     map-syntax = doJailbreak super.map-syntax;
-    websockets = overrideCabal super.websockets (drv: {
-      src = ./websockets;
-      buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
-      jailbreak = true;
-    });
-    websockets-snap = overrideCabal super.websockets-snap (drv: {
-      src = ./websockets-snap;
-      buildDepends = with self; [ snap-core snap-server io-streams ];
-    });
     zlib-enum = doJailbreak super.zlib-enum;
     reflex-jsx = self.callPackage ./reflex-jsx.nix {};
     pontarius-xmpp =

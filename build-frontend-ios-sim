@@ -1,4 +1,34 @@
 #!/usr/bin/env bash
-set -eu -o pipefail
-echo -ne '\033]0;FRONTEND\007'
-nix-shell --show-trace -A frontendIosSimulator.env --run 'x86_64-apple-darwin14-ghc -i{common,frontend}/src Main -outputdir dist-frontend-ghc -fexpose-all-unfoldings -O2 -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file'
+set -euo pipefail
+
+echo -ne '\033]0;FRONTEND-IOS-SIM\007'
+
+OLDPWD="$PWD"
+BUILDDIR="$PWD/dist-ios-sim"
+CABAL_FILE="$(nix-build --no-out-link -A frontendIosSimulator.cabalFile)"
+TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-sim)"
+function cleanup {
+  rm -rf "$TMPDIR"
+}
+trap cleanup EXIT
+
+nix-shell --show-trace -A frontendIosSimulator --run "
+cd "$TMPDIR"
+shopt -s nullglob
+ln -s "$OLDPWD"/{common,frontend}/src{,-bin}/* .
+shopt -u nullglob
+ln -s "$CABAL_FILE" frontend-ios-sim.cabal
+ln -s "$BUILDDIR" dist
+"'
+function setupCompilerEnvironmentPhase {
+  eval "$setupCompilerEnvironmentPhase"
+}
+setupCompilerEnvironmentPhase
+function compileBuildDriverPhase {
+  eval "$compileBuildDriverPhase"
+}
+compileBuildDriverPhase
+eval "$configurePhase"
+set -x
+eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build frontend /'\'')"
+'

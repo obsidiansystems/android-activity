@@ -21,7 +21,7 @@ import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import Reflex.Dom hiding (Delete)
+import Reflex.Dom.Core hiding (Delete)
 
 import Focus.App
 import Focus.Highlight
@@ -391,9 +391,9 @@ elAttrWithoutPropagation' :: forall t m a. (DomBuilder t m, DomBuilderSpace m ~ 
                           -> m (Element EventResult (DomBuilderSpace m) t, a)
 elAttrWithoutPropagation' tagName attrs i = do
   let attrs' = Map.mapKeys (AttributeName Nothing) attrs
-  let f = GhcjsEventFilter $ \_ -> return (Reflex.Dom.stopPropagation, return $ Just $ EventResult ())
+  let f = GhcjsEventFilter $ \_ -> return (Reflex.Dom.Core.stopPropagation, return $ Just $ EventResult ())
       cfg = (def :: ElementConfig EventResult t m)
         & elementConfig_initialAttributes .~ attrs'
         & elementConfig_modifyAttributes .~ never
         & elementConfig_eventSpec . ghcjsEventSpec_filters .~ DMap.singleton Click f
-  Reflex.Dom.element tagName cfg i
+  Reflex.Dom.Core.element tagName cfg i

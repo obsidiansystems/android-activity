@@ -12,7 +12,7 @@ import GHCJS.DOM.Types
 import qualified GHCJS.DOM.Element as E
 import qualified GHCJS.DOM.EventM as E
 import qualified GHCJS.DOM.KeyboardEvent as E
-import Reflex.Dom
+import Reflex.Dom.Core
 
 data KeyModifier = KeyModifier_Alt
                  | KeyModifier_Ctrl

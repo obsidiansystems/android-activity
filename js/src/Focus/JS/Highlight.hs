@@ -4,7 +4,7 @@ module Focus.JS.Highlight where
 import Focus.Highlight
 import Control.Monad
 import Data.Text (Text)
-import Reflex.Dom
+import Reflex.Dom.Core
 
 dynHighlightedText :: (DomBuilder t m, PostBuild t m, MonadHold t m)
                    => Dynamic t HighlightedText

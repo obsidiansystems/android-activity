@@ -15,9 +15,11 @@ rec {
   inherit tryReflex nixpkgs cabal2nixResult;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
+
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
+
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
   filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
   mkDerivation = nixpkgs.lib.makeOverridable (
@@ -52,6 +54,13 @@ rec {
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
+      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+      frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
+      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+        overrides = sharedOverrides;
+      };
+
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
         // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
              focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
@@ -71,6 +80,7 @@ rec {
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
              touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
            };
+
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
           crypto-numbers = self.mkDerivation ({
@@ -94,42 +104,51 @@ rec {
           focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
           focus-client = dontHaddock (self.callPackage ./client {});
           focus-test = dontHaddock (self.callPackage ./test {});
+          websockets = overrideCabal super.websockets (drv: {
+            src = ./websockets;
+            buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
+            jailbreak = true;
+          });
+          websockets-snap = overrideCabal super.websockets-snap (drv: {
+            src = ./websockets-snap;
+            buildDepends = with self; [ snap-core snap-server io-streams ];
+          });
         };
       }).override { overrides = haskellPackagesOverrides; };
-      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
-      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
-      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
-        overrides = sharedOverrides;
-      };
+
+
       mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
 
       libraryHeader = ''
         library
           exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
-      executableHeader = executableName: mainFile: ''
-        executable ${executableName}
-          main-is: ${if mainFile == null
-                     then ''$(ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
-                     else mainFile
-                    }
-      '';
-      mkCabalFile = haskellPackages: pname: executableName: depends:
+      mkCabalFile = haskellPackages: pname: executableName: depends: src:
         let mkCabalTarget = header: ''
               ${header}
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0"
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts, NondecreasingIndentation
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
-                if !os(ios)
-                  cpp-options: -DUSE_TEMPLATE_HASKELL
+                if os(ios)
+                  cpp-options: -DUSE_WKWEBVIEW
+                else
+                  cpp-options: -DUSE_TEMPLATE_HASKELL -DUSE_WARP
             '';
-        in ''
+            executableHeader = executableName: mainFile: ''
+              executable ${executableName}
+                main-is: ${if mainFile == null
+                           then ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
+                           else mainFile
+                          }
+            '';
+        in nixpkgs.runCommand "${pname}.cabal" {} ''
+        cat > "$out" <<EOF
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
@@ -138,20 +157,19 @@ rec {
 
         ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
 
-        $(for x in $(ls | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
+        $(for x in $(ls "${src}" | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
             cat <<INNER_EOF
         ${mkCabalTarget (executableHeader "$x" "$x.hs")}
         INNER_EOF
         done
         )
+        EOF
       '';
 
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-      mkPreConfigure = haskellPackages: pname: executableName: depends: ''
+      mkPreConfigure = pname: cabalFile: /*haskellPackages: pname: executableName: depends: src:*/ ''
         if ! ls | grep ".*\\.cabal$" ; then
-          cat >"${pname}.cabal" <<EOF
-        ${mkCabalFile haskellPackages pname executableName depends}
-        EOF
+          ln -s "${cabalFile}" "${pname}.cabal"
         fi
         cat *.cabal
       '';
@@ -169,7 +187,7 @@ rec {
                 ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
               '';
             } "";
-            preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if static == null then "" else ''ln -sfT ${static} static''}
             '';
@@ -182,6 +200,7 @@ rec {
             isExecutable = true;
             passthru = {
               inherit haskellPackages;
+              cabalFile = mkCabalFile haskellPackages pname "frontend" buildDepends src;
             };
             doHaddock = false;
           })) {};
@@ -283,7 +302,7 @@ rec {
               '';
             } "";
 
-            preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if staticSrc == null then "" else ''ln -sfT ${staticSrc} static''}
             '';
@@ -296,6 +315,7 @@ rec {
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
               haskellPackages = backendHaskellPackages;
+              cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src;
             };
             doHaddock = false;
           })) {};
@@ -311,7 +331,7 @@ rec {
                   ln -sf "${webDriverTestsSrc}"/src/* "$out"/
                 '';
               } "";
-              preConfigure = mkPreConfigure backendHaskellPackages pname "webdriver-tests" buildDepends;
+              preConfigure = mkPreConfigure pname passthru.cabalFile;
               preBuild = ''
                 ln -sfT ${staticSrc} static
               '';
@@ -321,6 +341,7 @@ rec {
               configureFlags = [ ];
               passthru = {
                 haskellPackages = backendHaskellPackages;
+                cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src;
               };
               doHaddock = false;
           })) {};
@@ -346,7 +367,7 @@ rec {
                   '';
                 } "";
 
-                preConfigure = mkPreConfigure backendHaskellPackages pname "backend-tests" buildDepends;
+                preConfigure = mkPreConfigure pname passthru.cabalFile;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
                 '';
@@ -359,13 +380,72 @@ rec {
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
                 passthru = {
                   haskellPackages = backendHaskellPackages;
+                  cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src;
                 };
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
           inherit staticAssets;
-          frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
-          frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc;
+          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc;
+          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
+            postFixup =
+              let infoPlist = builtins.toFile "Info.plist" ''
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                    <plist version="1.0">
+                    <dict>
+                      <key>CFBundleDevelopmentRegion</key>
+                      <string>en</string>
+                      <key>CFBundleExecutable</key>
+                      <string>${drv.pname}</string>
+                      <key>CFBundleIdentifier</key>
+                      <string>${drv.pname}</string>
+                      <key>CFBundleInfoDictionaryVersion</key>
+                      <string>6.0</string>
+                      <key>CFBundleName</key>
+                      <string>reflex-todomvc</string>
+                      <key>CFBundlePackageType</key>
+                      <string>APPL</string>
+                      <key>CFBundleShortVersionString</key>
+                      <string>1.0</string>
+                      <key>CFBundleVersion</key>
+                      <string>1</string>
+                      <key>LSRequiresIPhoneOS</key>
+                      <true/>
+                      <key>UILaunchStoryboardName</key>
+                      <string>LaunchScreen</string>
+                      <key>UIRequiredDeviceCapabilities</key>
+                      <array>
+                        <string>armv7</string>
+                      </array>
+                      <key>UIDeviceFamily</key>
+                      <array>
+                        <integer>1</integer>
+                        <integer>2</integer>
+                      </array>
+                      <key>UISupportedInterfaceOrientations</key>
+                      <array>
+                        <string>UIInterfaceOrientationPortrait</string>
+                        <string>UIInterfaceOrientationLandscapeLeft</string>
+                        <string>UIInterfaceOrientationLandscapeRight</string>
+                      </array>
+                      <key>UISupportedInterfaceOrientations~ipad</key>
+                      <array>
+                        <string>UIInterfaceOrientationPortrait</string>
+                        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+                        <string>UIInterfaceOrientationLandscapeLeft</string>
+                        <string>UIInterfaceOrientationLandscapeRight</string>
+                      </array>
+                    </dict>
+                    </plist>
+                  '';
+              in ''
+              mkdir "$out/${drv.pname}.app"
+              ln -s "${infoPlist}" "$out/${drv.pname}.app/"
+              ln -s "../bin/${drv.pname}" "$out/${drv.pname}.app/"
+            '';
+            configureFlags = (drv.configureFlags or []) ++ [ "-DUSE_WKWEBVIEW" ];
+          });
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];

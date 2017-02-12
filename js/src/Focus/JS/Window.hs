@@ -7,7 +7,7 @@ import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Types as DOM
 import qualified GHCJS.DOM.EventM as DOM
 import qualified GHCJS.DOM.Window as DOM
-import Reflex.Dom
+import Reflex.Dom.Core
 import Control.Monad
 import Control.Monad.Fix
 
