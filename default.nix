@@ -234,33 +234,34 @@ rec {
           ln -s "$backend/bin/"* "$out"
           ln -s "$frontendJsAssets" "$out/frontendJs.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
-          # ln -s "$androidApp" "$out/android"
+          ln -s "$androidApp" "$out/android"
           if [ -n "''${emails+x}" ] ; then
             ln -s "$emails" "$out/emails"
           fi
         '';
-        # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
-        # androidApp = nixpkgs.androidenv.buildApp {
-        #   name = appName;
-        #   src = androidSrc;
-        #   platformVersions = [ "23" ];
-        #   useGoogleAPIs = false;
-        #   release = true;
-        #   keyStore = ./keystore;
-        #   keyAlias = "focus";
-        #   keyStorePassword = "password";
-        #   keyAliasPassword = "password";
-        # };
-        # androidEmulate = nixpkgs.androidenv.emulateApp {
-        #   name = appName;
-        #   app = androidApp;
-        #   platformVersion = "23";
-        #   enableGPU = true;
-        #   abiVersion = "x86_64";
-        #   useGoogleAPIs = false;
-        #   package = androidPackagePrefix + "." + appName;
-        #   activity = ".MainActivity";
-        # };
+        androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix;}; # frontend = frontend_.unminified; };
+        androidApp = nixpkgs.androidenv.buildApp {
+          name = appName;
+          src = androidSrc;
+          platformVersions = [ "23" ];
+          useGoogleAPIs = false;
+          useNDK = true;
+          release = true;
+          keyStore = ./keystore;
+          keyAlias = "focus";
+          keyStorePassword = "password";
+          keyAliasPassword = "password";
+        };
+        androidEmulate = nixpkgs.androidenv.emulateApp {
+          name = appName;
+          app = androidApp;
+          platformVersion = "23";
+          enableGPU = true;
+          abiVersion = "x86_64";
+          useGoogleAPIs = false;
+          package = androidPackagePrefix + "." + appName;
+          activity = ".MainActivity";
+        };
         backend =
           backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
             pname = "${appName}-backend";
