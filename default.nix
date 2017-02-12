@@ -20,68 +20,6 @@ rec {
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
 
-  frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
-  frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
-  backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
-  iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
-    overrides = sharedOverrides;
-  };
-
-  sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-    // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
-         focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
-         focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
-         focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
-         focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
-         focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
-         focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
-           doHaddock = false;
-           libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
-         });
-         focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
-         focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
-         focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
-         email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
-         unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
-         hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
-         touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
-       };
-
-  extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
-    overrides = self: super: sharedOverrides self super // {
-      crypto-numbers = self.mkDerivation ({
-        pname = "crypto-numbers";
-        version = "0.2.2";
-        sha256 = "1ia39al01hb65h23ql0mr5vwzj8slv98i7a22cix8p0b6an1w3vv";
-        buildDepends = with self; [ crypto-random vector ];
-        testDepends = with self; [
-          byteable crypto-random HUnit QuickCheck test-framework
-          test-framework-hunit test-framework-quickcheck2 vector
-        ];
-        homepage = "http://github.com/vincenthz/hs-crypto-numbers";
-        description = "Cryptographic numbers: functions and algorithms";
-        license = nixpkgs.stdenv.lib.licenses.bsd3;
-        platforms = self.ghc.meta.platforms;
-      });
-    };
-  }).override { overrides = haskellPackagesOverrides; };
-  extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
-    overrides = self: super: sharedOverrides self super // {
-      focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
-      focus-client = dontHaddock (self.callPackage ./client {});
-      focus-test = dontHaddock (self.callPackage ./test {});
-      websockets = overrideCabal super.websockets (drv: {
-        src = ./websockets;
-        buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
-        jailbreak = true;
-      });
-      websockets-snap = overrideCabal super.websockets-snap (drv: {
-        src = ./websockets-snap;
-        buildDepends = with self; [ snap-core snap-server io-streams ];
-      });
-    };
-  }).override { overrides = haskellPackagesOverrides; };
-
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
   filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
   mkDerivation = nixpkgs.lib.makeOverridable (
@@ -115,6 +53,69 @@ rec {
       staticSrc = filterGitSource ../static;
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
+
+      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+      frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
+      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+        overrides = sharedOverrides;
+      };
+
+      sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
+        // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
+             focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
+             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
+             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
+             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
+             focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
+               doHaddock = false;
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
+             });
+             focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
+             focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
+             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
+             email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
+             unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
+             hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
+             touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
+           };
+
+      extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
+        overrides = self: super: sharedOverrides self super // {
+          crypto-numbers = self.mkDerivation ({
+            pname = "crypto-numbers";
+            version = "0.2.2";
+            sha256 = "1ia39al01hb65h23ql0mr5vwzj8slv98i7a22cix8p0b6an1w3vv";
+            buildDepends = with self; [ crypto-random vector ];
+            testDepends = with self; [
+              byteable crypto-random HUnit QuickCheck test-framework
+              test-framework-hunit test-framework-quickcheck2 vector
+            ];
+            homepage = "http://github.com/vincenthz/hs-crypto-numbers";
+            description = "Cryptographic numbers: functions and algorithms";
+            license = nixpkgs.stdenv.lib.licenses.bsd3;
+            platforms = self.ghc.meta.platforms;
+          });
+        };
+      }).override { overrides = haskellPackagesOverrides; };
+      extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
+        overrides = self: super: sharedOverrides self super // {
+          focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
+          focus-client = dontHaddock (self.callPackage ./client {});
+          focus-test = dontHaddock (self.callPackage ./test {});
+          websockets = overrideCabal super.websockets (drv: {
+            src = ./websockets;
+            buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
+            jailbreak = true;
+          });
+          websockets-snap = overrideCabal super.websockets-snap (drv: {
+            src = ./websockets-snap;
+            buildDepends = with self; [ snap-core snap-server io-streams ];
+          });
+        };
+      }).override { overrides = haskellPackagesOverrides; };
+
 
       mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
 

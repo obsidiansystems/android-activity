@@ -163,6 +163,8 @@ class PostgresRaw m => PostgresLargeObject m where
   newLargeObjectLBS :: LBS.ByteString -> m (LargeObjectId, Int)
   -- | Stream the contents of a database large object to the given output stream. Useful with Snap's addToOutput.
   streamLargeObject :: LargeObjectId -> OutputStream Builder -> m ()
+  -- | Stream the contents of a database large object to the given output stream. Useful with Snap's addToOutput.
+  streamLargeObjectRange :: LargeObjectId -> Int -> Int -> OutputStream Builder -> m ()
   -- | Deletes the large object with the specified object id.
   deleteLargeObject :: LargeObjectId -> m ()
 
@@ -206,12 +208,25 @@ instance (MonadIO m, MonadBaseControl IO m) => PostgresLargeObject (DbPersist Po
           _ -> do
             liftIO $ Streams.write (Just $ byteString chunk) os
             again
-    where
-      -- Read a chunk of an opened large object. Returns Nothing when there's an error such as the end of file.
-      -- NB: postgresql-simple seems to have a less useful type here than postgresql-libpq...
-      readLargeObject :: LoFd -> Int -> DbPersist Postgresql m BS.ByteString
-      readLargeObject lofd size = liftWithConn $ \conn -> Sql.loRead conn lofd size
+  streamLargeObjectRange oid start end os =
+    withLargeObject oid ReadMode $ \lofd -> do
+      liftWithConn $ \conn -> Sql.loSeek conn lofd Sql.AbsoluteSeek start
+      let again n = do
+            let nextChunkSize = min 8192 (end - n)
+            chunk <- readLargeObject lofd nextChunkSize
+            case BS.length chunk of
+              0 -> return ()
+              k -> do
+                liftIO $ Streams.write (Just $ byteString chunk) os
+                again (n + k)
+      again start
+
   deleteLargeObject oid = liftWithConn $ \conn -> Sql.loUnlink conn $ toOid oid
+
+-- Read a chunk of an opened large object. Returns Nothing when there's an error such as the end of file.
+-- NB: postgresql-simple seems to have a less useful type here than postgresql-libpq...
+readLargeObject :: MonadIO m => LoFd -> Int -> DbPersist Postgresql m BS.ByteString
+readLargeObject lofd size = liftWithConn $ \conn -> Sql.loRead conn lofd size
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (StateT s m) where
   newEmptyLargeObject = lift newEmptyLargeObject
@@ -224,6 +239,7 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (StateT s m) wh
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  streamLargeObjectRange oid start end os = lift (streamLargeObjectRange oid start end os)
   deleteLargeObject = lift . deleteLargeObject
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (Strict.StateT s m) where
@@ -237,6 +253,7 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (Strict.StateT 
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  streamLargeObjectRange oid start end os = lift (streamLargeObjectRange oid start end os)
   deleteLargeObject = lift . deleteLargeObject
 
 instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (MaybeT m) where
@@ -247,6 +264,7 @@ instance (Monad m, PostgresLargeObject m) => PostgresLargeObject (MaybeT m) wher
   newLargeObjectBS = lift . newLargeObjectBS
   newLargeObjectLBS = lift . newLargeObjectLBS
   streamLargeObject oid os = lift (streamLargeObject oid os)
+  streamLargeObjectRange oid start end os = lift (streamLargeObjectRange oid start end os)
   deleteLargeObject = lift . deleteLargeObject
 
 withStreamedLargeObject :: (PostgresLargeObject m, MonadIO m) => LargeObjectId -> (LBS.ByteString -> IO ()) -> m ()

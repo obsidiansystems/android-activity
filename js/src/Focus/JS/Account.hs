@@ -6,6 +6,7 @@ import Focus.JS.LocalStorage
 
 import Control.Monad
 import Control.Monad.Trans.Maybe
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Text (Text)
@@ -42,13 +43,17 @@ withPermanentAuthTokenFromCookie doc key a = do
   return ()
 
 setPermanentAuthTokenCookie :: (MonadJSM m, HasJSContext m) => DOM.Document -> Text -> Maybe (Signed (AuthToken f)) -> m ()
-setPermanentAuthTokenCookie doc key mt = do
+setPermanentAuthTokenCookie doc = setPermanentAuthTokenCookieWithLocation doc Nothing
+
+setPermanentAuthTokenCookieWithLocation :: (MonadJSM m, HasJSContext m) => DOM.Document  -> Maybe ByteString -> Text -> Maybe (Signed (AuthToken f)) -> m ()
+setPermanentAuthTokenCookieWithLocation doc loc key mt = do
   currentProtocol <- Reflex.Dom.Core.getLocationProtocol
   DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mt of
     Nothing -> def
       { setCookieName = encodeUtf8 key
       , setCookieValue = ""
       , setCookieExpires = Just $ posixSecondsToUTCTime 0
+      , setCookieDomain = loc
       }
     Just (Signed t) -> def
       { setCookieName = encodeUtf8 key
@@ -63,6 +68,7 @@ setPermanentAuthTokenCookie doc key mt = do
         -- because we don't take dangerous actions simply by executing a GET
         -- request.
       , setCookieSameSite = Just sameSiteLax
+      , setCookieDomain = loc
       }
 
 -- | Retrieve the current auth token from the given cookie
