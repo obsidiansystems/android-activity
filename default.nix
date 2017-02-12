@@ -106,6 +106,7 @@ rec {
         };
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+      frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
         overrides = sharedOverrides;
@@ -376,7 +377,7 @@ rec {
           })) {};
           frontend = frontend_.unminified;
           inherit staticAssets;
-          frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
+          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc;
           frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''
