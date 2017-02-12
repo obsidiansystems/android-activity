@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, TypeFamilies #-}
 module Focus.JS.TextArea where
 
-import Reflex.Dom
+import Reflex.Dom.Core
 import GHCJS.DOM.HTMLTextAreaElement (HTMLTextAreaElement)
 import qualified GHCJS.DOM.HTMLTextAreaElement as TA
 import qualified GHCJS.DOM.Element as El

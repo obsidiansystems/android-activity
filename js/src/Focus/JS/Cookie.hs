@@ -13,12 +13,12 @@ import Data.Time.Clock.POSIX
 import Data.Time.Calendar
 import GHCJS.DOM.Types (MonadJSM)
 import qualified GHCJS.DOM.Document as DOM
-import Reflex.Dom
+import Reflex.Dom.Core
 import Web.Cookie
 
 setPermanentCookie :: (MonadJSM m, HasJSContext m) => DOM.Document -> Text -> Maybe Text -> m ()
 setPermanentCookie doc key mv = do
-  currentProtocol <- Reflex.Dom.getLocationProtocol
+  currentProtocol <- Reflex.Dom.Core.getLocationProtocol
   DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mv of
     Nothing -> def
       { setCookieName = encodeUtf8 key

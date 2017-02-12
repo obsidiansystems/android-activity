@@ -2,7 +2,7 @@
 
 module Focus.JS.Chart (pie) where
 
-import Reflex.Dom
+import Reflex.Dom.Core
 import Data.Text (Text)
 import Data.Monoid
 import qualified Data.Text as T

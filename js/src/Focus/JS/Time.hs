@@ -3,7 +3,7 @@ module Focus.JS.Time where
 
 import Focus.JS.Request (mkBinaryGet)
 import Focus.Time
-import Reflex.Dom
+import Reflex.Dom.Core
 
 import Control.Concurrent
 import Control.Monad

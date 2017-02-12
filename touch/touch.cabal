@@ -16,7 +16,7 @@ library
                  containers,
                  data-default,
                  ghcjs-dom,
-                 reflex-dom,
+                 reflex-dom-core,
                  these,
                  time
 

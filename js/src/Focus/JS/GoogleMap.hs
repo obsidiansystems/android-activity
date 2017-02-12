@@ -24,7 +24,7 @@ import qualified Data.Text as T
 
 import Focus.JS.FontAwesome (icon)
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 #ifdef ghcjs_HOST_OS
 import GHCJS.DOM.Types hiding (Event, fromJSString, Text)
 #else

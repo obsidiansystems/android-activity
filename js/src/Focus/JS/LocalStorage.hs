@@ -13,7 +13,7 @@ import Foreign.JavaScript.TH
 import GHCJS.DOM.Types (MonadJSM)
 import GHCJS.DOM.Storage
 import GHCJS.DOM.Window (getLocalStorageUnchecked)
-import Reflex.Dom hiding (Value)
+import Reflex.Dom.Core hiding (Value)
 
 askLocalStorage :: (HasJSContext m, MonadJSM m) => m Storage
 askLocalStorage = do

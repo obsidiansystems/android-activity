@@ -9,7 +9,7 @@ import Focus.JS.App
 import Control.Monad.Reader
 import Data.Constraint
 import Reflex.Host.Class
-import Reflex.Dom
+import Reflex.Dom.Core
 
 import Focus.JS.PreprocessedCSSClasses
 

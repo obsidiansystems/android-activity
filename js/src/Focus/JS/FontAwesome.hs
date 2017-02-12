@@ -2,7 +2,7 @@
 module Focus.JS.FontAwesome where
 
 import Data.Map (Map)
-import Reflex.Dom
+import Reflex.Dom.Core
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T

@@ -15,7 +15,7 @@ import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
 
 import Reflex
-import Reflex.Dom hiding (webSocket)
+import Reflex.Dom.Core hiding (webSocket)
 import qualified Reflex.Dom.WebSocket as RDWS
 
 import Control.Lens

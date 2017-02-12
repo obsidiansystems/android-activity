@@ -20,7 +20,7 @@ import Focus.Sign
 import GHCJS.DOM.Types (MonadJSM)
 import qualified GHCJS.DOM.Document as DOM
 import qualified GHCJS.DOM.Storage as DOM
-import Reflex.Dom
+import Reflex.Dom.Core
 import Web.Cookie
 
 --TODO: A more general cookie API is in Focus.JS.Cookie and this module should use that for cookie management
@@ -43,7 +43,7 @@ withPermanentAuthTokenFromCookie doc key a = do
 
 setPermanentAuthTokenCookie :: (MonadJSM m, HasJSContext m) => DOM.Document -> Text -> Maybe (Signed (AuthToken f)) -> m ()
 setPermanentAuthTokenCookie doc key mt = do
-  currentProtocol <- Reflex.Dom.getLocationProtocol
+  currentProtocol <- Reflex.Dom.Core.getLocationProtocol
   DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mt of
     Nothing -> def
       { setCookieName = encodeUtf8 key

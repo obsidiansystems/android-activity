@@ -21,7 +21,7 @@ import Data.Maybe
 import Data.Semigroup ((<>))
 import Data.These
 import Data.Time
-import Reflex.Dom hiding (preventDefault)
+import Reflex.Dom.Core hiding (preventDefault)
 
 import GHCJS.DOM.EventM (on, preventDefault)
 import GHCJS.DOM.Element (touchMove, touchEnd)
