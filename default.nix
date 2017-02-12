@@ -443,7 +443,6 @@ rec {
               ln -s "${infoPlist}" "$out/${drv.pname}.app/"
               ln -s "../bin/${drv.pname}" "$out/${drv.pname}.app/"
             '';
-            configureFlags = (drv.configureFlags or []) ++ [ "-DUSE_WKWEBVIEW" ];
           });
           nixpkgs = pkgs;
           backendService = {user, port}: {
