@@ -113,6 +113,7 @@ rec {
             src = ./websockets-snap;
             buildDepends = with self; [ snap-core snap-server io-streams ];
           });
+          snap-stream = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
         };
       }).override { overrides = haskellPackagesOverrides; };
 
