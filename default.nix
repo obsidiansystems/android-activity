@@ -94,6 +94,15 @@ rec {
           focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
           focus-client = dontHaddock (self.callPackage ./client {});
           focus-test = dontHaddock (self.callPackage ./test {});
+          websockets = overrideCabal super.websockets (drv: {
+            src = ./websockets;
+            buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
+            jailbreak = true;
+          });
+          websockets-snap = overrideCabal super.websockets-snap (drv: {
+            src = ./websockets-snap;
+            buildDepends = with self; [ snap-core snap-server io-streams ];
+          });
         };
       }).override { overrides = haskellPackagesOverrides; };
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
