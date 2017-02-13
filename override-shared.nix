@@ -50,6 +50,7 @@ self: super: {
       homepage = "http://snapframework.com/";
       description = "Top-level package for the Snap Web Framework";
       license = stdenv.lib.licenses.bsd3;
+      jailbreak = true;
     }) {};
 
     snap-core = dontCheck (self.callPackage ({ mkDerivation, attoparsec, base, bytestring, bytestring-builder
@@ -119,6 +120,7 @@ self: super: {
        description = "A web server for the Snap Framework";
        license = stdenv.lib.licenses.bsd3;
        hydraPlatforms = stdenv.lib.platforms.none;
+       jailbreak = true;
      }) {};
 
     io-streams-haproxy = self.callPackage (
@@ -182,6 +184,7 @@ self: super: {
         homepage = "http://snapframework.com/";
         description = "An Haskell template system supporting both HTML5 and XML";
         license = stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       }) {});
     xmlhtml = self.callPackage (
       { mkDerivation, base, blaze-builder, blaze-html, blaze-markup
@@ -208,6 +211,7 @@ self: super: {
         homepage = "https://github.com/snapframework/xmlhtml";
         description = "XML parser and renderer with HTML 5 quirks mode";
         license = stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       }) {};
     mustache = overrideCabal super.mustache (drv: {
       doCheck = false;
@@ -391,5 +395,8 @@ self: super: {
         rev = "e9d2c7a7087ca3a88e517dafc6d2de4323fb177e";
         sha256 = "0vsvb5k9k42r5hpdqr87qy0yahqapyldzmdqr5nxpkyyddsn2bfs";
       };
+    });
+    diagrams-lib = overrideCabal super.diagrams-lib (drv: {
+      jailbreak = true;
     });
   }
