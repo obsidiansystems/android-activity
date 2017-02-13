@@ -42,7 +42,6 @@ library
     http-types,
     jsaddle,
     lens,
-    loch-th,
     mmorph,
     monad-control,
     mtl,

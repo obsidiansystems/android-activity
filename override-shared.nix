@@ -399,4 +399,7 @@ self: super: {
     diagrams-lib = overrideCabal super.diagrams-lib (drv: {
       jailbreak = true;
     });
+    th-expand-syns = overrideCabal super.th-expand-syns (drv: {
+      jailbreak = true;
+    });
   }

@@ -22,7 +22,6 @@ library
                , exceptions
                , http-types
                , lens
-               , loch-th
                , mtl
                , network
                , semigroups

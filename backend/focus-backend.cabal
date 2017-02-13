@@ -28,7 +28,6 @@ library
     groundhog-th,
     groundhog-postgresql,
     lens,
-    loch-th,
     mtl,
     network,
     postgresql-simple,

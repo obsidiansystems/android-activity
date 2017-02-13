@@ -34,7 +34,6 @@ library
                , haskell-src-exts
                , http-types
                , lens
-               , loch-th
                , mtl
                , mime-mail
                , monad-control

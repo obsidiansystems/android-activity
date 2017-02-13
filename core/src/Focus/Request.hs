@@ -53,8 +53,6 @@ import Network.URI
 import Reflex hiding (HList (..), Request)
 import Data.Proxy
 
-import Debug.Trace.LocationTH
-
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
 
