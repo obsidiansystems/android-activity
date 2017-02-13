@@ -4,7 +4,7 @@
 module Focus.Aeson.Orphans where
 
 import Data.Aeson
-import Data.Aeson.Types.Internal (Parser)
+import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Base64 as B64
