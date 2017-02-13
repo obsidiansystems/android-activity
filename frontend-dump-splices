@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -DUSE_WARP -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -ddump-splices -ddump-to-file -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -j4 -O0 -no-link -fforce-recomp'
+nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -DUSE_WARP -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -ddump-splices -ddump-to-file -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -j4 -O0 -no-link'
+for x in $(find frontend/src-bin -name '*.hs') ; do
+    nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src '"$x"' -DUSE_WARP -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -ddump-splices -ddump-to-file -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -j4 -O0 -no-link'
+done
 
 for x in $(cd dist-frontend-dump-splices ; find . -name '*.dump-splices') ; do
     # See ./dump-splices for an explanation of these sed transformations
