@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -DUSE_WARP -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-splices -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -no-link' | sed -e 's/^    //' -e '/Splicing [a-z]*$/,/^  ======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}[^ ]\)/\1\n\2/;P;D}'
-# See ./dump-splices for an explanation of these sed transformations
+nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -DUSE_WARP -DUSE_TEMPLATE_HASKELL -DDUMPING_SPLICES -outputdir dist-frontend-dump-splices -ddump-splices -ddump-to-file -dth-dec-file -framework-path /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks -O0 -no-link -fforce-recomp'
+
+for x in $(cd dist-frontend-dump-splices ; find . -name '*.dump-splices') ; do
+    # See ./dump-splices for an explanation of these sed transformations
+    cat "dist-frontend-dump-splices/$x" | sed -e 's/^    //' -e '/Splicing [a-z]*$/,/^  ======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}[^ ]\)/\1\n\2/;P;D}' > "$(echo "$x" | sed 's/.dump-splices$/.splices.hs/')"
+done
