@@ -387,7 +387,7 @@ rec {
           })) {};
           frontend = frontend_.unminified;
           inherit staticAssets;
-          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc;
+          frontendGhc = addBuildDepends (mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc) (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle-warp ]);
           frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''

@@ -6,6 +6,7 @@ module Focus.Patch where
 
 import Control.Applicative
 import Control.Lens
+import Focus.Aeson.Orphans ()
 import Data.Aeson
 import Data.AppendMap (AppendMap (..))
 import qualified Data.AppendMap as AppendMap
@@ -159,8 +160,8 @@ deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (MapPatch k a)
 deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (MapPatch k a)
 deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (MapPatch k a)
 deriving instance (Ord k, Read k, Read a, Read (Patch a)) => Read (MapPatch k a)
-deriving instance (ToJSONKey k, ToJSON a, ToJSON (Patch a)) => ToJSON (MapPatch k a)
-deriving instance (Ord k, FromJSONKey k, FromJSON a, FromJSON (Patch a)) => FromJSON (MapPatch k a)
+deriving instance (ToJSON k, ToJSON a, ToJSON (Patch a)) => ToJSON (MapPatch k a)
+deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSON (MapPatch k a)
 
 instance (Ord k, Patchable a) => Semigroup (MapPatch k a) where
   (MapPatch mp) <> (MapPatch mq) = MapPatch $ Map.unionWith (<>) mp mq
