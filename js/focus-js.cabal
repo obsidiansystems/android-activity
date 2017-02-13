@@ -56,7 +56,6 @@ library
     safe,
     safe,
     semigroups,
-    stripe-core,
     template-haskell,
     text,
     these,
@@ -93,9 +92,10 @@ library
     Focus.JS.Widget
     Focus.JS.Window
 
-  if !os(ios) && arch(x86_64)
+  if os(ios)
     build-depends: jsaddle-wkwebview
   else
-    other-extensions: TemplateHaskell
-    cpp-options: -DUSE_TEMPLATE_HASKELL
+    if arch(x86_64)
+      other-extensions: TemplateHaskell
+      cpp-options: -DUSE_TEMPLATE_HASKELL
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fexpose-all-unfoldings

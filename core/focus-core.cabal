@@ -84,11 +84,11 @@ library
     , Focus.GoogleAnalytics
     , Focus.Intercom
     , Focus.Intercom.Common
-    , Focus.Schema.Gitlab
+--    , Focus.Schema.Gitlab
     , Focus.RightSignature
     , Focus.RightSignature.Common
-    , Focus.Schema.Pivotal
-    , Focus.HereMaps
+--    , Focus.Schema.Pivotal
+--    , Focus.HereMaps
 
   if !os(ios) && arch(x86_64)
     other-extensions: TemplateHaskell

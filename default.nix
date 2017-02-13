@@ -64,8 +64,8 @@ rec {
         };
       };
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
-        overrides = self: super: sharedOverrides self super // {
-          focus-js = addBuildDepend super.focus-js self.jsaddle-wkwebview;
+        overrides = self: super: let new = sharedOverrides self super; in new // {
+          focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
         };
       };
 
