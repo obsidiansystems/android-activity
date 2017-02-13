@@ -4,6 +4,8 @@
 #endif
 module Focus.Schema.Gitlab where
 
+{-
+
 import Data.Aeson.TH
 import Data.Text (Text)
 
@@ -752,3 +754,5 @@ instance FromJSON Push where
                     "Object"
                     (valueConName other_a1GNK)
 #endif
+
+-}
