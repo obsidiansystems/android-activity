@@ -58,7 +58,9 @@ rec {
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
-        overrides = sharedOverrides;
+        overrides = self: super: sharedOverrides self super // {
+          focus-js = addBuildDepend super.focus-js self.jsaddle-wkwebview;
+        };
       };
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
@@ -70,7 +72,7 @@ rec {
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
              focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
                doHaddock = false;
-               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else [self.jsaddle-wkwebview]);
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
              });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
