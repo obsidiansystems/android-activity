@@ -6,7 +6,7 @@ module Focus.Patch where
 
 import Control.Applicative
 import Control.Lens
-import Focus.Aeson.Orphans ()
+import Focus.Aeson.Orphans
 import Data.Aeson
 import Data.AppendMap (AppendMap (..))
 import qualified Data.AppendMap as AppendMap
