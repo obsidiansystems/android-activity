@@ -4,7 +4,6 @@ with nixpkgs.haskell.lib;
 let inherit (nixpkgs) stdenv;
 in
 self: super: {
-    aeson = self.callPackage ./aeson.nix {};
     reflex = enableCabalFlag super.reflex "specialize-to-spidertimeline-global";
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";

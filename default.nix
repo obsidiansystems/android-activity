@@ -64,7 +64,9 @@ rec {
         };
       };
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
-        overrides = sharedOverrides;
+        overrides = self: super: sharedOverrides self super // {
+          focus-js = addBuildDepend super.focus-js self.jsaddle-wkwebview;
+        };
       };
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
@@ -217,7 +219,7 @@ rec {
         cat *.cabal
       '';
 
-      mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
+      mkFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
             pname = "${appName}-frontend";
@@ -238,7 +240,7 @@ rec {
               focus-core
               focus-js
               ghcjs-dom
-            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = true;
             passthru = {
@@ -248,7 +250,7 @@ rec {
             doHaddock = false;
           })) {};
 
-      mkCLibFrontend = frontendSrc: commonSrc: haskellPackages: static:
+      mkCLibFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
             pname = "${appName}-frontend-clib";
@@ -268,7 +270,7 @@ rec {
             buildDepends = [
               focus-core
               focus-js
-            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = false;
             isLibrary = false;
@@ -281,7 +283,7 @@ rec {
 
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
+        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc [];
         ghcjsExterns = ./ghcjs.externs.js;
         inherit (pkgs) closurecompiler;
         builder = builtins.toFile "builder.sh" ''
@@ -461,9 +463,11 @@ rec {
           })) {};
           frontend = frontend_.unminified;
           inherit staticAssets;
-          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc;
-          frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc);
-          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
+          frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
+          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
+          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ])) (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''
                     <?xml version="1.0" encoding="UTF-8"?>

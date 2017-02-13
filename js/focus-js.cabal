@@ -41,6 +41,7 @@ library
     ghcjs-dom,
     http-types,
     jsaddle,
+    jsaddle-dom,
     lens,
     mmorph,
     monad-control,
@@ -63,8 +64,7 @@ library
     timezone-olson,
     timezone-series,
     transformers,
-    vector,
-    jsaddle-dom
+    vector
 
   exposed-modules:
     Focus.JS.Account
@@ -94,6 +94,8 @@ library
     Focus.JS.Window
 
   if !os(ios) && arch(x86_64)
+    build-depends: jsaddle-wkwebview
+  else
     other-extensions: TemplateHaskell
     cpp-options: -DUSE_TEMPLATE_HASKELL
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fexpose-all-unfoldings

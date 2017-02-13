@@ -16,6 +16,7 @@ library
                , aeson
                , bytestring
                , base64-bytestring
+               , containers
                , text
 
   exposed-modules: Focus.Aeson.Orphans

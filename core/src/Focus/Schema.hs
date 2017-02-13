@@ -43,12 +43,6 @@ data IdValue a = IdValue (Id a) a deriving Typeable
 instance ShowPretty a => ShowPretty (IdValue a) where
   showPretty (IdValue _ x) = showPretty x
 
-parseJSONMap :: (Ord k, FromJSON k, FromJSON v) => Value -> Parser (Map k v)
-parseJSONMap v = Map.fromList <$> parseJSON v
-
-toJSONMap :: (ToJSON k, ToJSON v) => Map k v -> Value
-toJSONMap = toJSON . Map.toList
-
 instance Show (IdData a) => ShowPretty (Id a) where
   showPretty = T.pack . show . unId
 

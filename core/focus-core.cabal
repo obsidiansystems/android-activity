@@ -30,6 +30,7 @@ library
                , dependent-map
                , dependent-sum
                , directory-tree
+               , focus-aeson-orphans
                , focus-datastructures
                , haskell-src-exts
                , http-types
