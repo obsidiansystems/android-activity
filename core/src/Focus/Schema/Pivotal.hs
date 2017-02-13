@@ -4,6 +4,8 @@
 #endif
 module Focus.Schema.Pivotal where
 
+{-
+
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
@@ -307,3 +309,6 @@ instance FromJSON TrackerActivity where
                     "Object"
                     (valueConName other_aIWK)
 #endif
+
+-}
+

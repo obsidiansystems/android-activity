@@ -4,6 +4,8 @@
 #endif
 module Focus.HereMaps where
 
+{-
+
 import Data.Text (Text, unpack)
 import Data.Aeson
 import Data.Aeson.TH
@@ -633,3 +635,5 @@ instance FromJSON a_a3xZz => FromJSON (RawResponse a_a3xZz) where
                     "Object"
                     (valueConName other_a3yzV)
 #endif
+
+-}
