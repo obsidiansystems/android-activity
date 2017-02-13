@@ -5,7 +5,7 @@ import Control.Applicative
 import Control.Lens
 import Data.Foldable
 import qualified Data.Map as DM
-import Focus.AppendMap (AppendMap (..), AppendMapPatch (..))
+import Focus.AppendMap (AppendMap (..))
 import qualified Focus.AppendMap as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
