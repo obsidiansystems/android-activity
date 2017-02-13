@@ -18,6 +18,7 @@ rec {
 
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
+  androidArm64HaskellPackagesBase = tryReflex.ghcAndroidArm64;
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
 
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
@@ -57,6 +58,11 @@ rec {
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      androidAArch64HaskellPackages = androidArm64HaskellPackagesBase.override {
+        overrides = self: super: sharedOverrides self super // {
+          mkDerivation = drv: super.mkDerivation (drv // { enableSharedLibraries = true; enableSharedExecutables = true; });
+        };
+      };
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
         overrides = sharedOverrides;
       };
@@ -125,7 +131,8 @@ rec {
           exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
       mkCabalFile = haskellPackages: pname: executableName: depends: src:
-        let mkCabalTarget = header: ''
+        let inherit (pkgs.lib) optionalString;
+            mkCabalTarget = header: ''
               ${header}
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
@@ -139,7 +146,18 @@ rec {
                 if os(ios)
                   cpp-options: -DUSE_WKWEBVIEW
                 else
-                  cpp-options: -DUSE_TEMPLATE_HASKELL -DUSE_WARP
+                  if arch(aarch64)
+                    cpp-options: -DUSE_CLIB
+                  else
+                    cpp-options: -DUSE_TEMPLATE_HASKELL -DUSE_WARP
+            '';
+            foreignLibraryHeader = ''
+              foreign-library ${pname}-clib
+                if !flag(clib)
+                  buildable:False
+                type: native-shared
+                lib-version-info: 0:0:0
+                other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | grep -vi '\(${executableName}\|main\)'$ | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
             '';
             executableHeader = executableName: mainFile: ''
               executable ${executableName}
@@ -154,6 +172,8 @@ rec {
         version: ${appVersion}
         cabal-version: >= 1.2
 
+        ${optionalString (executableName != null) (mkCabalTarget foreignLibraryHeader)}
+
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
         ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
@@ -164,6 +184,28 @@ rec {
         INNER_EOF
         done
         )
+
+
+        EOF
+      '';
+
+      mkCLibCabalFile = haskellPackages: pname: depends: src: nixpkgs.runCommand "${pname}.cabal" {} ''
+        cat > "$out" <<EOF
+        name: ${pname}
+        version: ${appVersion}
+        cabal-version: >= 1.2
+
+        foreign-library ${pname}
+          type: native-shared
+          lib-version-info: 0:0:0
+          other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '\(\.splices\|main\)'$ | tr / . | tr "\n" , | sed 's/,$//')
+          hs-source-dirs: .
+          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+          other-extensions: TemplateHaskell
+          ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0"
+          default-language: Haskell2010
+          default-extensions: NoDatatypeContexts, NondecreasingIndentation
+          cpp-options: -DUSE_CLIB
         EOF
       '';
 
@@ -205,6 +247,38 @@ rec {
             };
             doHaddock = false;
           })) {};
+
+      mkCLibFrontend = frontendSrc: commonSrc: haskellPackages: static:
+        haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+          mkDerivation (rec {
+            pname = "${appName}-frontend-clib";
+            version = appVersion;
+            license = null;
+            src = nixpkgs.runCommand "frontend-src" {
+              buildCommand = ''
+                mkdir "$out"
+                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
+              '';
+            } "";
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
+            preBuild = ''
+              ${if static == null then "" else ''ln -sfT ${static} static''}
+            '';
+            buildDepends = [
+              focus-core
+              focus-js
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
+            buildTools = [] ++ frontendTools pkgs;
+            isExecutable = false;
+            isLibrary = false;
+            passthru = {
+              inherit haskellPackages;
+              cabalFile = mkCLibCabalFile haskellPackages pname buildDepends src;
+            };
+            doHaddock = false;
+          })) {};
+
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
         unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
@@ -388,6 +462,7 @@ rec {
           frontend = frontend_.unminified;
           inherit staticAssets;
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc;
+          frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc);
           frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''

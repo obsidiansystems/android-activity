@@ -89,7 +89,7 @@ library
     , Focus.Schema.Pivotal
     , Focus.HereMaps
 
-  if !os(ios)
+  if !os(ios) && arch(x86_64)
     other-extensions: TemplateHaskell
     cpp-options: -DUSE_TEMPLATE_HASKELL
   if flag(frontend)
