@@ -30,6 +30,6 @@ function compileBuildDriverPhase {
 }
 compileBuildDriverPhase
 eval "$configurePhase"
+set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build frontend /'\'')"
-return $?
 '
