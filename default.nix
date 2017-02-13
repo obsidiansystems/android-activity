@@ -153,14 +153,6 @@ rec {
                   else
                     cpp-options: -DUSE_TEMPLATE_HASKELL -DUSE_WARP
             '';
-            foreignLibraryHeader = ''
-              foreign-library ${pname}-clib
-                if !flag(clib)
-                  buildable:False
-                type: native-shared
-                lib-version-info: 0:0:0
-                other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | grep -vi '\(${executableName}\|main\)'$ | sed 's/\.hs$//' | tr / . | tr "\n" , | sed 's/,$//')
-            '';
             executableHeader = executableName: mainFile: ''
               executable ${executableName}
                 main-is: ${if mainFile == null
@@ -173,8 +165,6 @@ rec {
         name: ${pname}
         version: ${appVersion}
         cabal-version: >= 1.2
-
-        ${optionalString (executableName != null) (mkCabalTarget foreignLibraryHeader)}
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
