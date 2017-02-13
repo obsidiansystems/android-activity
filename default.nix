@@ -70,7 +70,7 @@ rec {
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
              focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
                doHaddock = false;
-               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else [self.jsaddle-wkwebview]);
              });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
@@ -175,7 +175,7 @@ rec {
         cat *.cabal
       '';
 
-      mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
+      mkFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
             pname = "${appName}-frontend";
@@ -196,7 +196,7 @@ rec {
               focus-core
               focus-js
               ghcjs-dom
-            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = true;
             passthru = {
@@ -207,7 +207,7 @@ rec {
           })) {};
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
+        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc [];
         ghcjsExterns = ./ghcjs.externs.js;
         inherit (pkgs) closurecompiler;
         builder = builtins.toFile "builder.sh" ''
@@ -387,8 +387,10 @@ rec {
           })) {};
           frontend = frontend_.unminified;
           inherit staticAssets;
-          frontendGhc = addBuildDepends (mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc) (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle-warp ]);
-          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc) (drv: {
+          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
+          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ])) (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''
                     <?xml version="1.0" encoding="UTF-8"?>
