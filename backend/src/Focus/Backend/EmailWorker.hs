@@ -27,7 +27,7 @@ import Database.Groundhog.TH
 import qualified Network.Mail.Mime as Mail
 import Network.Mail.SMTP
 
-import Focus.Aeson.Orphans
+import Focus.Aeson.Orphans ()
 import qualified Focus.AppendMap as Map
 import Focus.Backend.DB
 import Focus.Backend.DB.Groundhog

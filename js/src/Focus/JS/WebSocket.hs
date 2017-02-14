@@ -32,11 +32,14 @@ import Data.Text.Encoding (decodeUtf8)
 import GHCJS.DOM.Types (MonadJSM)
 #ifdef __GHCJS__
 import GHCJS.Types (JSVal)
+import GHCJS.DOM.Types (liftJSM)
 import GHCJS.Marshal
 import Control.Exception (try, SomeException)
 import System.IO.Unsafe
 import JavaScript.JSON.Types.FromJSVal ()
 #endif
+
+import Focus.WebSocket
 
 newtype JSWebSocket x = JSWebSocket { unWebSocket :: JSRef x }
 
@@ -45,13 +48,6 @@ instance ToJS x (JSWebSocket x) where
 
 instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
-
-data WebSocketUrl = WebSocketUrl
-       { _websocket_protocol :: Text
-       , _websocket_host :: Text
-       , _websocket_port :: Int
-       , _websocket_path :: Text
-       } deriving (Eq, Ord, Show, Read)
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
 webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
@@ -153,10 +149,10 @@ rawWebSocket murl config
   = do
     RDWS.webSocket' (mconcat [ _websocket_protocol url, "://"
                              , _websocket_host url, ":", T.pack (show (_websocket_port url))
-                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") id)
+                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") return)
   | Right path <- murl = do
-    pageHost <- liftIO . getLocationHost =<< askJSContext
-    pageProtocol <- liftIO . getLocationProtocol =<< askJSContext
+    pageHost <- liftJSM getLocationHost
+    pageProtocol <- liftJSM getLocationProtocol
     let wsProtocol = case pageProtocol of
           "http:" -> "ws:"
           "https:" -> "wss:"
@@ -165,5 +161,5 @@ rawWebSocket murl config
         wsHost = case pageProtocol of
           "file:" -> "localhost:8000"
           _ -> pageHost
-    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
+    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") return)
 #endif
