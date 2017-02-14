@@ -38,6 +38,8 @@ import System.IO.Unsafe
 import JavaScript.JSON.Types.FromJSVal ()
 #endif
 
+import Focus.WebSocket
+
 newtype JSWebSocket x = JSWebSocket { unWebSocket :: JSRef x }
 
 instance ToJS x (JSWebSocket x) where
@@ -45,13 +47,6 @@ instance ToJS x (JSWebSocket x) where
 
 instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
-
-data WebSocketUrl = WebSocketUrl
-       { _websocket_protocol :: Text
-       , _websocket_host :: Text
-       , _websocket_port :: Int
-       , _websocket_path :: Text
-       } deriving (Eq, Ord, Show, Read)
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
 webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
