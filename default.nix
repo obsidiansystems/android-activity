@@ -20,6 +20,7 @@ rec {
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   androidArm64HaskellPackagesBase = tryReflex.ghcAndroidArm64;
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
+  iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
 
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
   filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
@@ -64,6 +65,11 @@ rec {
         };
       };
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+        overrides = self: super: let new = sharedOverrides self super; in new // {
+          focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
+        };
+      };
+      iosAArch64HaskellPackages = iosArm64HaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
         };
@@ -456,8 +462,7 @@ rec {
           frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
-          frontendIosSimulator = overrideCabal (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
-              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ])) (drv: {
+          frontendIos = drv: overrideCabal drv  (drv: {
             postFixup =
               let infoPlist = builtins.toFile "Info.plist" ''
                     <?xml version="1.0" encoding="UTF-8"?>
@@ -467,13 +472,13 @@ rec {
                       <key>CFBundleDevelopmentRegion</key>
                       <string>en</string>
                       <key>CFBundleExecutable</key>
-                      <string>${drv.pname}</string>
+                      <string>frontend</string>
                       <key>CFBundleIdentifier</key>
                       <string>${drv.pname}</string>
                       <key>CFBundleInfoDictionaryVersion</key>
                       <string>6.0</string>
                       <key>CFBundleName</key>
-                      <string>reflex-todomvc</string>
+                      <string>${drv.pname}</string>
                       <key>CFBundlePackageType</key>
                       <string>APPL</string>
                       <key>CFBundleShortVersionString</key>
@@ -509,12 +514,88 @@ rec {
                     </dict>
                     </plist>
                   '';
+                  index-html = builtins.toFile "index.html" ''
+                    <html>
+                      <head>
+                      </head>
+                      <body>
+                      </body>
+                    </html>
+                  '';
+                  xcent = builtins.toFile "xcent" ''
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                    <plist version="1.0">
+                    <dict>
+                      <key>application-identifier</key>
+                      <string><team-id/>.${drv.pname}</string>
+                      <key>com.apple.developer.team-identifier</key>
+                      <string><team-id/></string>
+                      <key>get-task-allow</key>
+                      <true/>
+                      <key>keychain-access-groups</key>
+                      <array>
+                        <string><team-id/>.${drv.pname}</string>
+                      </array>
+                    </dict>
+                    </plist>
+                  '';
+                  ios-deploy-sh = builtins.toFile "ios-deploy-${drv.pname}.sh" ''
+                    #!/usr/bin/env bash
+                    set -eo pipefail
+
+                    if [ -z "$1" ]; then
+                      echo "Usage: ./ios-deploy-${drv.pname}.sh [TEAM_ID]" >&2
+                      exit 1
+                    fi
+
+                    set -euo pipefail
+
+                    function cleanup {
+                      if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                        echo "Cleaning up tmpdir" >&2
+                        rm -fR $tmpdir
+                      fi
+                    }
+
+                    trap cleanup EXIT
+
+                    tmpdir=$(mktemp -d)
+                    # Find the signer given the OU
+                    signer=$(security find-certificate -c "iPhone Developer" -a \
+                      | grep '^    "alis"<blob>="' \
+                      | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
+                      | while read c; do security find-certificate -c "$c" -p \
+                      | openssl x509 -subject -noout; done \
+                      | grep "OU=$1/" \
+                      | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
+                      | head -n 1)
+
+                    if [ -z "$signer" ]; then
+                      echo "Error: No iPhone Developer certificate found for team id $1" >&2
+                      exit 1
+                    fi
+
+                    mkdir -p $tmpdir
+                    cp -LR "$(dirname $0)/../${drv.pname}.app" $tmpdir
+                    # cp -LR "$(nix-build -A frontendIosAArch64.src -Q)/static/*" $tmpdir/${drv.pname}.app
+                    cp -LR static/* $tmpdir/${drv.pname}.app
+                    sed "s|<team-id/>|$1|" < "${xcent}" > $tmpdir/xcent
+                    /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none $tmpdir/${drv.pname}.app
+                    "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b $tmpdir/${drv.pname}.app
+                  '';
               in ''
               mkdir "$out/${drv.pname}.app"
-              ln -s "${infoPlist}" "$out/${drv.pname}.app/"
-              ln -s "../bin/${drv.pname}" "$out/${drv.pname}.app/"
+              ln -s "${infoPlist}" "$out/${drv.pname}.app/Info.plist"
+              ln -s "${index-html}" "$out/${drv.pname}.app/index.html"
+              ln -s "${ios-deploy-sh}" "$out/bin/ios-deploy-${drv.pname}.sh"
+              ln -s "../bin/frontend" "$out/${drv.pname}.app/"
             '';
           });
+          frontendIosSimulator = frontendIos (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]));
+          frontendIosAArch64 = frontendIos (mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
+              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]));
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
