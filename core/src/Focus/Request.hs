@@ -134,11 +134,7 @@ decCons = \case
   DataD _ _ _ cs _ -> cs
   NewtypeD _ _ _ c _ -> [c]
 #endif
-#ifdef USE_TEMPLATE_HASKELL
-  _ -> $undef
-#else
-  _ -> error "src/Focus/Request.hs: undefined"
-#endif
+  _ -> error "undefined"
 
 decTvbs :: Dec -> [TyVarBndr]
 decTvbs = \case
@@ -149,11 +145,7 @@ decTvbs = \case
   DataD _ _ tvbs _ _ -> tvbs
   NewtypeD _ _ tvbs _ _ -> tvbs
 #endif
-#ifdef USE_TEMPLATE_HASKELL
-  _ -> $undef
-#else
-  _ -> error "src/Focus/Request.hs: undefined"
-#endif
+  _ -> error "undefined"
 
 #ifdef USE_TEMPLATE_HASKELL
 makeRequest :: Name -> DecsQ
@@ -164,7 +156,7 @@ makeRequest n = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(conT n) where
@@ -191,7 +183,7 @@ makeRequestForDataInstance n n' = do
 #endif
                     guard $ m == n'
                     xs
-                  _ -> $undef
+                  _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(appT (appT (conT n) (conT n')) (varT $ mkName "f")) where
@@ -218,10 +210,10 @@ makeJson n = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
       typeNames = map tvbName $ case x of
        TyConI d -> decTvbs d
-       _ -> $undef
+       _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON $(foldl appT (conT n) $ map varT typeNames)   where
@@ -250,10 +242,10 @@ makeJsonForDataInstance n mns = do
            These (Just n') c@(ConT m) | m == n' -> Just c
            _ -> Nothing
          return (typeNames, xs)
-       _ -> $undef
+       _ -> error "undefined"
       -- typeNames = case x of
       --  (FamilyI _ _) -> [conT n']
-      --  _ -> $undef
+      --  _ -> error "undefined"
   (typeNames, cons) <- case matchingInstances of
     [matchingInstance] -> return matchingInstance
     [] -> fail $ "makeJsonForDataInstance: No Data Instances found for pattern " <> show (n, mns)
@@ -380,7 +372,7 @@ makeJson' n = do
   x <- reify n
   let cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
       base = nameBase n
       toBeStripped = base <> "_"
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn

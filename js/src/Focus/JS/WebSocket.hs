@@ -29,9 +29,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
-#ifdef USE_TEMPLATE_HASKELL
-import Debug.Trace.LocationTH
-#endif
 import GHCJS.DOM.Types (MonadJSM)
 #ifdef __GHCJS__
 import GHCJS.Types (JSVal)
@@ -70,11 +67,7 @@ webSocket murl config
           "http:" -> "ws:"
           "https:" -> "wss:"
           "file:" -> "ws:"
-#ifdef USE_TEMPLATE_HASKELL
-          s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
-#else
-          s -> error ("src/Focus/JS/WebSocket.hs: unrecognized wsProtocol: " <> T.unpack s)
-#endif
+          s -> error $ "unrecognized wsProtocol: " <> T.unpack s
         wsHost = case pageProtocol of
           "file:" -> "localhost:8000"
           _ -> pageHost
@@ -125,11 +118,7 @@ apiSocket murl batches = do
                           Aeson.Success rsp' = fromJSONViaAllArgsHave req rspRaw
                       in rsp'
                 return (finishedResponses, at (n, m) .~ Nothing)
-#ifdef USE_TEMPLATE_HASKELL
-              GT -> $undef
-#else
-              GT -> error "src/Focus/JS/WebSocket.hs: undefined"
-#endif
+              GT -> error "undefined"
           result = fmapMaybe fst change
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> decodeUtf8 $  LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)
@@ -172,7 +161,7 @@ rawWebSocket murl config
           "http:" -> "ws:"
           "https:" -> "wss:"
           "file:" -> "ws:"
-          s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
+          s -> error $ "unrecognized wsProtocol: " <> T.unpack s
         wsHost = case pageProtocol of
           "file:" -> "localhost:8000"
           _ -> pageHost

@@ -1,7 +1,4 @@
 {-# LANGUAGE CPP, PolyKinds, GADTs, ScopedTypeVariables, LambdaCase #-}
-#ifdef USE_TEMPLATE_HASKELL
-{-# LANGUAGE TemplateHaskell #-}
-#endif
 module Focus.Api where
 
 import Data.Aeson
@@ -10,10 +7,6 @@ import Focus.Account
 import Focus.App
 import Focus.Request
 import Focus.Sign
-
-#ifdef USE_TEMPLATE_HASKELL
-import Debug.Trace.LocationTH
-#endif
 
 data ApiRequest (f :: * -> *) :: ((* -> *) -> k -> *) -> ((* -> *) -> k -> *) -> k -> * where
   ApiRequest_Public :: public f a -> ApiRequest f public private a
@@ -37,11 +30,7 @@ instance (Request (private f), Request (public f)) => Request (ApiRequest f publ
       ("Private"::String) -> do
         token `HCons` SomeRequest p `HCons` HNil <- parseJSON body
         return $ SomeRequest $ ApiRequest_Private token p
-#ifdef USE_TEMPLATE_HASKELL
-      e -> $failure $ "Could not parse tag: " ++ e
-#else
-      e -> error $ "src/Focus/Api.hs: Could not parse tag: " ++ e
-#endif
+      e -> error $ "Could not parse tag: " ++ e
   requestResponseToJSON = \case
     ApiRequest_Public p -> requestResponseToJSON p
     ApiRequest_Private _ p -> requestResponseToJSON p
