@@ -32,6 +32,7 @@ import Data.Text.Encoding (decodeUtf8)
 import GHCJS.DOM.Types (MonadJSM)
 #ifdef __GHCJS__
 import GHCJS.Types (JSVal)
+import GHCJS.DOM.Types (liftJSM)
 import GHCJS.Marshal
 import Control.Exception (try, SomeException)
 import System.IO.Unsafe
@@ -148,10 +149,10 @@ rawWebSocket murl config
   = do
     RDWS.webSocket' (mconcat [ _websocket_protocol url, "://"
                              , _websocket_host url, ":", T.pack (show (_websocket_port url))
-                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") id)
+                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") return)
   | Right path <- murl = do
-    pageHost <- liftIO . getLocationHost =<< askJSContext
-    pageProtocol <- liftIO . getLocationProtocol =<< askJSContext
+    pageHost <- liftJSM getLocationHost
+    pageProtocol <- liftJSM getLocationProtocol
     let wsProtocol = case pageProtocol of
           "http:" -> "ws:"
           "https:" -> "wss:"
@@ -160,5 +161,5 @@ rawWebSocket murl config
         wsHost = case pageProtocol of
           "file:" -> "localhost:8000"
           _ -> pageHost
-    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
+    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") return)
 #endif
