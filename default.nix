@@ -23,7 +23,7 @@ rec {
   iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
 
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
-  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
+  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" "dist" ])) p else null;
   mkDerivation = nixpkgs.lib.makeOverridable (
     { name
     , version
