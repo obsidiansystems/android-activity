@@ -165,6 +165,19 @@ login toLoginInfo email password = runExceptT $ do
     maybeToEither b Nothing = Left b
     maybeToEither _ (Just a) = Right a
 
+loginByAccountId :: (PersistBackend m)
+                 => Id Account
+                 -> Text
+                 -> m (Either LoginError ())
+loginByAccountId aid password = runExceptT $ do
+  a <- ExceptT . fmap (maybeToEither LoginError_UserNotFound . listToMaybe) $ project AccountConstructor (AutoKeyField ==. fromId aid)
+  ph <- ExceptT . return $ maybeToEither LoginError_UserNotFound $ account_passwordHash a
+  when (not $ verifyPasswordWith pbkdf2 (2^) (encodeUtf8 password) ph) $ ExceptT $ return $ Left LoginError_InvalidPassword
+  return ()
+  where
+    maybeToEither b Nothing = Left b
+    maybeToEither _ (Just a) = Right a
+
 generateAndSendPasswordResetEmail
   :: (PersistBackend m, MonadSign m, Typeable f, ToJSON (f (Id Account)))
   => (Id Account -> f (Id Account))
