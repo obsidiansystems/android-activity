@@ -595,10 +595,12 @@ rec {
             chmod +x "$out/bin/deploy"
             ln -s "$pkg/bin/frontend" "$out/${exeName}.app/"
           '';
-          frontendIosSimulator = mkIosApp "frontend" (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
-              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]));
-          frontendIosAArch64 = mkIosApp "frontend" (mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
-              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]));
+          frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
+          frontendIosSimulatorApp = mkIosApp "mobile" frontendIosSimulator;
+          frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
+              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
+          frontendIosAArch64App = mkIosApp "mobile" frontendIosAArch64;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
