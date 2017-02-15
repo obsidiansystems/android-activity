@@ -462,7 +462,7 @@ rec {
           frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
-          mkIosApp = exeName: pkg: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = exeName: pkg: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit pkg;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -472,7 +472,7 @@ rec {
                 <key>CFBundleDevelopmentRegion</key>
                 <string>en</string>
                 <key>CFBundleExecutable</key>
-                <string>frontend</string>
+                <string>${exeName}</string>
                 <key>CFBundleIdentifier</key>
                 <string>${exeName}</string>
                 <key>CFBundleInfoDictionaryVersion</key>
@@ -579,11 +579,31 @@ rec {
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
               chmod +w "$tmpdir/${exeName}.app"
-              # cp -LR "$(nix-build -A frontendIosAArch64.src -Q)/static/*" $tmpdir/${exeName}.app
-              cp -LR static/* $tmpdir/${exeName}.app
               sed "s|<team-id/>|$1|" < "${xcent}" > $tmpdir/xcent
-              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none $tmpdir/${exeName}.app
-              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b $tmpdir/${exeName}.app
+              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
+              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app"
+            '';
+            runInSim = builtins.toFile "run-in-sim" ''
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$1" "$tmpdir/${exeName}.app/config/route"
+              focus/reflex-platform/run-in-ios-sim "$tmpdir/${exeName}.app"
             '';
           }) ''
             set -x
@@ -593,12 +613,15 @@ rec {
             mkdir -p "$out/bin"
             cp --no-preserve=mode "$deployScript" "$out/bin/deploy"
             chmod +x "$out/bin/deploy"
-            ln -s "$pkg/bin/frontend" "$out/${exeName}.app/"
+            cp --no-preserve=mode "$runInSim" "$out/bin/run-in-sim"
+            chmod +x "$out/bin/run-in-sim"
+            ln -s "$pkg/bin/${exeName}" "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
           '';
-          frontendIosSimulator = mkIosApp "frontend" (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
-              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]));
-          frontendIosAArch64 = mkIosApp "frontend" (mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
-              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]));
+          frontendIosSimulator = mkIosApp "mobile" (mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ])) staticSrc;
+          frontendIosAArch64 = mkIosApp "mobile" (mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
+              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ])) staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
