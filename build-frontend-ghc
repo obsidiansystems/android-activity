@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontendGhc.env --run 'ghc -i{common,frontend}/src Main -outputdir dist-frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'
+nix-shell -A frontendGhc.env --run 'mkdir -p dist-frontend-ghc; ghc -i{common,frontend}/src Main -o dist-frontend-ghc/frontend-ghc -outputdir dist-frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'

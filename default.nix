@@ -578,6 +578,7 @@ rec {
 
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
               # cp -LR "$(nix-build -A frontendIosAArch64.src -Q)/static/*" $tmpdir/${exeName}.app
               cp -LR static/* $tmpdir/${exeName}.app
               sed "s|<team-id/>|$1|" < "${xcent}" > $tmpdir/xcent
