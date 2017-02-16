@@ -836,7 +836,7 @@ rec {
                   };
                   environment.systemPackages = with pkgs; [
                     rsync
-                    emacs24-nox
+                    emacs25-nox
                     git
                     rxvt_unicode.terminfo
                     myPostgres
