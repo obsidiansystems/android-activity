@@ -8,5 +8,5 @@ done
 
 for x in $(cd dist-frontend-dump-splices ; find . -name '*.dump-splices') ; do
     # See ./dump-splices for an explanation of these sed transformations
-    ( cat "dist-frontend-dump-splices/$x" && echo "--" ) | sed -e 's/^    //' | sed -e '/Splicing [a-z]*$/,/======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}\([^ ]\|$\)\)/\1\n\2/;P;D}' > "$(echo "$x" | sed 's/.dump-splices$/.splices.hs/')"
+    ( cat "dist-frontend-dump-splices/$x" && echo "--" ) | sed -e 's/^    //' | sed -e '/Splicing [a-z]*$/,/======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}\([^ ]\|$\)\)/\1\n\2/;P;D}' -e 's/\b\(aeson\|base\)-[0-9.]*://' > "$(echo "$x" | sed 's/.dump-splices$/.splices.hs/')"
 done
