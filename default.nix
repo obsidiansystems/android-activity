@@ -151,13 +151,8 @@ rec {
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
-                if os(ios)
-                  cpp-options: -DUSE_WKWEBVIEW
-                else
-                  if arch(aarch64)
-                    cpp-options: -DUSE_CLIB
-                  else
-                    cpp-options: -DUSE_TEMPLATE_HASKELL -DUSE_WARP
+                if !os(ios) && !arch(aarch64)
+                  cpp-options: -DUSE_TEMPLATE_HASKELL
             '';
             executableHeader = executableName: mainFile: ''
               executable ${executableName}
@@ -203,7 +198,6 @@ rec {
           ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0"
           default-language: Haskell2010
           default-extensions: NoDatatypeContexts, NondecreasingIndentation
-          cpp-options: -DUSE_CLIB
         EOF
       '';
 
@@ -462,8 +456,10 @@ rec {
           frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
-          mkIosApp = exeName: pkg: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
-            inherit pkg;
+          frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
+          mkIosApp = exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+            inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
               <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -544,16 +540,22 @@ rec {
               #!/usr/bin/env bash
               set -eo pipefail
 
-              if [ -z "$1" ]; then
-                echo "Usage: $0 [TEAM_ID]" >&2
+              if [ -z "$1" -o -z "$2" ]; then
+                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE]" >&2
                 exit 1
               fi
 
+              TEAM_ID=$1
+              shift
+              CONFIG_ROUTE=$1
+              shift
+              
               set -euo pipefail
 
               function cleanup {
                 if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
                   echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
                   rm -fR $tmpdir
                 fi
               }
@@ -567,12 +569,12 @@ rec {
                 | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
                 | while read c; do security find-certificate -c "$c" -p \
                 | openssl x509 -subject -noout; done \
-                | grep "OU=$1/" \
+                | grep "OU=$TEAM_ID/" \
                 | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
                 | head -n 1)
 
               if [ -z "$signer" ]; then
-                echo "Error: No iPhone Developer certificate found for team id $1" >&2
+                echo "Error: No iPhone Developer certificate found for team id $TEAM_ID" >&2
                 exit 1
               fi
 
@@ -580,18 +582,26 @@ rec {
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
               chmod +w "$tmpdir/${exeName}.app"
               mkdir -p "$tmpdir/${exeName}.app/config"
-              cp "$2" "$tmpdir/${exeName}.app/config/route"
-              sed "s|<team-id/>|$1|" < "${xcent}" > $tmpdir/xcent
+              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
+              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
-              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app"
+              
+              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app" "$@"
             '';
             runInSim = builtins.toFile "run-in-sim" ''
               #!/usr/bin/env bash
+
+              if [ -z "$1" ]; then
+                echo "Usage: $0 [CONFIG_ROUTE]" >&2
+                exit 1
+              fi
+
               set -euo pipefail
 
               function cleanup {
                 if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
                   echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
                   rm -fR $tmpdir
                 fi
               }
@@ -617,15 +627,138 @@ rec {
             chmod +x "$out/bin/deploy"
             cp --no-preserve=mode "$runInSim" "$out/bin/run-in-sim"
             chmod +x "$out/bin/run-in-sim"
-            ln -s "$pkg/bin/${exeName}" "$out/${exeName}.app/"
+            ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
+          '';
+          mkMacApp = exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+            inherit exePath;
+            infoPlist = builtins.toFile "Info.plist" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
+              <plist version="0.9">
+              <dict>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleIdentifier</key>
+              <string>${exeName}</string>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>${exeName}</string>
+              <key>CFBundleIconFile</key>
+              <string></string>
+              <key>CFBundleName</key>
+              <string>${exeName}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>NSHumanReadableCopyright</key>
+              <string>${exeName}</string>
+              <key>NSPrincipalClass</key>
+              <string>NSApplication</string>
+              </dict>
+              </plist>
+
+<?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleExecutable</key>
+                <string>${exeName}</string>
+                <key>CFBundleIdentifier</key>
+                <string>${exeName}</string>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleName</key>
+                <string>${exeName}</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleShortVersionString</key>
+                <string>1.0</string>
+                <key>CFBundleVersion</key>
+                <string>1</string>
+                <key>LSRequiresIPhoneOS</key>
+                <true/>
+                <key>UILaunchStoryboardName</key>
+                <string>LaunchScreen</string>
+                <key>UIRequiredDeviceCapabilities</key>
+                <array>
+                  <string>armv7</string>
+                </array>
+                <key>UIDeviceFamily</key>
+                <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+                </array>
+                <key>UISupportedInterfaceOrientations</key>
+                <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+                </array>
+                <key>UISupportedInterfaceOrientations~ipad</key>
+                <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationPortraitUpsideDown</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+                </array>
+              </dict>
+              </plist>
+            '';
+            indexHtml = builtins.toFile "index.html" ''
+              <html>
+                <head>
+                </head>
+                <body>
+                </body>
+              </html>
+            '';
+            run = builtins.toFile "run" ''
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$1" "$tmpdir/${exeName}.app/config/route"
+              open "$tmpdir/${exeName}.app"
+            '';
+          }) ''
+            set -x
+            mkdir -p "$out/${exeName}.app"
+            ln -s "$infoPlist" "$out/${exeName}.app/Info.plist"
+            ln -s "$indexHtml" "$out/${exeName}.app/index.html"
+            mkdir -p "$out/bin"
+            cp --no-preserve=mode "$run" "$out/bin/run-in-sim"
+            chmod +x "$out/bin/run-in-sim"
+            ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
             cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
           '';
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
               (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosSimulatorApp = mkIosApp "mobile" frontendIosSimulator staticSrc;
+          frontendIosSimulatorApp = mkIosApp "mobile" (frontendIosSimulator+"/bin") staticSrc;
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosAArch64App = mkIosApp "mobile" frontendIosAArch64 staticSrc;
+          frontendIosAArch64App = mkIosApp "mobile" (frontendIosAArch64+"/bin") staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
