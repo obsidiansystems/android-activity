@@ -452,6 +452,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
+          frontendMinified = frontend_;
           inherit staticAssets;
           frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
