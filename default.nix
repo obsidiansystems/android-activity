@@ -622,10 +622,10 @@ rec {
           '';
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
               (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosSimulatorApp = mkIosApp "mobile" frontendIosSimulator;
+          frontendIosSimulatorApp = mkIosApp "mobile" frontendIosSimulator staticSrc;
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosAArch64App = mkIosApp "mobile" frontendIosAArch64;
+          frontendIosAArch64App = mkIosApp "mobile" frontendIosAArch64 staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
