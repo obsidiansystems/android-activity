@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo -ne '\033]0;FRONTEND-IOS-SIM\007'
+echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
 
 OLDPWD="$PWD"
-BUILDDIR="$PWD/dist-ios-sim"
+BUILDDIR="$PWD/dist-ios-aarch64"
 mkdir -p "$BUILDDIR"
-CABAL_FILE="$(nix-build --no-out-link -A frontendIosSimulator.cabalFile --show-trace)"
-TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-sim)"
+CABAL_FILE="$(nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace)"
+TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-aarch64)"
 function cleanup {
   rm -rf "$TMPDIR"
 }
 trap cleanup EXIT
 
-nix-shell --show-trace -A frontendIosSimulator --run "
+nix-shell --show-trace -A frontendIosAArch64 --run "
 cd "$TMPDIR"
 shopt -s nullglob
 ln -s "$OLDPWD"/{common,frontend}/src{,-bin}/* .
 shopt -u nullglob
-ln -s "$CABAL_FILE" frontend-ios-sim.cabal
+ln -s "$CABAL_FILE" frontend-ios-aarch64.cabal
 ln -s "$BUILDDIR" dist
 "'
 function setupCompilerEnvironmentPhase {
@@ -34,4 +34,4 @@ set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" $BUILDDIR/build/mobile ./static")/bin/run-in-sim "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
