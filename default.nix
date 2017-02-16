@@ -579,6 +579,8 @@ rec {
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
               chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$2" "$tmpdir/${exeName}.app/config/route"
               sed "s|<team-id/>|$1|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
               "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app"
