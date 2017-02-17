@@ -3,8 +3,6 @@ set -euo pipefail
 
 echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
 
-cp `nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace` aspen-frontend.cabal
-
 OLDPWD="$PWD"
 BUILDDIR="$PWD/dist-ios-aarch64"
 mkdir -p "$BUILDDIR"
@@ -33,8 +31,7 @@ function compileBuildDriverPhase {
 compileBuildDriverPhase
 eval "$configurePhase"
 set -e
-unset GHC_PACKAGE_PATH
-eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\(cd ~\/haskell\/aspen \&\& nix-shell -A frontendIosAArch64.env --run "cabal new-configure \1 \&\& return"\)/'\'')"
+eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
