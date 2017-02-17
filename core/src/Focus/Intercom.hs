@@ -55,6 +55,7 @@ instance FromJSON IntercomUserInternal where
       city <- fromMaybe "" <$> locationData .:? "city_name"
       return $ city <> ", " <> country
     _intercomUser_userAgent <- fromMaybe "Unknown" <$> o .:? "user_agent_data"
+    _intercomUser_createdAt <- fmap posixSecondsToUTCTime (o .: "created_at")
     let _intercomUser_device = getDevice _intercomUser_userAgent
     let _intercomUser_browser = getBrowser _intercomUser_userAgent
     return $ IntercomUserInternal $ IntercomUser {..}

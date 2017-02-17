@@ -19,5 +19,6 @@ data IntercomUser = IntercomUser
        , _intercomUser_device :: Text
        , _intercomUser_browser :: Text
        , _intercomUser_phone :: Text
+       , _intercomUser_createdAt :: UTCTime
        }
   deriving (Show, Read, Eq, Ord)
