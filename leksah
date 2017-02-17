@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
 
-cp `nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace` aspen-frontend.cabal
+sed 's|hs-source-dirs: \.|hs-source-dirs: common/src frontend/src frontend/src-bin|' < `nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace` > aspen-frontend.cabal
 
 OLDPWD="$PWD"
 BUILDDIR="$PWD/dist-ios-aarch64"
