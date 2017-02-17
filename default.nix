@@ -165,7 +165,8 @@ rec {
         cat > "$out" <<EOF
         name: ${pname}
         version: ${appVersion}
-        cabal-version: >= 1.2
+        cabal-version: >= 1.24
+        build-type: Simple
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
