@@ -387,6 +387,7 @@ rec {
             doHaddock = false;
           })) {};
         passthru = rec {
+          inherit tryReflex;
           ${if builtins.pathExists ../tests/webdriver then "webdriver-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, webdriver, focus-webdriver}: mkDerivation (rec {
               pname = "${appName}-webdriver-tests";
