@@ -165,7 +165,8 @@ rec {
         cat > "$out" <<EOF
         name: ${pname}
         version: ${appVersion}
-        cabal-version: >= 1.2
+        cabal-version: >= 1.24
+        build-type: Simple
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
@@ -387,6 +388,7 @@ rec {
             doHaddock = false;
           })) {};
         passthru = rec {
+          inherit tryReflex;
           ${if builtins.pathExists ../tests/webdriver then "webdriver-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, webdriver, focus-webdriver}: mkDerivation (rec {
               pname = "${appName}-webdriver-tests";
@@ -452,6 +454,7 @@ rec {
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
+          frontendMinified = frontend_;
           inherit staticAssets;
           frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
@@ -465,6 +468,8 @@ rec {
               <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
               <plist version="1.0">
               <dict>
+                <key>NSZombieEnabled</key>
+                <string>YES</string>
                 <key>CFBundleDevelopmentRegion</key>
                 <string>en</string>
                 <key>CFBundleExecutable</key>
