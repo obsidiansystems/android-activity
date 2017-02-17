@@ -302,7 +302,7 @@ rec {
         name = "${appName}-${appVersion}";
         staticAssets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsAssets = mkAssets "${ghcjsApp}";
+        frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
