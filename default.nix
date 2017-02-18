@@ -461,7 +461,7 @@ rec {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -473,7 +473,7 @@ rec {
                 <key>CFBundleExecutable</key>
                 <string>${exeName}</string>
                 <key>CFBundleIdentifier</key>
-                <string>${exeName}</string>
+                <string>${bundleIdentifier}</string>
                 <key>CFBundleInfoDictionaryVersion</key>
                 <string>6.0</string>
                 <key>CFBundleName</key>
@@ -513,6 +513,33 @@ rec {
               </dict>
               </plist>
             '';
+            resourceRulesPlist = builtins.toFile "ResourceRules.plist" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                <key>rules</key>
+                <dict>
+                  <key>.*</key>
+                  <true/>
+                  <key>Info.plist</key>
+                  <dict>
+                    <key>omit</key>
+                    <true/>
+                    <key>weight</key>
+                    <real>10</real>
+                  </dict>
+                  <key>ResourceRules.plist</key>
+                  <dict>
+                    <key>omit</key>
+                    <true/>
+                    <key>weight</key>
+                    <real>100</real>
+                  </dict>
+                </dict>
+              </dict>
+              </plist>
+            '';
             indexHtml = builtins.toFile "index.html" ''
               <html>
                 <head>
@@ -527,14 +554,14 @@ rec {
               <plist version="1.0">
               <dict>
                 <key>application-identifier</key>
-                <string><team-id/>.${exeName}</string>
+                <string><team-id/>.${bundleIdentifier}</string>
                 <key>com.apple.developer.team-identifier</key>
                 <string><team-id/></string>
                 <key>get-task-allow</key>
                 <true/>
                 <key>keychain-access-groups</key>
                 <array>
-                  <string><team-id/>.${exeName}</string>
+                  <string><team-id/>.${bundleIdentifier}</string>
                 </array>
               </dict>
               </plist>
@@ -591,6 +618,62 @@ rec {
               
               "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app" "$@"
             '';
+            packageScript = builtins.toFile "package" ''
+              #!/usr/bin/env bash
+              set -eo pipefail
+
+              if [ -z "$1" -o -z "$2" ]; then
+                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE] [IPA_DESTINATION] [EMBEDDED_PROVISIONING_PROFILE]" >&2
+                exit 1
+              fi
+
+              TEAM_ID=$1
+              shift
+              CONFIG_ROUTE=$1
+              shift
+              IPA_DESTINATION=$1
+              shift
+              EMBEDDED_PROVISIONING_PROFILE=$1
+              shift
+              
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+              # Find the signer given the OU
+              signer=$(security find-certificate -c "iPhone Distribution" -a \
+                | grep '^    "alis"<blob>="' \
+                | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
+                | while read c; do security find-certificate -c "$c" -p \
+                | openssl x509 -subject -noout; done \
+                | grep "OU=$TEAM_ID/" \
+                | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
+                | head -n 1)
+
+              if [ -z "$signer" ]; then
+                echo "Error: No iPhone Distribution certificate found for team id $TEAM_ID" >&2
+                exit 1
+              fi
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
+              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
+              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
+              
+              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE" "$@"
+            '';
             runInSim = builtins.toFile "run-in-sim" ''
               #!/usr/bin/env bash
 
@@ -624,10 +707,13 @@ rec {
             set -x
             mkdir -p "$out/${exeName}.app"
             ln -s "$infoPlist" "$out/${exeName}.app/Info.plist"
+            ln -s "$resourceRulesPlist" "$out/${exeName}.app/ResourceRules.plist"
             ln -s "$indexHtml" "$out/${exeName}.app/index.html"
             mkdir -p "$out/bin"
             cp --no-preserve=mode "$deployScript" "$out/bin/deploy"
             chmod +x "$out/bin/deploy"
+            cp --no-preserve=mode "$packageScript" "$out/bin/package"
+            chmod +x "$out/bin/package"
             cp --no-preserve=mode "$runInSim" "$out/bin/run-in-sim"
             chmod +x "$out/bin/run-in-sim"
             ln -s "$exePath/${exeName}" "$out/${exeName}.app/"

@@ -34,4 +34,4 @@ set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"com.wrinkl.ios\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
