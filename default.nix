@@ -277,13 +277,12 @@ rec {
             default-language: Haskell2010
             cc-options: -shared -fPIC
             ld-options: -shared
-            exposed-modules: Frontend.App
             other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '\(\.splices\|main\)'$ | tr / . | tr "\n" , | sed 's/,$//')
             include-dirs: cbits/include
             includes: jni.h
             hs-source-dirs: .
             c-sources: cbits/focus.c
-            main-is: Frontend/App.hs
+            main-is: mobile.hs
             ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
             default-extensions: NoDatatypeContexts, NondecreasingIndentation
           EOF

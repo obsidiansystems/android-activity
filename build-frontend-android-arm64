@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo -ne '\033]0;FRONTEND-ANDROID-AARCH64\007'
+echo -ne '\033]0;FRONTEND-ANDROID-ARM64\007'
 
 OLDPWD="$PWD"
-BUILDDIR="$PWD/dist-ios-sim"
+BUILDDIR="$PWD/dist-android-arm64"
 mkdir -p "$BUILDDIR"
 CABAL_FILE="$(nix-build --no-out-link -A frontendAndroidAArch64.cabalFile --show-trace)"
-TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-android-aarch64)"
+TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-android-arm64)"
 function cleanup {
   rm -rf "$TMPDIR"
 }
@@ -17,8 +17,8 @@ nix-shell --show-trace -A frontendAndroidAArch64 --run "
 cd "$TMPDIR"
 shopt -s nullglob
 ln -s "$OLDPWD"/{common,frontend}/src{,-bin}/* .
+ln -s "$OLDPWD"/focus/cross-android/hs/cbits .
 shopt -u nullglob
-ln -s "$CABAL_FILE" frontend-android-aarch64.cabal
 ln -s "$BUILDDIR" dist
 "'
 function setupCompilerEnvironmentPhase {
@@ -30,6 +30,6 @@ function compileBuildDriverPhase {
 }
 compileBuildDriverPhase
 eval "$configurePhase"
-eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build aspen-frontend-clib /'\'')"
-return $?
+set -e
+eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build /'\'')"
 '
