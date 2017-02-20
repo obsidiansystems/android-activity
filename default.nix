@@ -365,7 +365,11 @@ rec {
           app = frontendAndroidAArch64;
           packagePrefix = androidPackagePrefix;
           abiVersion = "arm64-v8a";
-          inherit staticSrc;
+          staticSrc = nixpkgs.runCommand "android_asset" {} ''
+            mkdir "$out"
+            cp -r --no-preserve=mode "${staticSrc}"/* "$out"
+            cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
+          '';
         };
 
         androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
