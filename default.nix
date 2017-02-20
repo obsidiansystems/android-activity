@@ -365,6 +365,7 @@ rec {
           app = frontendAndroidAArch64;
           packagePrefix = androidPackagePrefix;
           abiVersion = "arm64-v8a";
+          inherit staticSrc;
         };
 
         androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
