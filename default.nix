@@ -9,6 +9,11 @@ let tryReflex = import ./reflex-platform {
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = false;
     };
+    tryReflexAndroid = import ./reflex-platform-android {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
+      enableLibraryProfiling = enableProfiling;
+      useReflexOptimizer = false;
+    };
     inherit (tryReflex) nixpkgs cabal2nixResult;
 in with nixpkgs.haskell.lib;
 rec {
@@ -18,7 +23,8 @@ rec {
 
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
-  androidArm64HaskellPackagesBase = tryReflex.ghcAndroidArm64;
+  androidArm64HaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
+  androidArm64Packages = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
   iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
 
@@ -61,7 +67,16 @@ rec {
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
       androidAArch64HaskellPackages = androidArm64HaskellPackagesBase.override {
         overrides = self: super: sharedOverrides self super // {
-          mkDerivation = drv: super.mkDerivation (drv // { enableSharedLibraries = true; enableSharedExecutables = true; });
+          mkDerivation = drv: super.mkDerivation (drv // {
+            dontStrip = true;
+            enableSharedExecutables = false;
+            configureFlags = (drv.configureFlags or []) ++ [
+              "--ghc-option=-fPIC"
+              "--ghc-option=-optc-fPIC"
+              "--ghc-option=-optc-shared"
+              "--ghc-option=-optl-shared"
+            ];
+          });
         };
       };
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
@@ -183,25 +198,6 @@ rec {
         EOF
       '';
 
-      mkCLibCabalFile = haskellPackages: pname: depends: src: nixpkgs.runCommand "${pname}.cabal" {} ''
-        cat > "$out" <<EOF
-        name: ${pname}
-        version: ${appVersion}
-        cabal-version: >= 1.2
-
-        foreign-library ${pname}
-          type: native-shared
-          lib-version-info: 0:0:0
-          other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '\(\.splices\|main\)'$ | tr / . | tr "\n" , | sed 's/,$//')
-          hs-source-dirs: .
-          build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
-          other-extensions: TemplateHaskell
-          ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -rtsopts -threaded "-with-rtsopts=-N10 -I0"
-          default-language: Haskell2010
-          default-extensions: NoDatatypeContexts, NondecreasingIndentation
-        EOF
-      '';
-
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
       mkPreConfigure = pname: cabalFile: /*haskellPackages: pname: executableName: depends: src:*/ ''
         if ! ls | grep ".*\\.cabal$" ; then
@@ -241,37 +237,6 @@ rec {
             doHaddock = false;
           })) {};
 
-      mkCLibFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
-        haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
-          mkDerivation (rec {
-            pname = "${appName}-frontend-clib";
-            version = appVersion;
-            license = null;
-            src = nixpkgs.runCommand "frontend-src" {
-              buildCommand = ''
-                mkdir "$out"
-                ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
-              '';
-            } "";
-            preConfigure = mkPreConfigure pname passthru.cabalFile;
-            preBuild = ''
-              ${if static == null then "" else ''ln -sfT ${static} static''}
-            '';
-            buildDepends = [
-              focus-core
-              focus-js
-            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
-            buildTools = [] ++ frontendTools pkgs;
-            isExecutable = false;
-            isLibrary = false;
-            passthru = {
-              inherit haskellPackages;
-              cabalFile = mkCLibCabalFile haskellPackages pname buildDepends src;
-            };
-            doHaddock = false;
-          })) {};
-
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
         unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc [];
@@ -299,6 +264,70 @@ rec {
           frontend = unminified;
         };
       });
+
+      mkCLibCabalFile = haskellPackages: pname: depends: src: nixpkgs.runCommand "${pname}.cabal" {} ''
+          cat > "$out" <<EOF
+          name: ${pname}
+          version: ${appVersion}
+          build-type: Simple
+          cabal-version: >= 1.8
+
+          executable lib${appName}.so
+            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+            default-language: Haskell2010
+            cc-options: -shared -fPIC
+            ld-options: -shared
+            exposed-modules: Frontend.App
+            other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '\(\.splices\|main\)'$ | tr / . | tr "\n" , | sed 's/,$//')
+            include-dirs: cbits/include
+            includes: jni.h
+            hs-source-dirs: .
+            c-sources: cbits/focus.c
+            main-is: Frontend/App.hs
+            ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
+            default-extensions: NoDatatypeContexts, NondecreasingIndentation
+          EOF
+        '';
+
+      mkCLibFrontend =
+        let crossHs = ./cross-android/hs;
+            packageName = androidPackagePrefix + "." + appName;
+            packageJNIName = builtins.replaceStrings ["."] ["_"] packageName;
+        in frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
+             haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+                mkDerivation (rec {
+                  pname = "${appName}-frontend-clib";
+                  version = appVersion;
+                  license = null;
+                  src = nixpkgs.runCommand "frontend-src" {
+                    buildCommand = ''
+                      mkdir "$out"
+                      ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                      ln -s "${frontendSrc}"/src{,-bin}/* "$out"
+                      cp -r --no-preserve=mode "${crossHs}/cbits" "$out"
+                      sed -i 's|systems_obsidian_focus|'"${packageJNIName}"'|' "$out/cbits/"*"."{c,h}
+                    '';
+                  } "";
+                  preConfigure = ''
+                    ln -s "${passthru.cabalFile}" "${pname}.cabal"
+                  '';
+                  preBuild = ''
+                    ${if static == null then "" else ''ln -sfT ${static} static''}
+                  '';
+                  buildDepends = [
+                    focus-core
+                    focus-js
+                  ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
+                  buildTools = [] ++ frontendTools pkgs;
+                  isExecutable = false;
+                  isLibrary = false;
+                  passthru = {
+                    inherit haskellPackages;
+                    cabalFile = mkCLibCabalFile haskellPackages pname buildDepends src;
+                  };
+                  doHaddock = false;
+                })) {};
+
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
         staticAssets = mkAssets (fixupStatic staticSrc);
@@ -326,8 +355,19 @@ rec {
             ln -s "$emails" "$out/emails"
           fi
         '';
-        androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix;}; # frontend = frontend_.unminified; };
-        androidApp = nixpkgs.androidenv.buildApp {
+        frontendAndroidAArch64 = mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]);
+
+        androidSrc = import ./cross-android/android {
+          inherit (tryReflexAndroid) nixpkgs;
+          inherit (androidArm64Packages) libiconv;
+          inherit (androidAArch64HaskellPackages) ghc;
+          name = appName;
+          app = frontendAndroidAArch64;
+          packagePrefix = androidPackagePrefix;
+          abiVersion = "arm64-v8a";
+        };
+
+        androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
           name = appName;
           src = androidSrc;
           platformVersions = [ "23" ];
@@ -339,16 +379,17 @@ rec {
           keyStorePassword = "password";
           keyAliasPassword = "password";
         };
-        androidEmulate = nixpkgs.androidenv.emulateApp {
+        androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
           name = appName;
           app = androidApp;
           platformVersion = "23";
           enableGPU = true;
-          abiVersion = "x86_64";
+          abiVersion = "arm64-v8a";
           useGoogleAPIs = false;
           package = androidPackagePrefix + "." + appName;
           activity = ".MainActivity";
         };
+
         backend =
           backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
             pname = "${appName}-backend";
@@ -456,7 +497,6 @@ rec {
           frontend = frontend_.unminified;
           frontendMinified = frontend_;
           inherit staticAssets;
-          frontendAndroidAArch64 = tryReflex.foreignLibSmuggleHeaders (mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]));
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
@@ -579,7 +619,7 @@ rec {
               shift
               CONFIG_ROUTE=$1
               shift
-              
+
               set -euo pipefail
 
               function cleanup {
@@ -615,7 +655,7 @@ rec {
               cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
-              
+
               "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app" "$@"
             '';
             packageScript = builtins.toFile "package" ''
@@ -635,7 +675,7 @@ rec {
               shift
               EMBEDDED_PROVISIONING_PROFILE=$1
               shift
-              
+
               set -euo pipefail
 
               function cleanup {
@@ -671,7 +711,7 @@ rec {
               cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
-              
+
               /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE" "$@"
             '';
             runInSim = builtins.toFile "run-in-sim" ''
