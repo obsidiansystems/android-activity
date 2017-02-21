@@ -52,11 +52,14 @@ import Control.Monad.Writer
 import Data.Aeson
 import Data.Align
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
 import Data.List.Split
 import Data.Pool
 import Data.String (fromString)
 import qualified Data.Text as T
 import Data.Text.Encoding
+import Data.Time.Clock
+import Data.Time.Format
 import Data.These
 import Data.Traversable
 import Database.Groundhog
@@ -261,8 +264,8 @@ ensureSchemaViewListenerExists schema connections = atomically $ do
     Just schemaConn -> return schemaConn
 
 handleListen :: forall m m' rsp rq vs vp state.
-                ( MonadSnap m, ToJSON rsp, FromJSON rq
-                , FromJSON vs, ToJSON vp, Monoid vs
+                ( MonadSnap m, ToJSON rsp, FromJSON rq, ToJSON rq
+                , FromJSON vs, ToJSON vs, ToJSON vp, Monoid vs
                 )
              => SchemaName
              -> (vs -> state -> m' ()) -- connectionCloseHook
@@ -306,11 +309,14 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
         runGroundhog (runStateT (getView vsInit mempty) stateInit)
       return ((vsInit, newStateInit), vpInit)
     send' vpInit
-    let sender act wrapper wsd = do
+    let sender t0 act wrapper wsd = do
           er <- try act
-          sendDataMessage conn . wrapper . encodeR . Right . wsd $ case er of
-            Left (se :: SomeException) -> Left (displayException se)
-            Right rsp -> Right rsp
+          let payload = case er of
+                Left (se :: SomeException) -> Left (displayException se)
+                Right rsp -> Right rsp
+          t1 <- formattedTimestamp
+          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, encode payload ]
+          sendDataMessage conn . wrapper . encodeR . Right . wsd $ payload
         sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
         handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
@@ -320,18 +326,21 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
     connectionOpenHook (sender' WS.Text)
     handleConnectionException $ forever $ do
       dm <- receiveDataMessage conn
+      t0 <- formattedTimestamp
       let (wrapper, r) = case dm of
             WS.Text r' -> (WS.Text, r')
             WS.Binary r' -> (WS.Text, r')
-
-      case eitherDecode' r of
-        Left s -> sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
+          decoded = eitherDecode' r
+      LBSC8.putStrLn $ tabSeparated $ [ "REQUEST", t0, encode decoded ]
+      case decoded of
+        Left s -> do
+          sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
         Right (WebSocketData_Version _) -> do
           putStrLn "Shouldn't be receiving version from frontend..."
           return ()
         Right (WebSocketData_Api rid rq) -> do
           (_, s) <- readMVar stateRef
-          sender (processRequest s rq) wrapper (WebSocketData_Api rid)
+          sender t0 (processRequest s rq) wrapper (WebSocketData_Api rid)
         Right (WebSocketData_Listen vs) -> do
           -- Acquire connections
           vp <- modifyTMVar connections $ \currentConnections -> do
@@ -345,9 +354,14 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
             -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
             return (currentConnections
                    , vp)
+          t1 <- formattedTimestamp
+          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, "LISTEN" ]
           send' vp
 
  where
+   tabSeparated = LBSC8.intercalate (LBSC8.singleton '\t')
+   formattedTimestamp = liftIO $
+     LBSC8.pack . (++"Z") . formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S")) <$> getCurrentTime
    encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
    encodeR = encode
 
