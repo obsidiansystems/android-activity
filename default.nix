@@ -554,6 +554,27 @@ rec {
                   <string>UIInterfaceOrientationLandscapeLeft</string>
                   <string>UIInterfaceOrientationLandscapeRight</string>
                 </array>
+                <key>CFBundleIcons~ipad</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>assets/Wrinkl iOS 60</string>
+                      <string>assets/Wrinkl iOS 76</string>
+                    </array>
+                  </dict>
+                </dict>
+                <key>CFBundleIcons</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>assets/Wrinkl iOS 60</string>
+                    </array>
+                  </dict>
+                </dict>
               </dict>
               </plist>
             '';
