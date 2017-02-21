@@ -562,6 +562,7 @@ rec {
                     <array>
                       <string>assets/Wrinkl iOS 60</string>
                       <string>assets/Wrinkl iOS 76</string>
+                      <string>assets/Wrinkl iOS 83.5</string>
                     </array>
                   </dict>
                 </dict>
@@ -790,30 +791,40 @@ rec {
               <?xml version="1.0" encoding="UTF-8"?>
               <!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
               <plist version="0.9">
-              <dict>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleIdentifier</key>
-              <string>${bundleIdentifier}</string>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>${exeName}</string>
-              <key>CFBundleIconFile</key>
-              <string></string>
-              <key>CFBundleName</key>
-              <string>${bundleName}</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleVersion</key>
-              <string>1.0</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>NSHumanReadableCopyright</key>
-              <string>${exeName}</string>
-              <key>NSPrincipalClass</key>
-              <string>NSApplication</string>
-              </dict>
+                <dict>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleIdentifier</key>
+                <string>${bundleIdentifier}</string>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleExecutable</key>
+                <string>${exeName}</string>
+                <key>CFBundleIconFile</key>
+                <string></string>
+                <key>CFBundleName</key>
+                <string>${bundleName}</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleVersion</key>
+                <string>1.0</string>
+                <key>CFBundleShortVersionString</key>
+                <string>1.0</string>
+                <key>NSHumanReadableCopyright</key>
+                <string>${exeName}</string>
+                <key>NSPrincipalClass</key>
+                <string>NSApplication</string>
+                </dict>
+                <key>CFBundleIcons</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>assets/Wrinkl iOS 60</string>
+                    </array>
+                  </dict>
+                </dict>
               </plist>
             '';
             indexHtml = builtins.toFile "index.html" ''
