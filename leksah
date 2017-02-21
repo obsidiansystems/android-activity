@@ -1,26 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
+echo -ne "\\033]0;Leksah FRONTEND-$1\\007"
 
-sed 's|hs-source-dirs: \.|hs-source-dirs: common/src frontend/src frontend/src-bin|' < `nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace` > aspen-frontend.cabal
+# For cabal-new build to work we need 3 things.  A aspen-frontend.cabal, cabal.project and cabal.project.local.
+
+echo Make aspen-frontend.cabal
+sed 's|hs-source-dirs: \.|hs-source-dirs: common/src frontend/src frontend/src-bin|' < `nix-build --no-out-link -A $1.cabalFile --show-trace` > aspen-frontend.cabal || exit 1
+
+echo Copy desired cabal.project
+cp cabal.$1.project cabal.project || exit 1
 
 OLDPWD="$PWD"
-BUILDDIR="$PWD/dist-ios-aarch64"
+BUILDDIR="$PWD/dist-$1"
 mkdir -p "$BUILDDIR"
-CABAL_FILE="$(nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace)"
-TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-aarch64)"
+CABAL_FILE="$(nix-build --no-out-link -A $1.cabalFile --show-trace)"
+TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-$1)"
 function cleanup {
   rm -rf "$TMPDIR"
 }
 trap cleanup EXIT
 
-nix-shell --show-trace -A frontendIosAArch64 --run "
+echo Make cabal.project.local with cabal new-configure and run leksah
+nix-shell --show-trace -A $1 --run "
 cd "$TMPDIR"
 shopt -s nullglob
 ln -s "$OLDPWD"/{common,frontend}/src{,-bin}/* .
 shopt -u nullglob
-ln -s "$CABAL_FILE" frontend-ios-aarch64.cabal
+ln -s "$CABAL_FILE" frontend-$1.cabal
 ln -s "$BUILDDIR" dist
 "'
 function setupCompilerEnvironmentPhase {
@@ -34,7 +41,11 @@ compileBuildDriverPhase
 eval "$configurePhase"
 set -e
 unset GHC_PACKAGE_PATH
-eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\(cd ~\/haskell\/aspen \&\& nix-shell -A frontendIosAArch64.env --run "cabal new-configure \1 \&\& leksah"\)/'\'')"
+eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\(cd ~\/haskell\/aspen \&\& nix-shell -A '"$1"'.env --run "cabal new-configure \1 \&\& leksah"\)/'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy "$@"
+# While working in leksah on frontendIosAArch64 you can deploy to iOS device with (replace [TEAM_ID]):
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy [TEAM_ID] config/route
+
+# While working in leksah on frontendIosIosSimulator you can run in simulator with:
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/run-in-sim config/route

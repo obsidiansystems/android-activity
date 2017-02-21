@@ -505,7 +505,7 @@ rec {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -521,7 +521,7 @@ rec {
                 <key>CFBundleInfoDictionaryVersion</key>
                 <string>6.0</string>
                 <key>CFBundleName</key>
-                <string>${exeName}</string>
+                <string>${bundleName}</string>
                 <key>CFBundlePackageType</key>
                 <string>APPL</string>
                 <key>CFBundleShortVersionString</key>
@@ -784,7 +784,7 @@ rec {
             ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
             cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
           '';
-          mkMacApp = exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkMacApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -794,7 +794,7 @@ rec {
               <key>CFBundleInfoDictionaryVersion</key>
               <string>6.0</string>
               <key>CFBundleIdentifier</key>
-              <string>${exeName}</string>
+              <string>${bundleIdentifier}</string>
               <key>CFBundleDevelopmentRegion</key>
               <string>en</string>
               <key>CFBundleExecutable</key>
@@ -802,7 +802,7 @@ rec {
               <key>CFBundleIconFile</key>
               <string></string>
               <key>CFBundleName</key>
-              <string>${exeName}</string>
+              <string>${bundleName}</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleVersion</key>
@@ -813,55 +813,6 @@ rec {
               <string>${exeName}</string>
               <key>NSPrincipalClass</key>
               <string>NSApplication</string>
-              </dict>
-              </plist>
-
-<?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-                <key>CFBundleDevelopmentRegion</key>
-                <string>en</string>
-                <key>CFBundleExecutable</key>
-                <string>${exeName}</string>
-                <key>CFBundleIdentifier</key>
-                <string>${exeName}</string>
-                <key>CFBundleInfoDictionaryVersion</key>
-                <string>6.0</string>
-                <key>CFBundleName</key>
-                <string>${exeName}</string>
-                <key>CFBundlePackageType</key>
-                <string>APPL</string>
-                <key>CFBundleShortVersionString</key>
-                <string>1.0</string>
-                <key>CFBundleVersion</key>
-                <string>1</string>
-                <key>LSRequiresIPhoneOS</key>
-                <true/>
-                <key>UILaunchStoryboardName</key>
-                <string>LaunchScreen</string>
-                <key>UIRequiredDeviceCapabilities</key>
-                <array>
-                  <string>armv7</string>
-                </array>
-                <key>UIDeviceFamily</key>
-                <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
-                </array>
-                <key>UISupportedInterfaceOrientations</key>
-                <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-                </array>
-                <key>UISupportedInterfaceOrientations~ipad</key>
-                <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-                </array>
               </dict>
               </plist>
             '';
@@ -909,10 +860,10 @@ rec {
           '';
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
               (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosSimulatorApp = mkIosApp "mobile" (frontendIosSimulator+"/bin") staticSrc;
+          frontendIosSimulatorApp = mkIosApp "wrinkl" "mobile" (frontendIosSimulator+"/bin") staticSrc;
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosAArch64App = mkIosApp "mobile" (frontendIosAArch64+"/bin") staticSrc;
+          frontendIosAArch64App = mkIosApp "wrinkl" "mobile" (frontendIosAArch64+"/bin") staticSrc;
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
