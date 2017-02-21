@@ -291,14 +291,14 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
   let allocate = do
         stateRef <- newMVar (vs0, state0)
         modifyTMVar_ connections $ \currentConnections -> do
-          return $ currentConnections & connections_connState           %~ AppendMap.insert threadId (send', stateRef)
+          return $ currentConnections & connections_connState %~ AppendMap.insert threadId (send', stateRef)
         return stateRef
       release stateRef = do
         modifyTMVar_ connections $ \currentConnections -> do
           tryReadMVar stateRef >>= \case
             Just (vs, state) -> runGroundhog $ connectionCloseHook vs state
             Nothing -> return () -- TODO: The stateRef shouldn't be empty when the connection closes. This indicates an error.
-          return $ currentConnections & connections_connState           %~ AppendMap.delete threadId
+          return $ currentConnections & connections_connState %~ AppendMap.delete threadId
   bracket allocate release $ \stateRef -> do
     vpInit <- modifyMVar stateRef $ \(vsInit, stateInit) -> do
       -- NB: newStateInit is forced to be strict below to prevent a buildup of thunks in the IORef
@@ -311,14 +311,13 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
           sendDataMessage conn . wrapper . encodeR . Right . wsd $ case er of
             Left (se :: SomeException) -> Left (displayException se)
             Right rsp -> Right rsp
-    let sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
-    connectionOpenHook (sender' WS.Text)
-
-    let handleConnectionException = handle $ \e -> case e of
+        sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
+        handleConnectionException = handle $ \e -> case e of
           ConnectionClosed -> return ()
           CloseRequest _ _ -> print e >> WS.pendingStreamClose pc >> throwIO e
           _ -> do putStr "Exception: " >> print e
                   throwIO e
+    connectionOpenHook (sender' WS.Text)
     handleConnectionException $ forever $ do
       dm <- receiveDataMessage conn
       let (wrapper, r) = case dm of
