@@ -42,7 +42,9 @@ setPermanentCookieWithLocation doc loc key mv = do
       -- would prevent links to the page from working; lax is secure enough,
       -- because we don't take dangerous actions simply by executing a GET
       -- request.
-      , setCookieSameSite = Just sameSiteLax
+      , setCookieSameSite = if currentProtocol == "file:"
+          then Nothing
+          else Just sameSiteLax
       , setCookieDomain = loc
       }
 
