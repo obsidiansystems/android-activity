@@ -39,13 +39,17 @@ function compileBuildDriverPhase {
 }
 compileBuildDriverPhase
 eval "$configurePhase"
-set -e
 unset GHC_PACKAGE_PATH
-eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\(cd ~\/haskell\/aspen \&\& nix-shell -A '"$1"'.env --run "cabal new-configure \1 \&\& leksah"\)/'\'')"
+set -e
+CABAL_CONFIG_FLAGS="$(echo "$configureFlags" | sed -e '\''s/--ghc-option=[^ ]*//g'\'' -e '\''s/--package-db=\([^ ]*\)/--package-db=\1 --ghc-pkg-option=--global-package-db=\1 --ghc-option=-package-db=\1/'\'')"
+eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\( \
+  cd ~\/haskell\/aspen \&\& \
+  nix-shell -A '"$1"'.env --run "cabal new-configure $CABAL_CONFIG_FLAGS \&\& \
+  leksah"\)/'\'')"
 '
 
 # While working in leksah on frontendIosAArch64 you can deploy to iOS device with (replace [TEAM_ID]):
-# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy [TEAM_ID] config/route
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy [TEAM_ID] config/route
 
 # While working in leksah on frontendIosIosSimulator you can run in simulator with:
-# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/aspen-frontend-0.1/c/mobile/build/mobile ./static")/bin/run-in-sim config/route
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/x86_64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile ./static")/bin/run-in-sim config/route
