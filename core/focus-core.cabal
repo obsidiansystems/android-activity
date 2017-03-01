@@ -26,7 +26,6 @@ library
                , dependent-map
                , dependent-sum
                , directory-tree
-               , groundhog
                , haskell-src-exts
                , http-conduit
                , http-types
@@ -35,7 +34,6 @@ library
                , mtl
                , mime-mail
                , monad-control
-               , monad-logger
                , network-uri
                , old-locale
                , reflex

@@ -4,8 +4,6 @@ module Focus.Sign where
 import Data.Text
 import Data.Typeable
 import Data.Aeson
-import Database.Groundhog
-import Control.Monad.Logger
 import Control.Monad.Reader
 import Control.Monad.State
 import qualified Control.Monad.State.Strict as Strict
@@ -25,13 +23,5 @@ instance MonadSign m => MonadSign (StateT s m) where
   readSigned = lift . readSigned
 
 instance MonadSign m => MonadSign (Strict.StateT s m) where
-  sign = lift . sign
-  readSigned = lift . readSigned
-
-instance MonadSign m => MonadSign (NoLoggingT m) where
-  sign = lift . sign
-  readSigned = lift . readSigned
-
-instance MonadSign m => MonadSign (DbPersist conn m) where
   sign = lift . sign
   readSigned = lift . readSigned
