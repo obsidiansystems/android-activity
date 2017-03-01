@@ -40,12 +40,14 @@ function compileBuildDriverPhase {
 compileBuildDriverPhase
 eval "$configurePhase"
 unset GHC_PACKAGE_PATH
-set -e
-CABAL_CONFIG_FLAGS="$(echo "$configureFlags" | sed -e '\''s/--ghc-option=[^ ]*//g'\'' -e '\''s/--package-db=\([^ ]*\)/--package-db=\1 --ghc-pkg-option=--global-package-db=\1 --ghc-option=-package-db=\1/'\'')"
+set -ex
+# CABAL_CONFIG_FLAGS="$(echo "$configureFlags" | sed -e '\''s/--ghc-option=[^ ]*//g'\'' -e '\''s/--package-db=\([^ ]*\)/--package-db=\1 --ghc-pkg-option=--global-package-db=\1 --ghc-option=-package-db=\1/'\'')"
+CABAL_CONFIG_FLAGS="$configureFlags"
 eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\( \
   cd ~\/haskell\/aspen \&\& \
-  nix-shell -A '"$1"'.env --run "cabal new-configure $CABAL_CONFIG_FLAGS \&\& \
-  leksah"\)/'\'')"
+  nix-shell -A '"$1"'.env --run " \
+    cabal new-configure $CABAL_CONFIG_FLAGS \&\& \
+    leksah"\)/'\'')"
 '
 
 # While working in leksah on frontendIosAArch64 you can deploy to iOS device with (replace [TEAM_ID]):
