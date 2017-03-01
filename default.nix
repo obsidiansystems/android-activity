@@ -534,7 +534,7 @@ rec {
                 <string>LaunchScreen</string>
                 <key>UIRequiredDeviceCapabilities</key>
                 <array>
-                  <string>armv7</string>
+                  <string>arm64</string>
                 </array>
                 <key>UIDeviceFamily</key>
                 <array>
@@ -560,9 +560,9 @@ rec {
                   <dict>
                     <key>CFBundleIconFiles</key>
                     <array>
-                      <string>assets/Wrinkl iOS 60</string>
-                      <string>assets/Wrinkl iOS 76</string>
-                      <string>assets/Wrinkl iOS 83.5</string>
+                      <string>Wrinkl iOS 60</string>
+                      <string>Wrinkl iOS 76</string>
+                      <string>Wrinkl iOS 83.5</string>
                     </array>
                   </dict>
                 </dict>
@@ -572,10 +572,30 @@ rec {
                   <dict>
                     <key>CFBundleIconFiles</key>
                     <array>
-                      <string>assets/Wrinkl iOS 60</string>
+                      <string>Wrinkl iOS 60</string>
                     </array>
                   </dict>
                 </dict>
+                <key>DTSDKName</key>
+	            <string>iphoneos10.2</string>
+	            <key>DTXcode</key>
+	            <string>0821</string>
+	            <key>DTSDKBuild</key>
+	            <string>14C89</string>
+	            <key>BuildMachineOSBuild</key>
+	            <string>16D32</string>
+	            <key>DTPlatformName</key>
+	            <string>iphoneos</string>
+	            <key>DTCompiler</key>
+	            <string>com.apple.compilers.llvm.clang.1_0</string>
+	            <key>MinimumOSVersion</key>
+	            <string>10.2</string>
+	            <key>DTXcodeBuild</key>
+	            <string>8C1002</string>
+	            <key>DTPlatformVersion</key>
+	            <string>10.2</string>
+	            <key>DTPlatformBuild</key>
+	            <string>14C89</string>
               </dict>
               </plist>
             '';
@@ -738,7 +758,8 @@ rec {
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
 
-              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE" "$@"
+              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
+              /Applications/Xcode.app/Contents/Applications/Application\ Loader.app/Contents/Frameworks/ITunesSoftwareService.framework/Versions/A/Support/altool --validate-app -f "$IPA_DESTINATION" -t ios "$@"
             '';
             runInSim = builtins.toFile "run-in-sim" ''
               #!/usr/bin/env bash
@@ -784,6 +805,7 @@ rec {
             chmod +x "$out/bin/run-in-sim"
             ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
             cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/assets/Wrinkl\ iOS\ *.png "$out/${exeName}.app/"
           '';
           mkMacApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
