@@ -505,7 +505,7 @@ rec {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc}: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -525,9 +525,9 @@ rec {
                 <key>CFBundlePackageType</key>
                 <string>APPL</string>
                 <key>CFBundleShortVersionString</key>
-                <string>1.0</string>
+                <string>${bundleVersionString}</string>
                 <key>CFBundleVersion</key>
-                <string>1</string>
+                <string>${bundleVersion}</string>
                 <key>LSRequiresIPhoneOS</key>
                 <true/>
                 <key>UILaunchStoryboardName</key>
@@ -893,10 +893,10 @@ rec {
           '';
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
               (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosSimulatorApp = mkIosApp "wrinkl" "mobile" (frontendIosSimulator+"/bin") staticSrc;
+          frontendIosSimulatorApp = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosSimulator+"/bin"), staticSrc};
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosAArch64App = mkIosApp "wrinkl" "mobile" (frontendIosAArch64+"/bin") staticSrc;
+          frontendIosAArch64App = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosAArch64+"/bin"), staticSrc};
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];

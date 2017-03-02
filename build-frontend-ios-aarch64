@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-if [ -z "$1" -o -z "$2" ]; then
-  echo "Usage: $0 [APP_NAME] [BUNDLE_IDENTIFIER]" >&2
+if [ -z "$1" -o -z "$2" -o -z "$3" -o -z "$4" ]; then
+  echo "Usage: $0 [APP_NAME] [BUNDLE_IDENTIFIER] [BUNDLE_VERSION_STRING] [BUNDLE_VERSION]" >&2
   exit 1
 fi
 
 APP_NAME=$1
 shift
 BUNDLE_IDENTIFIER=$1
+shift
+BUNDLE_VERSION_STRING=$1
+shift
+BUNDLE_VERSION=$1
 shift
 set -euo pipefail
 
@@ -43,4 +47,4 @@ set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"$APP_NAME\" \"$BUNDLE_IDENTIFIER\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"$APP_NAME\" \"$BUNDLE_IDENTIFIER\" \"$BUNDLE_VERSION_STRING\" \"$BUNDLE_VERSION\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
