@@ -6,8 +6,6 @@ import Data.Constraint
 import Focus.App
 import Focus.Request
 
-import Debug.Trace.LocationTH
-
 data ApiRequest (f :: * -> *) :: * -> ((* -> *) -> k -> *) -> ((* -> *) -> k -> *) -> k -> * where
   ApiRequest_Public :: public f a -> ApiRequest f cred public private a
   ApiRequest_Private :: cred -> private f a -> ApiRequest f cred public private a
