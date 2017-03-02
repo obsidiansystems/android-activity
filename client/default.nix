@@ -1,5 +1,5 @@
 { mkDerivation, aeson, async, base, bytestring, containers
-, exceptions, focus-core, http-types, lens, loch-th, mtl, network
+, exceptions, focus-core, http-types, lens, mtl, network
 , semigroups, stdenv, stm, text, time, transformers, websockets
 }:
 mkDerivation {
@@ -8,7 +8,7 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson async base bytestring containers exceptions focus-core
-    http-types lens loch-th mtl network semigroups stm text time
+    http-types lens mtl network semigroups stm text time
     transformers websockets
   ];
   description = "client API for interacting with focus projects";

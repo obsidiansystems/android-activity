@@ -56,7 +56,7 @@ instance PrimMonad m => PrimMonad (PreprocessedCSSClassesT m) where
 processCssElementConfig :: Reflex t => ElementConfig er t m -> ElementConfig er t m
 processCssElementConfig cfg = cfg
   { _elementConfig_initialAttributes = Map.adjust (T.unwords . map removePrefix . T.words) "class" $ _elementConfig_initialAttributes cfg
-  , _elementConfig_modifyAttributes = Map.adjust (fmap (T.unwords . map addPrefix . T.words)) "class" <$> _elementConfig_modifyAttributes cfg
+  , _elementConfig_modifyAttributes = fmap (Map.adjust (fmap (T.unwords . map addPrefix . T.words)) "class") <$> _elementConfig_modifyAttributes cfg
   }
   where
     classPrefix = "preprocess-"
@@ -84,10 +84,10 @@ instance DomBuilder t m => DomBuilder t (PreprocessedCSSClassesT m) where
     let cfg' = liftElementConfig $ processCssElementConfig cfg
     lift $ element elementTag cfg' $ runPreprocessedCSSClassesT child
 
-instance HasWebView m => HasWebView (PreprocessedCSSClassesT m) where
-  type WebViewPhantom (PreprocessedCSSClassesT m) = WebViewPhantom m
-  askWebView = lift askWebView
+instance HasJSContext m => HasJSContext (PreprocessedCSSClassesT m) where
+  type JSContextPhantom (PreprocessedCSSClassesT m) = JSContextPhantom m
+  askJSContext = lift askJSContext
 
 instance HasJS js m => HasJS js (PreprocessedCSSClassesT m) where
-  type JSM (PreprocessedCSSClassesT m) = JSM m
+  type JSX (PreprocessedCSSClassesT m) = JSX m
   liftJS = lift . liftJS

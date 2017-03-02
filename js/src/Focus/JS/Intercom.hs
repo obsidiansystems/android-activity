@@ -1,5 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, FunctionalDependencies, AllowAmbiguousTypes, TypeApplications #-}
-module Focus.JS.Intercom
+module Focus.JS.Intercom where
+
+#if 0
        ( IntercomUserHash (..)
        , IntercomVisitor (..)
        , IntercomUserSettings (..)
@@ -16,7 +18,7 @@ import Focus.Intercom.Common
 import Focus.JS.App
 import Focus.JS.Prerender
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 
 data IntercomVisitor
   = IntercomVisitor_Lead -- ^ Leads are anonymous
@@ -72,9 +74,11 @@ shutdownIntercom :: (PostBuild t m, PerformEvent t m, Prerender js m) => m (Even
 shutdownIntercom = intercom $ constDyn Nothing
 
 {-# DEPRECATED setupIntercom "Use 'void . intercom . fmap Just =<< holdDyn v0 newV' instead of 'setupIntercom v0 newV'" #-}
-setupIntercom :: (MonadFocusWidget f app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
+setupIntercom :: (MonadFocusWidget app t m, Prerender js m) => IntercomVisitor -> Event t IntercomVisitor -> m ()
 setupIntercom v0 v' = void . intercom . fmap Just =<< holdDyn v0 v'
 
 -- | Show or hide intercom chat widget
 displayIntercomChat :: (PerformEvent t m, Prerender js m) => Event t Bool -> m (Event t ())
 displayIntercomChat eTrigger = prerender (return never) $ performEvent $ ffor eTrigger $ liftJS . intercomShow
+
+#endif

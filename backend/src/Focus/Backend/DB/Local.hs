@@ -33,8 +33,6 @@ import Data.FileEmbed
 import System.IO.Temp
 import Paths_focus_backend
 
-import Debug.Trace.LocationTH
-
 initLocalPostgres :: FilePath -> IO ()
 initLocalPostgres dbDir = do
   (_, _, _, initdb) <- runInteractiveProcess $(staticWhich "initdb")
@@ -106,8 +104,8 @@ serveLocalPostgres dbDir = do
             | isAlreadyInUseError e
             -> do
               hPutStrLn stderr $ "Error: control socket already exists; that probably means that another instance of serveLocalPostgres is already running"
-              $checkIO $ throwIO e
-            | otherwise -> $checkIO $ throwIO e
+              throwIO e
+            | otherwise -> throwIO e
   bracket createSocket (\_ -> removeFile socketPath) $ \_ -> do
     -- Between bind and listen, the socket will be in a non-accepting state; this should last a very brief time, so the client should just briefly wait and then retry
     listen controlSocket 128
@@ -156,11 +154,10 @@ withLocalPostgres dbDir a = do
                   hClose serverIn
                   void $ hGetLine serverOut
                   acquire -- Try again
-            | otherwise -> $checkIO $ throwIO e
+            | otherwise -> throwIO e
   bracket_ acquire (shutdown s ShutdownBoth >> close s) $ do
     dbUri <- getLocalPostgresConnectionString $ dbDir </> "db"
     a dbUri
-            
 
 withIoProc :: Show a => Name -> a -> (CreateProcess -> IO b) -> IO b --TODO: Check that the thing referred to by the Name takes an argument of type a
 withIoProc = $(do

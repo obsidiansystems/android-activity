@@ -1,7 +1,18 @@
-{ enableProfiling ? false }:
+{ enableProfiling ? false
+, runWithHeapProfiling ? false
+, enableExposeAllUnfoldings ? false
+, enableTraceReflexEvents ? false
+}:
+assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
-      useReflexOptimizer = true;
+      useReflexOptimizer = false;
+    };
+    tryReflexAndroid = import ./reflex-platform-android {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
+      enableLibraryProfiling = enableProfiling;
+      useReflexOptimizer = false;
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
 in with nixpkgs.haskell.lib;
@@ -9,10 +20,16 @@ rec {
   inherit tryReflex nixpkgs cabal2nixResult;
   pkgs = tryReflex.nixpkgs;
   inherit (nixpkgs) stdenv;
+
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
+  androidArm64HaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
+  androidArm64Packages = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
+  iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
+  iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
+
   myPostgres = nixpkgs.postgresql95; #TODO: shouldn't be exposed
-  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" ])) p else null;
+  filterGitSource = p: if builtins.pathExists p then builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "tags" "TAGS" "dist" ])) p else null;
   mkDerivation = nixpkgs.lib.makeOverridable (
     { name
     , version
@@ -22,8 +39,10 @@ rec {
     , backendTools ? (p: [])
     , frontendDepends ? (p: [])
     , frontendTools ? (p: [])
-    , testDepends ? (p: [])
-    , testTools ? (p : [])
+    , backendTestDepends ? (p: [])
+    , webDriverTestDepends ? (p: [])
+    , backendTestTools ? (p: [])
+    , webDriverTestTools ? (p: [])
     , commonDepends ? (p: [])
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
@@ -40,10 +59,41 @@ rec {
       backendSrc = filterGitSource ../backend;
       marketingSrc = filterGitSource ../marketing;
       staticSrc = filterGitSource ../static;
-      testsSrc = filterGitSource ../tests;
+      backendTestsSrc = filterGitSource ../tests/backend;
+      webDriverTestsSrc = filterGitSource ../tests/webdriver;
+
+      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+      frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
+      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      androidAArch64HaskellPackages = androidArm64HaskellPackagesBase.override {
+        overrides = self: super: sharedOverrides self super // {
+          mkDerivation = drv: super.mkDerivation (drv // {
+            dontStrip = true;
+            enableSharedExecutables = false;
+            configureFlags = (drv.configureFlags or []) ++ [
+              "--ghc-option=-fPIC"
+              "--ghc-option=-optc-fPIC"
+              "--ghc-option=-optc-shared"
+              "--ghc-option=-optl-shared"
+            ];
+          });
+        };
+      };
+      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+        overrides = self: super: let new = sharedOverrides self super; in new // {
+          focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
+        };
+      };
+      iosAArch64HaskellPackages = iosArm64HaskellPackagesBase.override {
+        overrides = self: super: let new = sharedOverrides self super; in new // {
+          focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
+        };
+      };
 
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-        // { focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+        // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
+             focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
              focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
              focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
@@ -53,10 +103,13 @@ rec {
              });
              focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
+             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
              email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
+             touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
            };
+
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
           crypto-numbers = self.mkDerivation ({
@@ -80,64 +133,80 @@ rec {
           focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
           focus-client = dontHaddock (self.callPackage ./client {});
           focus-test = dontHaddock (self.callPackage ./test {});
+          websockets = overrideCabal super.websockets (drv: {
+            src = ./websockets;
+            buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
+            jailbreak = true;
+          });
+          websockets-snap = overrideCabal super.websockets-snap (drv: {
+            src = ./websockets-snap;
+            buildDepends = with self; [ snap-core snap-server io-streams ];
+          });
+          snap-stream = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
         };
       }).override { overrides = haskellPackagesOverrides; };
-      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
-      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+
+
       mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
 
       libraryHeader = ''
         library
           exposed-modules: $(find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '^main'$ | tr / . | tr "\n" , | sed 's/,$//')
       '';
-      executableHeader = executableName: mainFile: ''
-        executable ${executableName}
-          main-is: ${if mainFile == null
-                     then ''$(ls | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
-                     else mainFile
-                    }
-      '';
-      mkCabalFile = haskellPackages: pname: executableName: depends:
-        let mkCabalTarget = header: ''
+      mkCabalFile = haskellPackages: pname: executableName: depends: src: rtsOpts:
+        let inherit (pkgs.lib) optionalString;
+            mkCabalTarget = header: ''
               ${header}
                 hs-source-dirs: .
-                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix" ]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+                build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -threaded "-with-rtsopts=-N10 -I0" ${if builtins.any (p: (p.name or "") == "reflex") depends then "-fplugin=Reflex.Optimizer" else ""}
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}"
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts, NondecreasingIndentation
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
+                if !os(ios) && !arch(aarch64)
+                  cpp-options: -DUSE_TEMPLATE_HASKELL
             '';
-        in ''
+            executableHeader = executableName: mainFile: ''
+              executable ${executableName}
+                main-is: ${if mainFile == null
+                           then ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
+                           else mainFile
+                          }
+            '';
+        in nixpkgs.runCommand "${pname}.cabal" {} ''
+        cat > "$out" <<EOF
         name: ${pname}
         version: ${appVersion}
-        cabal-version: >= 1.2
+        cabal-version: >= 1.24
+        build-type: Simple
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
         ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
 
-        $(for x in $(ls | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
+        $(for x in $(ls "${src}" | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
             cat <<INNER_EOF
         ${mkCabalTarget (executableHeader "$x" "$x.hs")}
         INNER_EOF
         done
         )
+
+
+        EOF
       '';
 
       #TODO: The list of builtin packages should be in nixpkgs, associated with the compiler
-      mkPreConfigure = haskellPackages: pname: executableName: depends: ''
+      mkPreConfigure = pname: cabalFile: /*haskellPackages: pname: executableName: depends: src:*/ ''
         if ! ls | grep ".*\\.cabal$" ; then
-          cat >"${pname}.cabal" <<EOF
-        ${mkCabalFile haskellPackages pname executableName depends}
-        EOF
+          ln -s "${cabalFile}" "${pname}.cabal"
         fi
         cat *.cabal
       '';
 
-      mkFrontend = frontendSrc: commonSrc: haskellPackages: static:
+      mkFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
           mkDerivation (rec {
             pname = "${appName}-frontend";
@@ -147,10 +216,10 @@ rec {
               buildCommand = ''
                 mkdir "$out"
                 ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src/* "$out"/
+                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
               '';
             } "";
-            preConfigure = mkPreConfigure haskellPackages pname "frontend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if static == null then "" else ''ln -sfT ${static} static''}
             '';
@@ -158,27 +227,35 @@ rec {
               focus-core
               focus-js
               ghcjs-dom
-            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages;
+            ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
             buildTools = [] ++ frontendTools pkgs;
             isExecutable = true;
             passthru = {
               inherit haskellPackages;
+              cabalFile = mkCabalFile haskellPackages pname "frontend" buildDepends src "-T";
             };
             doHaddock = false;
           })) {};
+
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
         name = "ghcjs-app";
-        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc;
+        unminified = mkFrontend frontendSrc commonSrc frontendHaskellPackages staticSrc [];
         ghcjsExterns = ./ghcjs.externs.js;
         inherit (pkgs) closurecompiler;
         builder = builtins.toFile "builder.sh" ''
           source "$stdenv/setup"
 
-          mkdir -p "$out/frontend.jsexe"
-          cd "$out/frontend.jsexe"
-          ln -s "$unminified/bin/frontend.jsexe/all.js" all.unminified.js
-          java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
-          echo "//# sourceMappingURL=all.js.map" >> all.js
+          mkdir -p "$out"
+          cd "$out"
+          for x in $(ls "$unminified/bin") ; do
+            mkdir "$x"
+            pushd "$x"
+            ln -s "$unminified/bin/$x/all.js" all.unminified.js
+            java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+            echo "//# sourceMappingURL=all.js.map" >> all.js
+            popd
+          done
+
         '';
         buildInputs = with pkgs; [
           jre
@@ -187,11 +264,74 @@ rec {
           frontend = unminified;
         };
       });
+
+      mkCLibCabalFile = haskellPackages: pname: depends: src: nixpkgs.runCommand "${pname}.cabal" {} ''
+          cat > "$out" <<EOF
+          name: ${pname}
+          version: ${appVersion}
+          build-type: Simple
+          cabal-version: >= 1.8
+
+          executable lib${appName}.so
+            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+            default-language: Haskell2010
+            cc-options: -shared -fPIC
+            ld-options: -shared
+            other-modules: $(cd "${src}" ; find -L * -name '[A-Z]*.hs' | sed 's/\.hs$//' | grep -vi '\(\.splices\|main\)'$ | tr / . | tr "\n" , | sed 's/,$//')
+            include-dirs: cbits/include
+            includes: jni.h
+            hs-source-dirs: .
+            c-sources: cbits/focus.c
+            main-is: mobile.hs
+            ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
+            default-extensions: NoDatatypeContexts, NondecreasingIndentation
+          EOF
+        '';
+
+      mkCLibFrontend =
+        let crossHs = ./cross-android/hs;
+            packageName = androidPackagePrefix + "." + appName;
+            packageJNIName = builtins.replaceStrings ["."] ["_"] packageName;
+        in frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
+             haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+                mkDerivation (rec {
+                  pname = "${appName}-frontend-clib";
+                  version = appVersion;
+                  license = null;
+                  src = nixpkgs.runCommand "frontend-src" {
+                    buildCommand = ''
+                      mkdir "$out"
+                      ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
+                      ln -s "${frontendSrc}"/src{,-bin}/* "$out"
+                      cp -r --no-preserve=mode "${crossHs}/cbits" "$out"
+                      sed -i 's|systems_obsidian_focus|'"${packageJNIName}"'|' "$out/cbits/"*"."{c,h}
+                    '';
+                  } "";
+                  preConfigure = ''
+                    ln -s "${passthru.cabalFile}" "${pname}.cabal"
+                  '';
+                  preBuild = ''
+                    ${if static == null then "" else ''ln -sfT ${static} static''}
+                  '';
+                  buildDepends = [
+                    focus-core
+                    focus-js
+                  ] ++ frontendDepends haskellPackages ++ commonDepends haskellPackages ++ additionalDeps;
+                  buildTools = [] ++ frontendTools pkgs;
+                  isExecutable = false;
+                  isLibrary = false;
+                  passthru = {
+                    inherit haskellPackages;
+                    cabalFile = mkCLibCabalFile haskellPackages pname buildDepends src;
+                  };
+                  doHaddock = false;
+                })) {};
+
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        assets = mkAssets (fixupStatic staticSrc);
+        staticAssets = mkAssets (fixupStatic staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsexeAssets = mkAssets "${ghcjsApp}/frontend.jsexe";
+        frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
@@ -202,40 +342,58 @@ rec {
           set -x
 
           mkdir -p "$out"
-          ln -s "$assets" "$out/assets"
+          ln -s "$staticAssets" "$out/static.assets"
           if ! [ -z "''${marketing+x}" ] ; then
             ln -s "$marketing" "$out/marketing"
           fi
           ln -s "$backend/bin/"* "$out"
-          ln -s "$frontendJsexeAssets" "$out/frontend.jsexe.assets"
+          ln -s "$frontendJsAssets" "$out/frontendJs.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
-          # ln -s "$androidApp" "$out/android"
+          ln -s "$androidApp" "$out/android"
           if [ -n "''${emails+x}" ] ; then
             ln -s "$emails" "$out/emails"
           fi
         '';
-        # androidSrc = import ./android { inherit nixpkgs; name = appName; packagePrefix = androidPackagePrefix; frontend = frontend_.unminified; };
-        # androidApp = nixpkgs.androidenv.buildApp {
-        #   name = appName;
-        #   src = androidSrc;
-        #   platformVersions = [ "23" ];
-        #   useGoogleAPIs = false;
-        #   release = true;
-        #   keyStore = ./keystore;
-        #   keyAlias = "focus";
-        #   keyStorePassword = "password";
-        #   keyAliasPassword = "password";
-        # };
-        # androidEmulate = nixpkgs.androidenv.emulateApp {
-        #   name = appName;
-        #   app = androidApp;
-        #   platformVersion = "23";
-        #   enableGPU = true;
-        #   abiVersion = "x86_64";
-        #   useGoogleAPIs = false;
-        #   package = androidPackagePrefix + "." + appName;
-        #   activity = ".MainActivity";
-        # };
+        frontendAndroidAArch64 = mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]);
+
+        androidSrc = import ./cross-android/android {
+          inherit (tryReflexAndroid) nixpkgs;
+          inherit (androidArm64Packages) libiconv;
+          inherit (androidAArch64HaskellPackages) ghc;
+          name = appName;
+          app = frontendAndroidAArch64;
+          packagePrefix = androidPackagePrefix;
+          abiVersion = "arm64-v8a";
+          staticSrc = nixpkgs.runCommand "android_asset" {} ''
+            mkdir "$out"
+            cp -r --no-preserve=mode "${staticSrc}"/* "$out"
+            cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
+          '';
+        };
+
+        androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
+          name = appName;
+          src = androidSrc;
+          platformVersions = [ "23" ];
+          useGoogleAPIs = false;
+          useNDK = true;
+          release = true;
+          keyStore = ./keystore;
+          keyAlias = "focus";
+          keyStorePassword = "password";
+          keyAliasPassword = "password";
+        };
+        androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
+          name = appName;
+          app = androidApp;
+          platformVersion = "23";
+          enableGPU = true;
+          abiVersion = "arm64-v8a";
+          useGoogleAPIs = false;
+          package = androidPackagePrefix + "." + appName;
+          activity = ".MainActivity";
+        };
+
         backend =
           backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
             pname = "${appName}-backend";
@@ -257,7 +415,7 @@ rec {
               '';
             } "";
 
-            preConfigure = mkPreConfigure backendHaskellPackages pname "backend" buildDepends;
+            preConfigure = mkPreConfigure pname passthru.cabalFile;
             preBuild = ''
               ${if staticSrc == null then "" else ''ln -sfT ${staticSrc} static''}
             '';
@@ -270,43 +428,475 @@ rec {
             configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
               haskellPackages = backendHaskellPackages;
+              cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src "-N10 -I0";
             };
             doHaddock = false;
           })) {};
         passthru = rec {
-          ${if builtins.pathExists ../tests then "tests" else null} =
+          inherit tryReflex;
+          ${if builtins.pathExists ../tests/webdriver then "webdriver-tests" else null} =
+            backendHaskellPackages.callPackage ({mkDerivation, webdriver, focus-webdriver}: mkDerivation (rec {
+              pname = "${appName}-webdriver-tests";
+              license = null;
+              version = appVersion;
+              src = nixpkgs.runCommand "webdriver-tests-src" {
+                buildCommand = ''
+                  mkdir "$out"
+                  ln -sf "${webDriverTestsSrc}"/src/* "$out"/
+                '';
+              } "";
+              preConfigure = mkPreConfigure pname passthru.cabalFile;
+              preBuild = ''
+                ln -sfT ${staticSrc} static
+              '';
+              buildDepends = [ webdriver focus-webdriver ] ++ webDriverTestDepends backendHaskellPackages;
+              buildTools = [] ++ webDriverTestTools pkgs;
+              isExecutable = true;
+              configureFlags = [ ];
+              passthru = {
+                haskellPackages = backendHaskellPackages;
+                cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src "-N10 -I0";
+              };
+              doHaddock = false;
+          })) {};
+          ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+               '';
+          ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
-                pname = "${appName}-tests";
+                pname = "${appName}-backend-tests";
                 license = null;
                 version = appVersion;
-                src = nixpkgs.runCommand "tests-src" {
+                src = nixpkgs.runCommand "backend-tests-src" {
                   buildCommand = ''
                     mkdir "$out"
                     ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
                     ln -s "${backendSrc}"/src/* "$out"/
-                    ln -sf "${testsSrc}"/src/* "$out"/
+                    ln -sf "${backendTestsSrc}"/src/* "$out"/
                   '';
                 } "";
 
-                preConfigure = mkPreConfigure backendHaskellPackages pname "tests" buildDepends;
+                preConfigure = mkPreConfigure pname passthru.cabalFile;
                 preBuild = ''
                   ln -sfT ${staticSrc} static
                 '';
                 buildDepends = [
                   vector-algorithms
                   focus-core focus-backend focus-client
-                ] ++ testDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
-                buildTools = [] ++ testTools pkgs;
+                ] ++ backendTestDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
+                buildTools = [] ++ backendTestTools pkgs;
                 isExecutable = true;
                 configureFlags = [ "--ghc-option=-lgcc_s" ];
                 passthru = {
                   haskellPackages = backendHaskellPackages;
+                  cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src "-N10 -I0";
                 };
                 doHaddock = false;
           })) {};
           frontend = frontend_.unminified;
-          inherit assets;
-          frontendGhc = mkFrontend frontendSrc commonSrc backendHaskellPackages staticSrc;
+          frontendMinified = frontend_;
+          inherit staticAssets;
+          frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
+          frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
+          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc}: nixpkgs.runCommand "${exeName}-app" (rec {
+            inherit exePath;
+            infoPlist = builtins.toFile "Info.plist" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleExecutable</key>
+                <string>${exeName}</string>
+                <key>CFBundleIdentifier</key>
+                <string>${bundleIdentifier}</string>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleName</key>
+                <string>${bundleName}</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleShortVersionString</key>
+                <string>${bundleVersionString}</string>
+                <key>CFBundleVersion</key>
+                <string>${bundleVersion}</string>
+                <key>LSRequiresIPhoneOS</key>
+                <true/>
+                <key>UILaunchStoryboardName</key>
+                <string>LaunchScreen</string>
+                <key>UIRequiredDeviceCapabilities</key>
+                <array>
+                  <string>arm64</string>
+                </array>
+                <key>UIDeviceFamily</key>
+                <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+                </array>
+                <key>UISupportedInterfaceOrientations</key>
+                <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+                </array>
+                <key>UISupportedInterfaceOrientations~ipad</key>
+                <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationPortraitUpsideDown</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+                </array>
+                <key>CFBundleIcons~ipad</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>Wrinkl iOS 60</string>
+                      <string>Wrinkl iOS 76</string>
+                      <string>Wrinkl iOS 83.5</string>
+                    </array>
+                  </dict>
+                </dict>
+                <key>CFBundleIcons</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>Wrinkl iOS 60</string>
+                    </array>
+                  </dict>
+                </dict>
+                <key>DTSDKName</key>
+	            <string>iphoneos10.2</string>
+	            <key>DTXcode</key>
+	            <string>0821</string>
+	            <key>DTSDKBuild</key>
+	            <string>14C89</string>
+	            <key>BuildMachineOSBuild</key>
+	            <string>16D32</string>
+	            <key>DTPlatformName</key>
+	            <string>iphoneos</string>
+	            <key>DTCompiler</key>
+	            <string>com.apple.compilers.llvm.clang.1_0</string>
+	            <key>MinimumOSVersion</key>
+	            <string>10.2</string>
+	            <key>DTXcodeBuild</key>
+	            <string>8C1002</string>
+	            <key>DTPlatformVersion</key>
+	            <string>10.2</string>
+	            <key>DTPlatformBuild</key>
+	            <string>14C89</string>
+              </dict>
+              </plist>
+            '';
+            resourceRulesPlist = builtins.toFile "ResourceRules.plist" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                <key>rules</key>
+                <dict>
+                  <key>.*</key>
+                  <true/>
+                  <key>Info.plist</key>
+                  <dict>
+                    <key>omit</key>
+                    <true/>
+                    <key>weight</key>
+                    <real>10</real>
+                  </dict>
+                  <key>ResourceRules.plist</key>
+                  <dict>
+                    <key>omit</key>
+                    <true/>
+                    <key>weight</key>
+                    <real>100</real>
+                  </dict>
+                </dict>
+              </dict>
+              </plist>
+            '';
+            indexHtml = builtins.toFile "index.html" ''
+              <html>
+                <head>
+                </head>
+                <body>
+                </body>
+              </html>
+            '';
+            xcent = builtins.toFile "xcent" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                <key>application-identifier</key>
+                <string><team-id/>.${bundleIdentifier}</string>
+                <key>com.apple.developer.team-identifier</key>
+                <string><team-id/></string>
+                <key>get-task-allow</key>
+                <true/>
+                <key>keychain-access-groups</key>
+                <array>
+                  <string><team-id/>.${bundleIdentifier}</string>
+                </array>
+              </dict>
+              </plist>
+            '';
+            deployScript = builtins.toFile "deploy" ''
+              #!/usr/bin/env bash
+              set -eo pipefail
+
+              if [ -z "$1" -o -z "$2" ]; then
+                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE]" >&2
+                exit 1
+              fi
+
+              TEAM_ID=$1
+              shift
+              CONFIG_ROUTE=$1
+              shift
+
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+              # Find the signer given the OU
+              signer=$(security find-certificate -c "iPhone Developer" -a \
+                | grep '^    "alis"<blob>="' \
+                | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
+                | while read c; do security find-certificate -c "$c" -p \
+                | openssl x509 -subject -noout; done \
+                | grep "OU=$TEAM_ID/" \
+                | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
+                | head -n 1)
+
+              if [ -z "$signer" ]; then
+                echo "Error: No iPhone Developer certificate found for team id $TEAM_ID" >&2
+                exit 1
+              fi
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
+              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
+              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
+
+              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app" "$@"
+            '';
+            packageScript = builtins.toFile "package" ''
+              #!/usr/bin/env bash
+              set -eo pipefail
+
+              if [ -z "$1" -o -z "$2" ]; then
+                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE] [IPA_DESTINATION] [EMBEDDED_PROVISIONING_PROFILE]" >&2
+                exit 1
+              fi
+
+              TEAM_ID=$1
+              shift
+              CONFIG_ROUTE=$1
+              shift
+              IPA_DESTINATION=$1
+              shift
+              EMBEDDED_PROVISIONING_PROFILE=$1
+              shift
+
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+              # Find the signer given the OU
+              signer=$(security find-certificate -c "iPhone Distribution" -a \
+                | grep '^    "alis"<blob>="' \
+                | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
+                | while read c; do security find-certificate -c "$c" -p \
+                | openssl x509 -subject -noout; done \
+                | grep "OU=$TEAM_ID/" \
+                | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
+                | head -n 1)
+
+              if [ -z "$signer" ]; then
+                echo "Error: No iPhone Distribution certificate found for team id $TEAM_ID" >&2
+                exit 1
+              fi
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
+              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
+              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
+
+              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
+              /Applications/Xcode.app/Contents/Applications/Application\ Loader.app/Contents/Frameworks/ITunesSoftwareService.framework/Versions/A/Support/altool --validate-app -f "$IPA_DESTINATION" -t ios "$@"
+            '';
+            runInSim = builtins.toFile "run-in-sim" ''
+              #!/usr/bin/env bash
+
+              if [ -z "$1" ]; then
+                echo "Usage: $0 [CONFIG_ROUTE]" >&2
+                exit 1
+              fi
+
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$1" "$tmpdir/${exeName}.app/config/route"
+              focus/reflex-platform/run-in-ios-sim "$tmpdir/${exeName}.app"
+            '';
+          }) ''
+            set -x
+            mkdir -p "$out/${exeName}.app"
+            ln -s "$infoPlist" "$out/${exeName}.app/Info.plist"
+            ln -s "$resourceRulesPlist" "$out/${exeName}.app/ResourceRules.plist"
+            ln -s "$indexHtml" "$out/${exeName}.app/index.html"
+            mkdir -p "$out/bin"
+            cp --no-preserve=mode "$deployScript" "$out/bin/deploy"
+            chmod +x "$out/bin/deploy"
+            cp --no-preserve=mode "$packageScript" "$out/bin/package"
+            chmod +x "$out/bin/package"
+            cp --no-preserve=mode "$runInSim" "$out/bin/run-in-sim"
+            chmod +x "$out/bin/run-in-sim"
+            ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/assets/Wrinkl\ iOS\ *.png "$out/${exeName}.app/"
+          '';
+          mkMacApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
+            inherit exePath;
+            infoPlist = builtins.toFile "Info.plist" ''
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
+              <plist version="0.9">
+                <dict>
+                <key>CFBundleInfoDictionaryVersion</key>
+                <string>6.0</string>
+                <key>CFBundleIdentifier</key>
+                <string>${bundleIdentifier}</string>
+                <key>CFBundleDevelopmentRegion</key>
+                <string>en</string>
+                <key>CFBundleExecutable</key>
+                <string>${exeName}</string>
+                <key>CFBundleIconFile</key>
+                <string></string>
+                <key>CFBundleName</key>
+                <string>${bundleName}</string>
+                <key>CFBundlePackageType</key>
+                <string>APPL</string>
+                <key>CFBundleVersion</key>
+                <string>1.0</string>
+                <key>CFBundleShortVersionString</key>
+                <string>1.0</string>
+                <key>NSHumanReadableCopyright</key>
+                <string>${exeName}</string>
+                <key>NSPrincipalClass</key>
+                <string>NSApplication</string>
+                </dict>
+                <key>CFBundleIcons</key>
+                <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                    <key>CFBundleIconFiles</key>
+                    <array>
+                      <string>assets/Wrinkl iOS 60</string>
+                    </array>
+                  </dict>
+                </dict>
+              </plist>
+            '';
+            indexHtml = builtins.toFile "index.html" ''
+              <html>
+                <head>
+                </head>
+                <body>
+                </body>
+              </html>
+            '';
+            run = builtins.toFile "run" ''
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              function cleanup {
+                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
+                  echo "Cleaning up tmpdir" >&2
+                  chmod -R +w $tmpdir
+                  rm -fR $tmpdir
+                fi
+              }
+
+              trap cleanup EXIT
+
+              tmpdir=$(mktemp -d)
+
+              mkdir -p $tmpdir
+              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
+              chmod +w "$tmpdir/${exeName}.app"
+              mkdir -p "$tmpdir/${exeName}.app/config"
+              cp "$1" "$tmpdir/${exeName}.app/config/route"
+              open "$tmpdir/${exeName}.app"
+            '';
+          }) ''
+            set -x
+            mkdir -p "$out/${exeName}.app"
+            ln -s "$infoPlist" "$out/${exeName}.app/Info.plist"
+            ln -s "$indexHtml" "$out/${exeName}.app/index.html"
+            mkdir -p "$out/bin"
+            cp --no-preserve=mode "$run" "$out/bin/run-in-sim"
+            chmod +x "$out/bin/run-in-sim"
+            ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
+            cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
+          '';
+          frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
+              (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
+          frontendIosSimulatorApp = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosSimulator+"/bin"), staticSrc};
+          frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
+              (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
+          frontendIosAArch64App = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosAArch64+"/bin"), staticSrc};
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
@@ -316,7 +906,7 @@ rec {
             script = ''
               ln -sft . "${result}"/*
               mkdir -p log
-              exec ./backend -p "${builtins.toString port}" >>backend.out 2>>backend.err </dev/null
+              exec ./backend -p "${builtins.toString port}" ${if runWithHeapProfiling then "+RTS -hc -L200 -RTS" else ""} >>backend.out 2>>backend.err </dev/null
             '';
             serviceConfig = {
               User = user;
@@ -384,7 +974,7 @@ rec {
                   };
                   environment.systemPackages = with pkgs; [
                     rsync
-                    emacs24-nox
+                    emacs25-nox
                     git
                     rxvt_unicode.terminfo
                     myPostgres

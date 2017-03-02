@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -17,11 +15,13 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+#ifdef USE_TEMPLATE_HASKELL
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
+#endif
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -35,20 +35,16 @@ import Control.Monad.Identity
 import Control.Monad.State
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Aeson.Parser
+import Data.Aeson.Parser (value')
 import Data.Align
 import qualified Data.Attoparsec.Lazy as LA
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Base64 as B64
 import Data.Constraint
 import qualified Data.Dependent.Map as DMap
 import Data.Dependent.Map (DMap, DSum (..), GCompare (..))
 import Data.List (isPrefixOf)
 import Data.Maybe
 import Data.Monoid hiding (First)
-import Data.Semigroup hiding ((<>))
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.These
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -56,8 +52,6 @@ import Language.Haskell.TH
 import Network.URI
 import Reflex hiding (HList (..), Request)
 import Data.Proxy
-
-import Debug.Trace.LocationTH
 
 data SomeRequest t where
     SomeRequest :: (FromJSON x, ToJSON x) => t x -> SomeRequest t
@@ -140,7 +134,7 @@ decCons = \case
   DataD _ _ _ cs _ -> cs
   NewtypeD _ _ _ c _ -> [c]
 #endif
-  _ -> $undef
+  _ -> error "undefined"
 
 decTvbs :: Dec -> [TyVarBndr]
 decTvbs = \case
@@ -151,8 +145,9 @@ decTvbs = \case
   DataD _ _ tvbs _ _ -> tvbs
   NewtypeD _ _ tvbs _ _ -> tvbs
 #endif
-  _ -> $undef
+  _ -> error "undefined"
 
+#ifdef USE_TEMPLATE_HASKELL
 makeRequest :: Name -> DecsQ
 makeRequest n = do
   x <- reify n
@@ -161,7 +156,7 @@ makeRequest n = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(conT n) where
@@ -188,7 +183,7 @@ makeRequestForDataInstance n n' = do
 #endif
                     guard $ m == n'
                     xs
-                  _ -> $undef
+                  _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance Request $(appT (appT (conT n) (conT n')) (varT $ mkName "f")) where
@@ -199,13 +194,14 @@ makeRequestForDataInstance n n' = do
       requestResponseToJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
       requestResponseFromJSON r = $(caseE [|r|] $ map (\c -> match (conP (conName c) $ replicate (conArity c) wildP) (normalB [|Dict|]) []) cons)
     |]
-
+#endif
 
 -- | Extracts the name from a type variable binder.
 tvbName :: TyVarBndr -> Name
 tvbName (PlainTV  name  ) = name
 tvbName (KindedTV name _) = name
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson :: Name -> DecsQ
 makeJson n = do
   x <- reify n
@@ -214,10 +210,10 @@ makeJson n = do
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
       cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
       typeNames = map tvbName $ case x of
        TyConI d -> decTvbs d
-       _ -> $undef
+       _ -> error "undefined"
   let wild = match wildP (normalB [|fail "invalid message"|]) []
   [d|
     instance ToJSON $(foldl appT (conT n) $ map varT typeNames)   where
@@ -246,10 +242,10 @@ makeJsonForDataInstance n mns = do
            These (Just n') c@(ConT m) | m == n' -> Just c
            _ -> Nothing
          return (typeNames, xs)
-       _ -> $undef
+       _ -> error "undefined"
       -- typeNames = case x of
       --  (FamilyI _ _) -> [conT n']
-      --  _ -> $undef
+      --  _ -> error "undefined"
   (typeNames, cons) <- case matchingInstances of
     [matchingInstance] -> return matchingInstance
     [] -> fail $ "makeJsonForDataInstance: No Data Instances found for pattern " <> show (n, mns)
@@ -286,6 +282,7 @@ conToJson modifyName c = do
   let tuple = foldr (\a b -> appsE [conE 'HCons, varE a, b]) (conE 'HNil) varNames
       body = [|toJSON (tag' :: String, toJSON $tuple)|]
   match (conP name $ map varP varNames) (normalB body) []
+#endif
 
 conName :: Con -> Name
 conName c = case c of
@@ -309,19 +306,6 @@ conArity c = case c of
   GadtC _ ts _ -> length ts
   RecGadtC _ ts _ -> length ts
 #endif
-
-instance ToJSON ByteString where
-    toJSON = toJSON . decodeUtf8 . B64.encode
-
-instance FromJSON ByteString where
-    parseJSON o = either fail return . B64.decode . encodeUtf8 =<< parseJSON o
-
-instance ToJSON LBS.ByteString where
-    toJSON = toJSON . decodeUtf8 . B64.encode . LBS.toStrict
-
-instance FromJSON LBS.ByteString where
-    parseJSON o = either fail (return . LBS.fromStrict) . B64.decode . encodeUtf8 =<< parseJSON o
-
 
 class Functor' (f :: (k -> *) -> *) where
   fmap' :: (forall x. a x -> b x) -> f a -> f b
@@ -382,12 +366,13 @@ class FromJSON' f where
 fromJSON' :: FromJSON' f => Value -> Result (Some f)
 fromJSON' = parse parseJSON'
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson' :: Name -> DecsQ
 makeJson' n = do
   x <- reify n
   let cons = case x of
        TyConI d -> decCons d
-       _ -> $undef
+       _ -> error "undefined"
       base = nameBase n
       toBeStripped = base <> "_"
       modifyConName cn = if length cons == 1 then cn else if toBeStripped `isPrefixOf` cn then drop (length toBeStripped) cn else error $ "makeRequest: expecting name beginning with " <> show toBeStripped <> ", got " <> show cn
@@ -400,6 +385,7 @@ makeJson' n = do
         (tag', v') <- parseJSON v
         $(caseE [|tag' :: String|] $ map (conParseJson modifyConName (\body -> [|Some <$> $body|]) [|v'|]) cons ++ [wild])
     |]
+#endif
 
 class AllArgsHave c f where
   getArgDict :: f x -> Dict (c x)
@@ -533,9 +519,3 @@ sendApi = undefined
 
 encodeURIComponent :: String -> String
 encodeURIComponent = escapeURIString (`elem` ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_.!~*'()")
-
-deriving instance FromJSON a => FromJSON (First a)
-deriving instance ToJSON a => ToJSON (First a)
-
-deriving instance FromJSON Any
-deriving instance ToJSON Any

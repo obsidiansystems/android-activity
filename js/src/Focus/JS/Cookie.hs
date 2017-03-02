@@ -3,8 +3,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Focus.JS.Cookie where
 
-import Control.Monad.IO.Class
 import Data.Aeson as Aeson
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Text (Text)
@@ -12,19 +12,23 @@ import Data.Text.Encoding
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar
+import GHCJS.DOM.Types (MonadJSM)
 import qualified GHCJS.DOM.Document as DOM
-import Reflex.Dom
+import Reflex.Dom.Core
 import Web.Cookie
 
-setPermanentCookie :: (MonadIO m, HasWebView m) => DOM.Document -> Text -> Maybe Text -> m ()
-setPermanentCookie doc key mv = do
-  wv <- askWebView
-  currentProtocol <- Reflex.Dom.getLocationProtocol wv
+setPermanentCookie :: (MonadJSM m, HasJSContext m) => DOM.Document -> Text -> Maybe Text -> m ()
+setPermanentCookie doc = setPermanentCookieWithLocation doc Nothing
+
+setPermanentCookieWithLocation :: (MonadJSM m, HasJSContext m) => DOM.Document -> Maybe ByteString -> Text -> Maybe Text -> m ()
+setPermanentCookieWithLocation doc loc key mv = do
+  currentProtocol <- Reflex.Dom.Core.getLocationProtocol
   DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mv of
     Nothing -> def
       { setCookieName = encodeUtf8 key
       , setCookieValue = ""
       , setCookieExpires = Just $ posixSecondsToUTCTime 0
+      , setCookieDomain = loc
       }
     Just val -> def
       { setCookieName = encodeUtf8 key
@@ -38,24 +42,27 @@ setPermanentCookie doc key mv = do
       -- would prevent links to the page from working; lax is secure enough,
       -- because we don't take dangerous actions simply by executing a GET
       -- request.
-      , setCookieSameSite = Just sameSiteLax
+      , setCookieSameSite = if currentProtocol == "file:"
+          then Nothing
+          else Just sameSiteLax
+      , setCookieDomain = loc
       }
 
 -- | Retrieve the current auth token from the given cookie
-getCookie :: MonadIO m => DOM.Document -> Text -> m (Maybe Text)
+getCookie :: MonadJSM m => DOM.Document -> Text -> m (Maybe Text)
 getCookie doc key = do
-  Just cookieString <- DOM.getCookie doc
+  cookieString <- DOM.getCookieUnchecked doc
   return $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
 
-setPermanentCookieJson :: (MonadIO m, HasWebView m, ToJSON v) => DOM.Document -> Text -> Maybe v -> m ()
+setPermanentCookieJson :: (MonadJSM m, HasJSContext m, ToJSON v) => DOM.Document -> Text -> Maybe v -> m ()
 setPermanentCookieJson d k v =
   setPermanentCookie d k (fmap (decodeUtf8 . LBS.toStrict . encode) v)
 
-getCookieJson :: (FromJSON v, MonadIO m) => DOM.Document -> Text -> m (Maybe (Either String v))
+getCookieJson :: (FromJSON v, MonadJSM m) => DOM.Document -> Text -> m (Maybe (Either String v))
 getCookieJson d k =
   fmap (eitherDecode . LBS.fromStrict . encodeUtf8) <$> getCookie d k
 
-withPermanentCookieJson :: (MonadIO m, MonadIO (Performable m), HasWebView (Performable m), PerformEvent t m, ToJSON v, FromJSON v)
+withPermanentCookieJson :: (MonadJSM m, MonadJSM (Performable m), HasJSContext (Performable m), PerformEvent t m, ToJSON v, FromJSON v)
                         => DOM.Document
                         -> Text
                         -> (Maybe (Either String v) -> m (Event t (Maybe v)))

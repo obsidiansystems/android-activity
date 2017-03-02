@@ -6,7 +6,7 @@ import Reflex.Dom.Widget.Input
 
 {-
 import Reflex.Host.Class
-import Reflex.Dom hiding (TextArea(..), textArea, TextAreaConfig(..),
+import Reflex.Dom.Core hiding (TextArea(..), textArea, TextAreaConfig(..),
                           TextInput(..), textInput, TextInputConfig(..), textInputGetEnter)
 import Data.Default
 import Control.Monad

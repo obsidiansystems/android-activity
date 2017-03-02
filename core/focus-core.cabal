@@ -10,6 +10,10 @@ Category: Web
 Build-type: Simple
 Cabal-version: >=1.2
 
+flag frontend
+  description: Building for the frontend
+  default: True
+
 library
   hs-source-dirs: src
 
@@ -26,11 +30,11 @@ library
                , dependent-map
                , dependent-sum
                , directory-tree
+               , focus-aeson-orphans
+               , focus-datastructures
                , haskell-src-exts
-               , http-conduit
                , http-types
                , lens
-               , loch-th
                , mtl
                , mime-mail
                , monad-control
@@ -48,9 +52,17 @@ library
                , vector
                , SHA
 
+  reexported-modules:
+      Focus.AppendMap
+    , Data.AppendMap
+    , Data.Indexed
+    , Data.Indexed.Projections
+    , Data.SemiMap
+    , Data.SortedPair
+    , Data.Min
+
   exposed-modules:
       Focus.Account
-    , Focus.AppendMap
     , Focus.Api
     , Focus.Brand
     , Focus.Email
@@ -64,11 +76,6 @@ library
     , Focus.Concurrent
     , Focus.WebSocket
     , Control.Monad.TypedUnique
-    , Data.Indexed
-    , Data.Indexed.Projections
-    , Data.SemiMap
-    , Data.SortedPair
-    , Data.Min
     , Data.RequestInterval
     , Focus.Patch
     , Focus.App
@@ -77,11 +84,18 @@ library
     , Focus.GoogleAnalytics
     , Focus.Intercom
     , Focus.Intercom.Common
-    , Focus.Schema.Gitlab
+--    , Focus.Schema.Gitlab
     , Focus.RightSignature
     , Focus.RightSignature.Common
-    , Focus.Schema.Pivotal
-    , Focus.HereMaps
+--    , Focus.Schema.Pivotal
+--    , Focus.HereMaps
 
-  other-extensions: TemplateHaskell
-  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -fplugin=Reflex.Optimizer
+  if !os(ios) && arch(x86_64)
+    other-extensions: TemplateHaskell
+    cpp-options: -DUSE_TEMPLATE_HASKELL
+  if flag(frontend)
+    cpp-options: -DFOCUS_FRONTEND
+  else
+    cpp-options: -DFOCUS_BACKEND
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts -fexpose-all-unfoldings
+

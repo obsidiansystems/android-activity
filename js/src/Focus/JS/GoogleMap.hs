@@ -1,6 +1,8 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, OverloadedStrings #-}
 module Focus.JS.GoogleMap where
 
+#if 0
+
 import Control.Lens hiding (zoom)
 import Control.Monad.IO.Class
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
@@ -22,7 +24,7 @@ import qualified Data.Text as T
 
 import Focus.JS.FontAwesome (icon)
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 #ifdef ghcjs_HOST_OS
 import GHCJS.DOM.Types hiding (Event, fromJSString, Text)
 #else
@@ -139,7 +141,7 @@ geolocating e =
   do e' <- performEventAsync . fmap (\v k -> liftJS $ getGeolocationCurrentPosition (\p -> do k (p,v))) $ e
      performEvent . fmap (\(p,v) -> do (x,y) <- liftJS $ geolocationPositionGetCoord p; return ((x,y),v)) $ e'
 
-getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadIO m) => (GeolocationPosition x -> IO ()) -> m ()
+getGeolocationCurrentPosition :: (MonadJS x m, MonadFix m, MonadJSM m) => (GeolocationPosition x -> IO ()) -> m ()
 getGeolocationCurrentPosition cb = do
   rec f <- mkJSFun $ \(success:_) -> do
              s <- fromJS success
@@ -303,7 +305,7 @@ twoSourceSearch placeholderText al bl searchAs searchBs = do
         let results' = zipDynWith Map.union as' bs'
         liftM switch $ hold never $ fmap (leftmost . Map.elems) (updated results')
 
-googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadIO m) => PlacesAutocompletePredictionReference x -> (((Double, Double), Map AddressComponent AddressComponentValue) -> IO ()) -> m ()
+googleMapsAutocompletePlaceDetails :: (MonadFix m, MonadJS x m, MonadJSM m) => PlacesAutocompletePredictionReference x -> (((Double, Double), Map AddressComponent AddressComponentValue) -> IO ()) -> m ()
 googleMapsAutocompletePlaceDetails ref cb = do
   rec jsCb <- mkJSFun $ \(result:_) -> do
                 n <- isJSNull result
@@ -365,7 +367,7 @@ toAddressComponents acs = Map.fromList $ catMaybes $ concatMap (\(long, short, t
     f l s t = fmap (\ac' -> (ac', AddressComponentValue l s)) $ toAc t
 
 
-googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadIO m) => Text -> ([(Text, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
+googleMapsAutocompletePlace' :: (MonadJS x m, MonadFix m, MonadJSM m) => Text -> ([(Text, PlacesAutocompletePredictionReference x)] -> IO ()) -> m ()
 googleMapsAutocompletePlace' s cb =  do
   rec jsCb <- mkJSFun $ \(result:_) -> do
         a <- fromJSArray result
@@ -465,3 +467,5 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --         release cb
 --   s' <- toJSRef s
 --   googleMapsGeocoderPlace_ s' cb
+
+#endif

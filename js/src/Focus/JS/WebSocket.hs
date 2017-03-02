@@ -1,4 +1,7 @@
-{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds, PartialTypeSignatures, AllowAmbiguousTypes, OverloadedStrings #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, PolyKinds, PartialTypeSignatures, AllowAmbiguousTypes, OverloadedStrings, PatternGuards #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 
 module Focus.JS.WebSocket where
 
@@ -8,12 +11,11 @@ import Prelude hiding (div, span, mapM, mapM_, concat, concatMap, all, sequence)
 
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
 import Control.Monad.Fix
-import Control.Monad.IO.Class
 import Data.Semigroup hiding (option)
 import qualified Data.ByteString.Lazy as LBS
 
 import Reflex
-import Reflex.Dom hiding (webSocket)
+import Reflex.Dom.Core hiding (webSocket)
 import qualified Reflex.Dom.WebSocket as RDWS
 
 import Control.Lens
@@ -27,14 +29,17 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
-import Debug.Trace.LocationTH
+import GHCJS.DOM.Types (MonadJSM)
 #ifdef __GHCJS__
 import GHCJS.Types (JSVal)
+import GHCJS.DOM.Types (liftJSM)
 import GHCJS.Marshal
 import Control.Exception (try, SomeException)
 import System.IO.Unsafe
 import JavaScript.JSON.Types.FromJSVal ()
 #endif
+
+import Focus.WebSocket
 
 newtype JSWebSocket x = JSWebSocket { unWebSocket :: JSRef x }
 
@@ -45,19 +50,24 @@ instance FromJS x (JSWebSocket x) where
   fromJS = return . JSWebSocket
 
 -- | Warning: Only one of these websockets may be opened on a given page in most browsers
-webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (WebSocket t)
-webSocket path config = do
-  pageHost <- liftIO . getLocationHost =<< askWebView
-  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
-  let wsProtocol = case pageProtocol of
-        "http:" -> "ws:"
-        "https:" -> "wss:"
-        "file:" -> "ws:"
-        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
-      wsHost = case pageProtocol of
-        "file:" -> "localhost:8000"
-        _ -> pageHost
-  RDWS.webSocket (wsProtocol <> "//" <> wsHost <> path) config
+webSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (WebSocket t)
+webSocket murl config
+  | Left url <- murl = do
+    RDWS.webSocket (mconcat [ _websocket_protocol url, "://"
+                            , _websocket_host url, ":", T.pack (show (_websocket_port url))
+                            , "/", _websocket_path url ]) config
+  | Right path <- murl = do
+    pageHost <- getLocationHost
+    pageProtocol <- getLocationProtocol
+    let wsProtocol = case pageProtocol of
+          "http:" -> "ws:"
+          "https:" -> "wss:"
+          "file:" -> "ws:"
+          s -> error $ "unrecognized wsProtocol: " <> T.unpack s
+        wsHost = case pageProtocol of
+          "file:" -> "localhost:8000"
+          _ -> pageHost
+    RDWS.webSocket (wsProtocol <> "//" <> wsHost <> path) config
 
 monoConst :: a -> a -> a
 monoConst a _ = a
@@ -69,11 +79,11 @@ fromJSONViaAllArgsHave req rspRaw = case getArgDict req :: Dict (ComposeConstrai
 apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req :: k -> *) (rsp :: k -> *).
              ( HasJS x m
              , HasJS x (WidgetHost m)
-             , HasWebView m
+             , HasJSContext m
              , MonadFix m
              , MonadHold t m
-             , MonadIO m
-             , MonadIO (Performable m)
+             , MonadJSM m
+             , MonadJSM (Performable m)
              , PostBuild t m
              , PerformEvent t m
              , TriggerEvent t m
@@ -81,12 +91,12 @@ apiSocket :: forall (x :: *) (m :: * -> *) (t :: *) (f :: (k -> *) -> *) (req ::
              , ToJSON' req
              , AllArgsHave (ComposeConstraint FromJSON rsp) req
              )
-          => Text
+          => Either WebSocketUrl Text
           -> Event t [f req]
           -> m (Event t (f rsp), Dynamic t (Map (Int, Int) (f (With' Int req), Int, Map Int Aeson.Value)))
-apiSocket path batches = do
+apiSocket murl batches = do
   batchesWithSerialNumbers <- zipListWithEvent (\n r -> (n, zip [(1 :: Int) ..] $ fmap numberAndSize' r)) [(1 :: Int) ..] batches
-  rec ws <- webSocket path $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
+  rec ws <- webSocket murl $ def & webSocketConfig_send .~ fmap encodeMessages batchesWithSerialNumbers
       state <- foldDyn ($) mempty $ mergeWith (.) [ fmap (\(n, fs) -> foldl (.) id $ map (\(m, (r, sz)) -> Map.insertWith (error "apiSocket: adding an existing serial number to the outgoing request buffer") (n, m) (r, sz, mempty :: Map Int Aeson.Value)) fs) batchesWithSerialNumbers
                                                   , fmap snd change
                                                   ]
@@ -104,7 +114,7 @@ apiSocket path batches = do
                           Aeson.Success rsp' = fromJSONViaAllArgsHave req rspRaw
                       in rsp'
                 return (finishedResponses, at (n, m) .~ Nothing)
-              GT -> $undef
+              GT -> error "undefined"
           result = fmapMaybe fst change
           encodeMessages (n, fs) = mconcat $ ffor fs $ \(m, (reqs, _)) -> toListWith' (\(With' l r) -> decodeUtf8 $  LBS.toStrict $ encode ((n, m, l), toJSON' r)) reqs
   return (result, state)
@@ -133,17 +143,23 @@ rawDecode jsv = do
       Aeson.Success a -> Just a
       _ -> Nothing
 
-rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadIO m, MonadIO (Performable m), HasWebView m) => Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
-rawWebSocket path config = do
-  pageHost <- liftIO . getLocationHost =<< askWebView
-  pageProtocol <- liftIO . getLocationProtocol =<< askWebView
-  let wsProtocol = case pageProtocol of
-        "http:" -> "ws:"
-        "https:" -> "wss:"
-        "file:" -> "ws:"
-        s -> $failure ("unrecognized wsProtocol: " <> T.unpack s)
-      wsHost = case pageProtocol of
-        "file:" -> "localhost:8000"
-        _ -> pageHost
-  RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") id)
+rawWebSocket :: forall x t m. (HasJS x m, PostBuild t m, PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), HasJSContext m) => Either WebSocketUrl Text -> WebSocketConfig t Text -> m (RawWebSocket t JSVal)
+rawWebSocket murl config
+  | Left url <- murl
+  = do
+    RDWS.webSocket' (mconcat [ _websocket_protocol url, "://"
+                             , _websocket_host url, ":", T.pack (show (_websocket_port url))
+                             , _websocket_path url ]) config (either (error "websocket': expected JSVal") return)
+  | Right path <- murl = do
+    pageHost <- liftJSM getLocationHost
+    pageProtocol <- liftJSM getLocationProtocol
+    let wsProtocol = case pageProtocol of
+          "http:" -> "ws:"
+          "https:" -> "wss:"
+          "file:" -> "ws:"
+          s -> error $ "unrecognized wsProtocol: " <> T.unpack s
+        wsHost = case pageProtocol of
+          "file:" -> "localhost:8000"
+          _ -> pageHost
+    RDWS.webSocket' (wsProtocol <> "//" <> wsHost <> path) config (either (error "websocket': expected JSVal") return)
 #endif

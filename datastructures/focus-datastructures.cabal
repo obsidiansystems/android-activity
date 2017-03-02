@@ -1,0 +1,35 @@
+Name: focus-datastructures
+Version: 0.1
+Synopsis: Pure datastructures
+License: AllRightsReserved
+Author: Author
+Maintainer: maintainer@example.com
+Stability: Experimental
+Category: Web
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  build-depends: base
+               , aeson
+               , containers
+               , data-default
+               , focus-aeson-orphans
+               , lens
+               , mtl
+               , reflex
+               , these
+
+  exposed-modules:
+      Focus.AppendMap
+    , Data.AppendMap
+    , Data.Indexed
+    , Data.Indexed.Projections
+    , Data.SemiMap
+    , Data.SortedPair
+    , Data.Min
+
+  other-extensions: TemplateHaskell
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

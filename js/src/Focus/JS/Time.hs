@@ -1,27 +1,40 @@
-{-# LANGUAGE FlexibleContexts, TypeFamilies, OverloadedStrings #-}
+{-# LANGUAGE CPP, FlexibleContexts, TypeFamilies, OverloadedStrings, LambdaCase #-}
 module Focus.JS.Time where
 
-import Focus.JS.Request
+import Focus.JS.Request (mkBinaryGet)
 import Focus.Time
-import Foreign.JavaScript.TH
-import Reflex.Dom
+import Reflex.Dom.Core
 
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Fix (MonadFix)
 import Data.Binary.Get
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Olson
 import Data.Time.LocalTime.TimeZone.Series
+#ifdef MIN_VERSION_jsaddle_wkwebview
+import qualified Data.Text as T (unpack)
+import qualified Data.Text.Encoding as T (decodeUtf8)
+import qualified Data.ByteString as BS (readFile)
+import Language.Javascript.JSaddle.WKWebView (mainBundleResourcePath)
+#endif
 import qualified Data.ByteString.Lazy as LBS
 import Data.Monoid
+import GHCJS.DOM.Types (MonadJSM)
 
 -- TODO: This just dies if the request fails, rather than resulting in Nothing.
-getTimeZoneSeries :: (MonadIO m, HasJS x m) => TimeZoneName -> m (Maybe TimeZoneSeries)
+getTimeZoneSeries :: (MonadJSM m, MonadFix m) => TimeZoneName -> m (Maybe TimeZoneSeries)
 getTimeZoneSeries tzName = do
+#ifdef MIN_VERSION_jsaddle_wkwebview
+  d <- liftIO $ mainBundleResourcePath >>= \case
+    Nothing -> error "Unable to get main app bundle resource path"
+    Just p -> BS.readFile . T.unpack $ T.decodeUtf8 p <> "/zoneinfo/" <> unTimeZoneName tzName
+#else
   dVar <- liftIO newEmptyMVar
-  _ <- liftJS . mkBinaryGet ("zoneinfo/" <> unTimeZoneName tzName) $ putMVar dVar
+  _ <- mkBinaryGet ("zoneinfo/" <> unTimeZoneName tzName) $ liftIO . putMVar dVar
   d <- liftIO $ takeMVar dVar
+#endif
   liftIO . return . olsonToTimeZoneSeries . runGet (getOlson noLimits) $ LBS.fromStrict d
 
 createDynamicTime :: MonadWidget t m => m (Dynamic t UTCTime)

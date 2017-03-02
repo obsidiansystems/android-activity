@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+if [ -z "$1" -o -z "$2" -o -z "$3" -o -z "$4" ]; then
+  echo "Usage: $0 [APP_NAME] [BUNDLE_IDENTIFIER] [BUNDLE_VERSION_STRING] [BUNDLE_VERSION]" >&2
+  exit 1
+fi
+
+APP_NAME=$1
+shift
+BUNDLE_IDENTIFIER=$1
+shift
+BUNDLE_VERSION_STRING=$1
+shift
+BUNDLE_VERSION=$1
+shift
+set -euo pipefail
+
+echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
+
+OLDPWD="$PWD"
+BUILDDIR="$PWD/dist-ios-aarch64"
+mkdir -p "$BUILDDIR"
+CABAL_FILE="$(nix-build --no-out-link -A frontendIosAArch64.cabalFile --show-trace)"
+TMPDIR="$(mktemp -d 2>/dev/null || mktemp -d -t frontend-ios-aarch64)"
+function cleanup {
+  rm -rf "$TMPDIR"
+}
+trap cleanup EXIT
+
+nix-shell --show-trace -A frontendIosAArch64 --run "
+cd "$TMPDIR"
+shopt -s nullglob
+ln -s "$OLDPWD"/{common,frontend}/src{,-bin}/* .
+shopt -u nullglob
+ln -s "$CABAL_FILE" frontend-ios-aarch64.cabal
+ln -s "$BUILDDIR" dist
+"'
+function setupCompilerEnvironmentPhase {
+  eval "$setupCompilerEnvironmentPhase"
+}
+setupCompilerEnvironmentPhase
+function compileBuildDriverPhase {
+  eval "$compileBuildDriverPhase"
+}
+compileBuildDriverPhase
+eval "$configurePhase"
+set -e
+eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
+'
+
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"$APP_NAME\" \"$BUNDLE_IDENTIFIER\" \"$BUNDLE_VERSION_STRING\" \"$BUNDLE_VERSION\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"

@@ -12,6 +12,7 @@ module Focus.JS.Widget where
 import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
+import qualified Data.Dependent.Map as DMap
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -20,7 +21,7 @@ import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import Reflex.Dom hiding (Delete)
+import Reflex.Dom.Core hiding (Delete)
 
 import Focus.App
 import Focus.Highlight
@@ -123,10 +124,10 @@ extensibleListWidgetWithSize n x0 xs0 itemWidget = do
           valuesD = fmap Map.elems valuesMapD
   return valuesD
 
-typeaheadSearch :: (MonadFocusWidget f app t m)
+typeaheadSearch :: (MonadFocusWidget app t m)
                 => Text
                 -- ^ text input placeholder
-                -> (Text -> ViewSelector app ())
+                -> (Text -> ViewSelector app SelectedCount)
                 -- ^ setter for query field of view selector
                 -> (View app -> s)
                 -- ^ extractor for relevant things from the view
@@ -138,10 +139,10 @@ typeaheadSearch ph vsQuery extractor = do
   let result = fmap extractor aspenView
   return (result, value search)
 
-typeaheadSearchDropdown :: (MonadFocusWidget f app t m, Ord k)
+typeaheadSearchDropdown :: (MonadFocusWidget app t m, Ord k)
                         => Text
                         -- ^ text input placeholder
-                        -> (Text -> ViewSelector app ())
+                        -> (Text -> ViewSelector app SelectedCount)
                         -- ^ setter for query field of view selector
                         -> (View app -> s)
                         -- ^ extractor for relevant things from the view
@@ -153,10 +154,10 @@ typeaheadSearchDropdown ph vsQuery extractor toStringMap = do
   let options = ffor xs $ \xMap -> Nothing =: "" <> Map.mapKeysMonotonic Just (toStringMap xMap)
   fmap value $ dropdown Nothing options def
 
-typeaheadSearchMultiselect :: (MonadFocusWidget f app t m, Ord k)
+typeaheadSearchMultiselect :: (MonadFocusWidget app t m, Ord k)
                            => Text
                            -- ^ text input placeholder
-                           -> (Text -> ViewSelector app ())
+                           -> (Text -> ViewSelector app SelectedCount)
                            -- ^ setter for query field of view selector
                            -> (View app -> s)
                            -- ^ extractor for relevant things from the view
@@ -266,7 +267,7 @@ comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
          -> (forall a. m a -> m a)
          -> m (Event t k)
 comboBox cfg getOptions li toStr wrapper = do
-  rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, selectionString]
+  rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [fromMaybe never $ _inputElementConfig_setValue cfg, selectionString]
       userInput <- holdDyn "" $ leftmost [ _inputElement_input t
                                          , "" <$ selectionE
                                          ]
@@ -275,8 +276,8 @@ comboBox cfg getOptions li toStr wrapper = do
       let selectionString = attachWith (\xs k -> maybe "" (toStr k) $ Map.lookup k xs) (current options) selectionE
   return selectionE
 
-simpleCombobox :: forall app t m k v f. (HasView app, MonadFocusWidget f app t m, Ord k)
-               => (Text -> ViewSelector app ()) -- ^ Convert query to ViewSelector
+simpleCombobox :: forall app t m k v. (HasView app, MonadFocusWidget app t m, Ord k)
+               => (Text -> ViewSelector app SelectedCount) -- ^ Convert query to ViewSelector
                -> (View app -> Map k v) -- ^ Get a map of results from the resulting View
                -> (k -> v -> Text) -- ^ Turn a result into a string for display
                -> (Text -> Text -> HighlightedText) -- ^ Highlight results
@@ -348,7 +349,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
   where
     noHighlight _ x = (:[]) $ Highlight_Off x
     comboBox' cfg getOptions li wrapper = do
-      rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [_inputElementConfig_setValue cfg, "" <$ selectionE']
+      rec (t, inputActions) <- comboBoxInput $ cfg & inputElementConfig_setValue .~ leftmost [fromMaybe never $ _inputElementConfig_setValue cfg, "" <$ selectionE']
           options <- getOptions $ _inputElement_value t
           selectionE <- wrapper $ comboBoxList options li (_inputElement_value t) inputActions
           let selectionE' = attachWithMaybe (\opts k -> fmap (\v -> (k, v)) $ Map.lookup k opts) (current options) selectionE
@@ -382,3 +383,17 @@ widgetForDynUniqWithInitial a0 da f = do
   postBuild <- getPostBuild
   deduped <- uniqDyn <$> holdDyn a0 (leftmost [updated da, tag (current da) postBuild])
   widgetHold (f a0) $ f <$> updated deduped
+
+elAttrWithoutPropagation' :: forall t m a. (DomBuilder t m, DomBuilderSpace m ~ GhcjsDomSpace)
+                          => Text
+                          -> Map Text Text
+                          -> m a
+                          -> m (Element EventResult (DomBuilderSpace m) t, a)
+elAttrWithoutPropagation' tagName attrs i = do
+  let attrs' = Map.mapKeys (AttributeName Nothing) attrs
+  let f = GhcjsEventFilter $ \_ -> return (Reflex.Dom.Core.stopPropagation, return $ Just $ EventResult ())
+      cfg = (def :: ElementConfig EventResult t m)
+        & elementConfig_initialAttributes .~ attrs'
+        & elementConfig_modifyAttributes .~ never
+        & elementConfig_eventSpec . ghcjsEventSpec_filters .~ DMap.singleton Click f
+  Reflex.Dom.Core.element tagName cfg i

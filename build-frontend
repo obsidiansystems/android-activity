@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-nix-shell -A frontend.env --run 'ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -o frontend.jsexe -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5'
+nix-shell -A frontend.env --run 'mkdir -p frontendJs; \
+  ghcjs -i{common,frontend}/src Main -outputdir dist-frontend-ghcjs -o frontendJs/frontend.jsexe -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5 -DUSE_TEMPLATE_HASKELL; \
+  for x in $(ls frontend/src-bin | sed -n '\''s/\([a-z].*\)\.hs$/\1/p'\'' | grep -vi '\''^main'\''$) ; do \
+    ghcjs -i{common,frontend}/src frontend/src-bin/$x.hs -outputdir dist-frontend-ghcjs -o frontendJs/$x.jsexe -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5 -DUSE_TEMPLATE_HASKELL; \
+    done'
 
 # GC flags
 # If BUSY_YIELD < SCHED_QUANTUM, only one thread ever seems to get to run.

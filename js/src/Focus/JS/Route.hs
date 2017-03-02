@@ -1,4 +1,7 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes, PatternGuards, OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings, RankNTypes #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.JS.Route where
 
 import Foreign.JavaScript.TH
@@ -14,7 +17,25 @@ import Data.Map (Map)
 import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 
-importJS Unsafe "window['location']['search']" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m T.Text |]
+#ifdef USE_TEMPLATE_HASKELL
+importJS Unsafe "window['location']['search']" "getWindowLocationSearch_" [t| forall x m. MonadJS x m => m T.Text |]
+#else
+getWindowLocationSearch_ :: MonadJS x m => m T.Text
+getWindowLocationSearch_ = runJS (JSFFI "window['location']['search']") [] >>= fromJS
+#endif
+
+#ifdef ghcjs_HOST_OS
+
+getWindowLocationSearch :: forall x m. MonadJS x m => m T.Text
+getWindowLocationSearch = getWindowLocationSearch_
+
+#else
+
+--TODO: Use the webview JS context here, somehow
+getWindowLocationSearch :: forall x m. MonadJS x m => m T.Text
+getWindowLocationSearch = return ""
+
+#endif
 
 getRoute :: (HasJS x m, FromJSON r, Default r) => m r
 getRoute = do

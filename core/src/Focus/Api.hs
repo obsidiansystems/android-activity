@@ -1,4 +1,4 @@
-{-# LANGUAGE PolyKinds, GADTs, ScopedTypeVariables, TemplateHaskell, LambdaCase #-}
+{-# LANGUAGE CPP, PolyKinds, GADTs, ScopedTypeVariables, LambdaCase #-}
 module Focus.Api where
 
 import Data.Aeson
@@ -30,7 +30,7 @@ instance (Request (private f), Request (public f), ToJSON cred, FromJSON cred) =
       ("Private"::String) -> do
         token `HCons` SomeRequest p `HCons` HNil <- parseJSON body
         return $ SomeRequest $ ApiRequest_Private token p
-      e -> $failure $ "Could not parse tag: " ++ e
+      e -> error $ "Could not parse tag: " ++ e
   requestResponseToJSON = \case
     ApiRequest_Public p -> requestResponseToJSON p
     ApiRequest_Private _ p -> requestResponseToJSON p

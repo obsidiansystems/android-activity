@@ -10,7 +10,6 @@ import Data.Text.Encoding
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Aeson
-import Control.Concurrent
 import Control.Monad
 import Foreign.JavaScript.TH
 import Focus.Request
@@ -19,11 +18,21 @@ import Control.Monad.Reader
 import GHCJS.Marshal.Pure
 import Focus.JS.WebSocket (rawDecode)
 #endif
+import GHCJS.DOM.Types
+       (JSM, MonadJSM, XMLHttpRequest, liftJSM, PFromJSVal(..),
+        unGObject, FormData)
+import GHCJS.DOM.Enums (XMLHttpRequestResponseType(..))
+import GHCJS.DOM.EventM (on)
+import GHCJS.DOM.XMLHttpRequest
+       (newXMLHttpRequest, open, send, setResponseType,
+        getReadyState, getResponseUnchecked, getResponseTextUnchecked,
+        readyStateChange, sendFormData)
 
-import Reflex hiding (Request)
-import Reflex.Dom hiding (Error, Value, Request)
-
-importJS Unsafe "console['log'](this[0])" "consoleLog" [t| forall x m. MonadJS x m => JSRef x -> m () |]
+import qualified JavaScript.TypedArray.ArrayBuffer as JS
+       (unsafeFreeze, MutableArrayBuffer)
+import qualified GHCJS.Buffer as JS
+       (toByteString, createFromArrayBuffer)
+import Language.Javascript.JSaddle.Types (ghcjsPure)
 
 validJSRef :: MonadJS x m => JSRef x -> m (Maybe (JSRef x))
 validJSRef r = do
@@ -49,61 +58,56 @@ timeFrom t ct =
       EQ -> "now"
       LT -> describeAbs (abs n) <> "from now"
 
-newtype RawXHR x = RawXHR {unRawXHR :: JSRef x}
-instance ToJS x (RawXHR x) where
-  withJS (RawXHR x) = ($ x)
-
-instance FromJS x (RawXHR x) where
-  fromJS = return . RawXHR
-
-importJS Unsafe "new XMLHttpRequest()" "newXhr" [t| forall x m. MonadJS x m => m (RawXHR x) |]
-importJS Unsafe "this[0]['open'](this[1], this[2], this[3])" "xhrOpen" [t| forall x m. MonadJS x m => RawXHR x -> Text -> Text -> Bool -> m () |]
-importJS Unsafe "this[0]['send']()" "xhrSend" [t| forall x m. MonadJS x m => RawXHR x -> m () |]
-importJS Unsafe "this[0]['send'](this[1])" "xhrSendWithData" [t| forall x m. MonadJS x m => RawXHR x -> Text -> m () |]
-importJS Unsafe "this[0]['readyState']" "xhrGetReadyState" [t| forall x m. MonadJS x m => RawXHR x -> m Int |]
-importJS Unsafe "this[0]['responseText']" "xhrGetResponseText" [t| forall x m. MonadJS x m => RawXHR x -> m Text |]
-importJS Unsafe "this[0]['response']" "xhrGetResponse" [t| forall x m. MonadJS x m => RawXHR x -> m (JSRef x) |]
-
-xhrSetOnReadyStateChange :: MonadJS x m => RawXHR x -> JSFun x -> m ()
-xhrSetOnReadyStateChange xhr f = withJS xhr $ \x -> withJS f $ \f' -> setJSProp "onreadystatechange" f' x
-
-xhrSetResponseType :: MonadJS x m => RawXHR x -> Text -> m ()
-xhrSetResponseType xhr rt = withJS xhr $ \x -> withJS rt $ \s -> setJSProp "responseType" s x
-
-
-mkRequestGeneric :: (MonadJS x m, MonadIO m, MonadFix m) => Maybe Text -> (RawXHR x -> m r) -> Text -> (RawXHR x -> m ()) -> Text -> (r -> IO a) -> m (RawXHR x)
-mkRequestGeneric responseType convertResponse method send url cb = do
-  xhr <- newXhr
-  xhrOpen xhr method url True
-  maybe (return ()) (xhrSetResponseType xhr) responseType
-  rec callback <- mkJSFun $ \_ -> do
-        readyState <- xhrGetReadyState xhr
-        if readyState == 4
-           then do
-             r <- convertResponse xhr
-             _ <- liftIO $ cb r
-             freeJSFun callback
-             mkJSUndefined
-           else mkJSUndefined
-  xhrSetOnReadyStateChange xhr callback
-  _ <- send xhr
+mkRequestGeneric :: (MonadJSM m, MonadFix m)
+                 => Maybe XMLHttpRequestResponseType
+                 -> (XMLHttpRequest -> JSM r)
+                 -> Text
+                 -> (XMLHttpRequest -> m ())
+                 -> Text
+                 -> (r -> JSM a)
+                 -> m XMLHttpRequest
+mkRequestGeneric responseType convertResponse method sendFunc url cb = do
+  xhr <- newXMLHttpRequest
+  open xhr method url True (""::Text) (""::Text)
+  maybe (return ()) (setResponseType xhr) responseType
+  rec freeCallback <- liftJSM . on xhr readyStateChange . liftJSM $ do
+                        readyState <- getReadyState xhr
+                        when (readyState == 4) $ do
+                          r <- convertResponse xhr
+                          cb r
+                          freeCallback
+  _ <- sendFunc xhr
   return xhr
 
-mkBinaryRequest :: (MonadFix m, MonadJS x m, MonadIO m) => Text -> (RawXHR x -> m ()) -> Text -> (ByteString -> IO a) -> m (RawXHR x)
-mkBinaryRequest = mkRequestGeneric (Just "arraybuffer") $ fromJSUint8Array <=< fromJS <=< xhrGetResponse
+mkBinaryRequest :: (MonadFix m, MonadJSM m)
+                => Text
+                -> (XMLHttpRequest -> m ())
+                -> Text
+                -> (ByteString -> JSM a)
+                -> m XMLHttpRequest
+mkBinaryRequest = mkRequestGeneric (Just XMLHttpRequestResponseTypeArraybuffer) $
+    bsFromArrayBuffer . pFromJSVal <=< (fmap unGObject . getResponseUnchecked)
 
-mkBinaryGet :: (MonadFix m, MonadJS x m, MonadIO m) => Text -> (ByteString -> IO a) -> m (RawXHR x)
-mkBinaryGet = mkBinaryRequest "GET" xhrSend
+bsFromArrayBuffer :: MonadJSM m => JS.MutableArrayBuffer -> m ByteString
+bsFromArrayBuffer ab = liftJSM $ JS.unsafeFreeze ab >>=
+    ghcjsPure . JS.createFromArrayBuffer >>= ghcjsPure . JS.toByteString 0 Nothing
 
-mkRequest :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> (RawXHR x -> m ()) -> Text -> (Text -> IO a) -> m (RawXHR x)
-mkRequest = mkRequestGeneric Nothing xhrGetResponseText
+mkBinaryGet :: (MonadFix m, MonadJSM m)
+            => Text
+            -> (ByteString -> JSM a)
+            -> m XMLHttpRequest
+mkBinaryGet = mkBinaryRequest "GET" send
 
-mkGet :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> (Text -> IO a) -> m (RawXHR x)
-mkGet = mkRequest "GET" xhrSend
+mkRequest :: (MonadJSM m, MonadFix m) => Text -> (XMLHttpRequest -> m ()) -> Text -> (Text -> JSM a) -> m XMLHttpRequest
+mkRequest = mkRequestGeneric Nothing getResponseTextUnchecked
 
-mkPost :: (MonadJS x m, MonadIO m, MonadFix m) => Text -> Text -> (Text -> IO a) -> m (RawXHR x)
-mkPost url d = mkRequest "POST" (flip xhrSendWithData d) url
+mkGet :: (MonadJSM m, MonadFix m) => Text -> (Text -> JSM a) -> m XMLHttpRequest
+mkGet = mkRequest "GET" send
 
+mkPost :: (MonadJSM m, MonadFix m) => Text -> FormData -> (Text -> JSM a) -> m XMLHttpRequest
+mkPost url d = mkRequest "POST" (`sendFormData` d) url
+
+#if 0
 syncApi :: (Request r, ToJSON a, FromJSON a, MonadJS x m, MonadIO m, MonadFix m) => r a -> m a
 syncApi req = do
   v <- liftIO $ newEmptyMVar
@@ -142,8 +146,9 @@ requestingXhrMany requestsE = performEventAsync $ ffor requestsE $ \rs cb -> do
     return resp
   _ <- liftIO . forkIO $ cb =<< forM resps takeMVar
   return ()
+#endif
 
-importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m Text |]
+--importJS Unsafe "decodeURIComponent(window['location']['search'])" "getWindowLocationSearch" [t| forall x m. MonadJS x m => m Text |]
 
 -- | Decode a JSON value from Text.  In JavaScript, this will use JSON.parse for
 -- greater efficiency.

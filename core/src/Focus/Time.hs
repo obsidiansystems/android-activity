@@ -1,4 +1,7 @@
-{-# LANGUAGE CPP, DeriveLift, OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE CPP, DeriveLift, OverloadedStrings #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.Time where
 
 import Data.Fixed
@@ -10,6 +13,10 @@ import Data.Time.Calendar.WeekDate
 import Data.Time.LocalTime.TimeZone.Series
 import Focus.Misc
 import Focus.Request
+#if !defined(USE_TEMPLATE_HASKELL) || defined(DUMPING_SPLICES)
+import Data.Aeson
+#endif
+
 import Focus.Schema
 
 formatTime' :: Text -> TimeZoneSeries -> UTCTime -> Text
@@ -122,4 +129,20 @@ newtype TimeZoneName = TimeZoneName { unTimeZoneName :: Text }
 instance ShowPretty TimeZoneName where
   showPretty = unTimeZoneName
 
+#ifdef USE_TEMPLATE_HASKELL
 makeJson ''TimeZoneName
+#else
+instance ToJSON TimeZoneName where
+  toJSON r_a2yM5
+    = case r_a2yM5 of {
+        TimeZoneName f_a2yM6
+          -> toJSON ("TimeZoneName" :: String, toJSON (HCons f_a2yM6 HNil)) }
+instance FromJSON TimeZoneName where
+  parseJSON v_a2yM8
+    = do { (tag'_a2yM9, v'_a2yMa) <- parseJSON v_a2yM8;
+           case tag'_a2yM9 :: String of
+             "TimeZoneName"
+               -> do { HCons f_a2yMb HNil <- parseJSON v'_a2yMa;
+                       return (TimeZoneName f_a2yMb) }
+             _ -> fail "invalid message" }
+#endif

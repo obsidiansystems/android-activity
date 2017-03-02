@@ -11,6 +11,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Word
 
 newtype SchemaName = SchemaName { unSchemaName :: Text }
   deriving (Eq, Ord, Read, Show, FromJSON, ToJSON, Typeable, Generic)
@@ -42,18 +43,6 @@ data IdValue a = IdValue (Id a) a deriving Typeable
 instance ShowPretty a => ShowPretty (IdValue a) where
   showPretty (IdValue _ x) = showPretty x
 
-instance (Ord k, FromJSON k, FromJSON v) => FromJSON (Map k v) where
-  parseJSON = parseJSONMap
-
-parseJSONMap :: (Ord k, FromJSON k, FromJSON v) => Value -> Parser (Map k v)
-parseJSONMap v = Map.fromList <$> parseJSON v
-
-instance (ToJSON k, ToJSON v) => ToJSON (Map k v) where
-  toJSON = toJSONMap
-
-toJSONMap :: (ToJSON k, ToJSON v) => Map k v -> Value
-toJSONMap = toJSON . Map.toList
-
 instance Show (IdData a) => ShowPretty (Id a) where
   showPretty = T.pack . show . unId
 
@@ -68,3 +57,10 @@ type Email = Text --TODO: Validation
 -- focus-backend:Focus.Backend.Schema
 newtype Json a = Json { unJson :: a }
   deriving (Eq, Ord, Show, Read, ToJSON, FromJSON)
+
+-- | Newtype for referring to database large objects. This generally shouldn't have to go over the wire
+-- but I'm putting it here where it can be placed in types in the common schema, because often the Ids of
+-- those types will want to be shared with the frontend. We're using Word64 here rather than CUInt, which
+-- is the type that Oid wraps, because Word64 has Groundhog instances to steal.
+newtype LargeObjectId = LargeObjectId Word64
+  deriving (Eq, Ord, Show, Read, Typeable)

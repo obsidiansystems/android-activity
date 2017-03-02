@@ -2,12 +2,11 @@
 
 module Focus.JS.Chart (pie) where
 
-import Reflex.Dom
+import Reflex.Dom.Core
 import Data.Text (Text)
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Map (Map)
-import Control.Monad.IO.Class
 
 import GHCJS.DOM.Element (setInnerHTML)
 
@@ -33,7 +32,7 @@ pie attrs w cvs' = do
                             <> "text-anchor: middle; dominant-baseline: middle;\">" <> tshow pct <> "%</text>"
                           | ((fg, _), (tx, ty), pct) <- zip3 colors textPoints pcts]
                <> "</svg>"
-  liftIO (setInnerHTML (_element_raw divEl) (Just theSVG))
+  setInnerHTML (_element_raw divEl) (Just theSVG)
   {-
   el "div" $ do
     svgAttr "svg" ("width" =: tshow (ceiling w :: Integer) <> "height" =: tshow (ceiling w :: Integer)) $ do

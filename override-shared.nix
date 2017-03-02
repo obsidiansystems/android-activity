@@ -49,6 +49,7 @@ self: super: {
       homepage = "http://snapframework.com/";
       description = "Top-level package for the Snap Web Framework";
       license = stdenv.lib.licenses.bsd3;
+      jailbreak = true;
     }) {};
 
     snap-core = dontCheck (self.callPackage ({ mkDerivation, attoparsec, base, bytestring, bytestring-builder
@@ -118,6 +119,7 @@ self: super: {
        description = "A web server for the Snap Framework";
        license = stdenv.lib.licenses.bsd3;
        hydraPlatforms = stdenv.lib.platforms.none;
+       jailbreak = true;
      }) {};
 
     io-streams-haproxy = self.callPackage (
@@ -181,6 +183,7 @@ self: super: {
         homepage = "http://snapframework.com/";
         description = "An Haskell template system supporting both HTML5 and XML";
         license = stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       }) {});
     xmlhtml = self.callPackage (
       { mkDerivation, base, blaze-builder, blaze-html, blaze-markup
@@ -207,6 +210,7 @@ self: super: {
         homepage = "https://github.com/snapframework/xmlhtml";
         description = "XML parser and renderer with HTML 5 quirks mode";
         license = stdenv.lib.licenses.bsd3;
+        jailbreak = true;
       }) {};
     mustache = overrideCabal super.mustache (drv: {
       doCheck = false;
@@ -342,15 +346,6 @@ self: super: {
       };
     });
     map-syntax = doJailbreak super.map-syntax;
-    websockets = overrideCabal super.websockets (drv: {
-      src = ./websockets;
-      buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
-      jailbreak = true;
-    });
-    websockets-snap = overrideCabal super.websockets-snap (drv: {
-      src = ./websockets-snap;
-      buildDepends = with self; [ snap-core snap-server io-streams ];
-    });
     zlib-enum = doJailbreak super.zlib-enum;
     reflex-jsx = self.callPackage ./reflex-jsx.nix {};
     pontarius-xmpp =
@@ -383,5 +378,27 @@ self: super: {
     hdevtools = overrideCabal super.hdevtools (drv: {
       version = "0.1.5.0";
       sha256 = "1rq41mlvfsjqf21hnv5jslnfk39z52p0a6a0yk2ng8q971pj70gd";
+    });
+    smtp-mail = overrideCabal super.smtp-mail (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "smtp-mail";
+        rev = "5e6f78e4eb073c6e167daac7f50cc00a04c65d4e";
+        sha256 = "0c2xcgigxgjlwci594s3p1ydy0g3c1c1wjblrr6d08iibvlh23y0";
+      };
+    });
+    webdriver = overrideCabal super.webdriver (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "hs-webdriver";
+        rev = "e9d2c7a7087ca3a88e517dafc6d2de4323fb177e";
+        sha256 = "0vsvb5k9k42r5hpdqr87qy0yahqapyldzmdqr5nxpkyyddsn2bfs";
+      };
+    });
+    diagrams-lib = overrideCabal super.diagrams-lib (drv: {
+      jailbreak = true;
+    });
+    th-expand-syns = overrideCabal super.th-expand-syns (drv: {
+      jailbreak = true;
     });
   }

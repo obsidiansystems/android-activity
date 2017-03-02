@@ -1,51 +1,166 @@
-{-# LANGUAGE ConstraintKinds, PolyKinds, GADTs, AllowAmbiguousTypes, DefaultSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, TypeFamilies, UndecidableInstances, FunctionalDependencies, RankNTypes, RecursiveDo, ScopedTypeVariables, OverloadedStrings, ExistentialQuantification #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Focus.JS.App where
 
-import Control.Lens ((^?), _Right)
+import Control.Lens ( (%~), (^?), _Right, iforM)
 import Control.Monad.Exception
 import Control.Monad.Identity
 import Control.Monad.Primitive
 import Control.Monad.Reader
 import Control.Monad.Ref
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Aeson
 import Data.Aeson.Types
+import Data.Align
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce
 import Data.Constraint
+import Data.Foldable
+import Data.Functor.Misc
 import Data.Dependent.Map (DMap, DSum (..))
 import qualified Data.Dependent.Map as DMap
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Monoid
+import Data.Semigroup
+import Data.Some (Some)
+import qualified Data.Some as Some
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
+import Data.These
 import Focus.Account
 import Focus.Api
 import Focus.App
 import Focus.AppendMap (AppendMap (..))
 import qualified Focus.AppendMap as AppendMap
 import Focus.JS.WebSocket
-import Focus.Request
+import Focus.Request hiding (Some)
 import Focus.Sign
 import Focus.WebSocket
 import qualified Reflex as R
-import Reflex.Dom hiding (MonadWidget, webSocket, Request)
+import Reflex.EventWriter
+import Reflex.Dom.Core hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
+import GHCJS.DOM.Types (MonadJSM(..))
 
-import Unsafe.Coerce
+newtype QueryT t q m a = QueryT { unQueryT :: StateT [Behavior t q] (EventWriterT t q (ReaderT (Dynamic t (QueryResult q)) m)) a }
+  deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
 
-class (Monoid q, Query q) => MonadQuery t q m | m -> q t where
-  tellQueryDyn :: Dynamic t q -> m ()
+#ifndef __GHCJS__
+instance MonadJSM m => MonadJSM (QueryT t q m) where
+  liftJSM' = lift . liftJSM'
+#endif
+
+runQueryT :: (MonadFix m, Additive q, Group q, Reflex t) => QueryT t q m a -> Dynamic t (QueryResult q) -> m (a, Incremental t (AdditivePatch q))
+runQueryT (QueryT a) qr = do
+  ((r, bs), es) <- runReaderT (runEventWriterT (runStateT a mempty)) qr
+  return (r, unsafeBuildIncremental (foldlM (\b c -> fmap (b <>) $ sample c) mempty bs) (fmapCheap AdditivePatch es))
+
+class (Group q, Additive q, Query q) => MonadQuery t q m | m -> q t where
+  tellQueryIncremental :: Incremental t (AdditivePatch q) -> m ()
   askQueryResult :: m (Dynamic t (QueryResult q))
-  queryDyn :: Dynamic t q -> m (Dynamic t (QueryResult q))
+  queryIncremental :: Incremental t (AdditivePatch q) -> m (Dynamic t (QueryResult q))
 
-newtype QueryT t q m a = QueryT { unQueryT :: DynamicWriterT t q (ReaderT (Dynamic t (QueryResult q)) m) a } deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
+instance (Monad m, Group q, Additive q, Query q, Reflex t) => MonadQuery t q (QueryT t q m) where
+  tellQueryIncremental q = do
+    QueryT (modify (currentIncremental q:))
+    QueryT (lift (tellEvent (fmapCheap unAdditivePatch (updatedIncremental q))))
+  askQueryResult = QueryT ask
+  queryIncremental q = do
+    tellQueryIncremental q
+    r <- askQueryResult
+    return $ zipDynWith crop (incrementalToDynamic q) r
+
+tellQueryDyn :: (Reflex t, MonadQuery t q m) => Dynamic t q -> m ()
+tellQueryDyn d = tellQueryIncremental $ unsafeBuildIncremental (sample (current d)) $ attachWith (\old new -> AdditivePatch $ new ~~ old) (current d) (updated d)
+
+queryDyn :: (Reflex t, Monad m, MonadQuery t q m) => Dynamic t q -> m (Dynamic t (QueryResult q))
+queryDyn q = do
+  tellQueryDyn q
+  r <- askQueryResult
+  return $ zipDynWith crop q r
+
+newtype QueryTLoweredResult t q v = QueryTLoweredResult (v, [Behavior t q])
+
+instance (Reflex t, MonadFix m, Group q, Additive q, Query q, MonadHold t m, MonadAdjust t m) => MonadAdjust t (QueryT t q m) where
+  runWithReplace (QueryT a0) a' = do
+    ((r0, bs0), r') <- QueryT $ lift $ runWithReplace (runStateT a0 []) $ fmapCheap (flip runStateT [] . unQueryT) a'
+    tellQueryIncremental $
+      let sampleBs :: forall m'. MonadSample t m' => [Behavior t q] -> m' q
+          sampleBs = foldlM (\b a -> fmap (b <>) $ sample a) mempty
+          bs' = fmapCheap snd $ r'
+          patches = unsafeBuildIncremental (sampleBs bs0) $
+            flip pushCheap bs' $ \bs -> do
+              p <- (~~) <$> sampleBs bs <*> sample (currentIncremental patches)
+              return (Just (AdditivePatch p))
+      in patches
+    return (r0, fmapCheap fst r')
+  sequenceDMapWithAdjust (dm0 :: DMap k (QueryT t q m)) dm' = do
+    let loweredDm0 = mapKeyValuePairsMonotonic (\(k :=> v) -> WrapArg k :=> fmap QueryTLoweredResult ( flip runStateT [] $ unQueryT v)) dm0
+        loweredDm' = fforCheap dm' $ \(PatchDMap p) -> PatchDMap $
+          mapKeyValuePairsMonotonic (\(k :=> ComposeMaybe mv) -> WrapArg k :=> ComposeMaybe (fmap (fmap QueryTLoweredResult . flip runStateT [] . unQueryT) mv)) p
+    (result0, result') <- QueryT $ lift $ sequenceDMapWithAdjust loweredDm0 loweredDm'
+    let getValue (QueryTLoweredResult (v, _)) = v
+        getWritten (QueryTLoweredResult (_, w)) = w
+        liftedResult0 = mapKeyValuePairsMonotonic (\(WrapArg k :=> Identity r) -> k :=> Identity (getValue r)) result0
+        liftedResult' = fforCheap result' $ \(PatchDMap p) -> PatchDMap $
+          mapKeyValuePairsMonotonic (\(WrapArg k :=> ComposeMaybe mr) -> k :=> ComposeMaybe (fmap (Identity . getValue . runIdentity) mr)) p
+        liftedBs0 :: Map (Some k) [Behavior t q]
+        liftedBs0 = Map.fromDistinctAscList $ (\(WrapArg k :=> Identity r) -> (Some.This k, getWritten r)) <$> DMap.toList result0
+        liftedBs' :: Event t (PatchMap (Some k) [Behavior t q])
+        liftedBs' = fforCheap result' $ \(PatchDMap p) -> PatchMap $
+          Map.fromDistinctAscList $ (\(WrapArg k :=> ComposeMaybe mr) -> (Some.This k, fmap (getWritten . runIdentity) mr)) <$> DMap.toList p
+        sampleBs :: forall m'. MonadSample t m' => [Behavior t q] -> m' q
+        sampleBs = foldlM (\b a -> fmap (b <>) $ sample a) mempty
+        f :: forall m'. MonadHold t m'
+          => Map (Some k) [Behavior t q]
+          -> PatchMap (Some k) [Behavior t q]
+          -> m' ( Maybe (Map (Some k) [Behavior t q])
+                , Maybe (AdditivePatch q))
+        -- f accumulates the child behavior state we receive from running sequenceDMapWithAdjust for the underlying monad.
+        -- When an update occurs, it also computes a patch to communicate to the parent QueryT state.
+        -- bs0 is a Map denoting the behaviors of the current children.
+        -- pbs is a PatchMap denoting an update to the behaviors of the current children
+        f bs0 pbs@(PatchMap bs') = do
+          -- we compute the patch by iterating over the update PatchMap and proceeding by cases. Then we fold over the
+          -- child patches and wrap them in AdditivePatch.
+          patch <- fmap (AdditivePatch . fold) $ iforM bs' $ \k bs -> case Map.lookup k bs0 of
+            Nothing -> case bs of
+              -- If the update is to delete the state for a child that doesn't exist, the patch is mempty.
+              Nothing -> return mempty
+              -- If the update is to update the state for a child that doesn't exist, the patch is the sample of the new state.
+              Just newBs -> sampleBs newBs
+            Just oldBs -> case bs of
+              -- If the update is to delete the state for a child that already exists, the patch is the negation of the child's current state
+              Nothing -> fmap negateG $ sampleBs oldBs
+              -- If the update is to update the state for a child that already exists, the patch is the negation of sampling the child's current state
+              -- composed with the sampling the child's new state.
+              Just newBs -> (~~) <$> sampleBs newBs <*> sampleBs oldBs
+          return (apply pbs bs0, Just patch)
+    (qpatch :: Event t (AdditivePatch q)) <- mapAccumMaybeM_ f liftedBs0 liftedBs'
+    tellQueryIncremental $ unsafeBuildIncremental (fmap fold $ mapM sampleBs liftedBs0) qpatch
+    return (liftedResult0, liftedResult')
 
 instance MonadTrans (QueryT t q) where
-  lift = QueryT . lift . lift
+  lift = QueryT . lift . lift . lift
 
 instance PostBuild t m => PostBuild t (QueryT t q m) where
   getPostBuild = lift getPostBuild
@@ -58,18 +173,10 @@ instance TriggerEvent t m => TriggerEvent t (QueryT t q m) where
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (Monad m, Monoid q, Query q, Reflex t) => MonadQuery t q (QueryT t q m) where
-  tellQueryDyn = QueryT . tellDyn
-  askQueryResult = QueryT ask
-  queryDyn q = do
-    tellQueryDyn q
-    r <- askQueryResult
-    return $ zipDynWith crop q r
-
 instance (Monad m, MonadQuery t q m) => MonadQuery t q (ReaderT r m) where
-  tellQueryDyn = lift . tellQueryDyn
+  tellQueryIncremental = lift . tellQueryIncremental
   askQueryResult = lift askQueryResult
-  queryDyn = lift . queryDyn
+  queryIncremental = lift . queryIncremental
 
 instance PerformEvent t m => PerformEvent t (QueryT t q m) where
   type Performable (QueryT t q m) = Performable m
@@ -77,22 +184,33 @@ instance PerformEvent t m => PerformEvent t (QueryT t q m) where
   performEvent = lift . performEvent
 
 instance HasJS x m => HasJS x (QueryT t q m) where
-  type JSM (QueryT t q m) = JSM m
+  type JSX (QueryT t q m) = JSX m
   liftJS = lift . liftJS
 
-instance (DomBuilder t m, MonadFix m, MonadHold t m, Monoid q) => DomBuilder t (QueryT t q m) where
+instance (DomBuilder t m, MonadFix m, MonadHold t m, Group q, Query q, Additive q) => DomBuilder t (QueryT t q m) where
   type DomBuilderSpace (QueryT t q m) = DomBuilderSpace m
-  textNode = QueryT . textNode
-  element t e = QueryT . element t (fmap1 unQueryT e) . unQueryT
-  inputElement = QueryT . inputElement . fmap1 unQueryT
-  textAreaElement = QueryT . textAreaElement . fmap1 unQueryT
-  placeRawElement = QueryT . placeRawElement
-  selectElement e = QueryT . selectElement (fmap1 unQueryT e) . unQueryT
-  wrapRawElement r c = QueryT $ wrapRawElement r (fmap1 unQueryT c)
+  textNode = liftTextNode
+  element elementTag cfg (QueryT child) = QueryT $ do
+    s <- get
+    let cfg' = cfg
+          { _elementConfig_eventSpec = _elementConfig_eventSpec cfg }
+    (e, (a, newS)) <- lift $ element elementTag cfg' $ runStateT child s
+    put newS
+    return (e, a)
 
-instance (Reflex t, MonadFix m, Monoid q, MonadHold t m, MonadAdjust t m) => MonadAdjust t (QueryT t q m) where
-  runWithReplace a0 a' = QueryT $ runWithReplace (coerce a0) (unsafeCoerce a')
-  sequenceDMapWithAdjust dm0 dm' = QueryT $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
+  inputElement cfg = lift $ inputElement $ cfg & inputElementConfig_elementConfig %~ liftElementConfig
+  textAreaElement cfg = lift $ textAreaElement $ cfg & textAreaElementConfig_elementConfig %~ liftElementConfig
+  selectElement cfg (QueryT child) = QueryT $ do
+    s <- get
+    let cfg' = cfg & selectElementConfig_elementConfig %~ \c ->
+          c { _elementConfig_eventSpec = _elementConfig_eventSpec c }
+    (e, (a, newS)) <- lift $ selectElement cfg' $ runStateT child s
+    put newS
+    return (e, a)
+  placeRawElement = lift . placeRawElement
+  wrapRawElement e cfg = lift $ wrapRawElement e $ cfg
+    { _rawElementConfig_eventSpec = _rawElementConfig_eventSpec cfg
+    }
 
 instance MonadRef m => MonadRef (QueryT t q m) where
   type Ref (QueryT t q m) = Ref m
@@ -100,16 +218,13 @@ instance MonadRef m => MonadRef (QueryT t q m) where
   readRef = QueryT . readRef
   writeRef r = QueryT . writeRef r
 
-instance HasWebView m => HasWebView (QueryT t q m) where
-  type WebViewPhantom (QueryT t q m) = WebViewPhantom m
-  askWebView = QueryT askWebView
+instance HasJSContext m => HasJSContext (QueryT t q m) where
+  type JSContextPhantom (QueryT t q m) = JSContextPhantom m
+  askJSContext = QueryT askJSContext
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (QueryT t q m) where
   newEventWithTrigger = QueryT . newEventWithTrigger
   newFanEventWithTrigger a = QueryT . lift $ newFanEventWithTrigger a
-
-runQueryT :: (MonadFix m, Monoid q, Reflex t) => QueryT t q m a -> Dynamic t (QueryResult q) -> m (a, Dynamic t q)
-runQueryT (QueryT a) = runReaderT (runDynamicWriterT a)
 
 mapQuery :: QueryMorphism q q' -> q -> q'
 mapQuery = _queryMorphism_mapQuery
@@ -117,36 +232,60 @@ mapQuery = _queryMorphism_mapQuery
 mapQueryResult :: QueryMorphism q q' -> QueryResult q' -> QueryResult q
 mapQueryResult = _queryMorphism_mapQueryResult
 
-withQueryT :: (MonadFix m, Monoid q, Monoid q', Query q', Reflex t)
+-- | withQueryT's QueryMorphism argument needs to be a group homomorphism in order to behave correctly
+withQueryT :: (MonadFix m, PostBuild t m, Group q, Group q', Additive q, Additive q', Query q')
            => QueryMorphism q q'
            -> QueryT t q m a
            -> QueryT t q' m a
 withQueryT f a = do
   r' <- askQueryResult
   (result, q) <- lift $ runQueryT a $ mapQueryResult f <$> r'
-  tellQueryDyn $ mapQuery f <$> q
+  tellQueryIncremental $ unsafeBuildIncremental
+    (fmap (mapQuery f) (sample (currentIncremental q)))
+    (fmapCheap (AdditivePatch . mapQuery f . unAdditivePatch) $ updatedIncremental q)
   return result
 
-dynWithQueryT :: (MonadFix m, Monoid q, Monoid q', Query q', Reflex t)
+-- | dynWithQueryT's (Dynamic t QueryMorphism) argument needs to be a group homomorphism at all times in order to behave correctly
+dynWithQueryT :: (MonadFix m, PostBuild t m, Group q, Additive q, Group q', Additive q', Query q')
            => Dynamic t (QueryMorphism q q')
            -> QueryT t q m a
            -> QueryT t q' m a
-dynWithQueryT f a = do
+dynWithQueryT f q = do
   r' <- askQueryResult
-  (result, q) <- lift $ runQueryT a $ zipDynWith mapQueryResult f r'
-  tellQueryDyn $ zipDynWith mapQuery f q
+  (result, q') <- lift $ runQueryT q $ zipDynWith mapQueryResult f r'
+  tellQueryIncremental $ zipDynIncrementalWith mapQuery f q'
   return result
+ where zipDynIncrementalWith g da ib =
+         let eab = align (updated da) (updatedIncremental ib)
+             ec = flip push eab $ \o -> case o of
+                 This a -> do
+                   aOld <- sample $ current da
+                   b <- sample $ currentIncremental ib
+                   return $ Just $ AdditivePatch (g a b ~~ g aOld b)
+                 That (AdditivePatch b) -> do
+                   a <- sample $ current da
+                   return $ Just $ AdditivePatch $ g a b
+                 These a (AdditivePatch b) -> do
+                   aOld <- sample $ current da
+                   bOld <- sample $ currentIncremental ib
+                   return $ Just $ AdditivePatch $ mconcat [ g a bOld, negateG (g aOld bOld), g a b]
+         in unsafeBuildIncremental (g <$> sample (current da) <*> sample (currentIncremental ib)) ec
 
-type FocusWidgetInternal f app t m = QueryT t (ViewSelector app ()) (RequesterT t (AppRequest f app) Identity m)
+type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest f app) Identity m)
 
 newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
+
+#ifndef __GHCJS__
+instance MonadJSM m => MonadJSM (FocusWidget f app t m) where
+  liftJSM' = lift . liftJSM'
+#endif
 
 instance MonadTrans (FocusWidget f app t) where
   lift = FocusWidget . lift . lift
 
 instance HasJS x m => HasJS x (FocusWidget f app t m) where
-  type JSM (FocusWidget f app t m) = JSM m
+  type JSX (FocusWidget f app t m) = JSX m
   liftJS = lift . liftJS
 
 instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
@@ -164,7 +303,7 @@ instance TriggerEvent t m => TriggerEvent t (FocusWidget f app t m) where
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m) => DomBuilder t (FocusWidget f app t m) where
+instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => DomBuilder t (FocusWidget f app t m) where
   type DomBuilderSpace (FocusWidget f app t m) = DomBuilderSpace m
   textNode = liftTextNode
   element elementTag cfg (FocusWidget child) = FocusWidget $ element elementTag (fmap1 unFocusWidget cfg) child
@@ -174,9 +313,9 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e cfg = FocusWidget $ wrapRawElement e $ fmap1 unFocusWidget cfg
 
-instance (Reflex t, MonadFix m, Monoid (ViewSelector app ()), MonadHold t m, MonadAdjust t m) => MonadAdjust t (FocusWidget f app t m) where
-  runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (unsafeCoerce a')
-  sequenceDMapWithAdjust dm0 dm' = FocusWidget $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm')
+instance (Reflex t, MonadFix m, MonadHold t m, MonadAdjust t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => MonadAdjust t (FocusWidget f app t m) where
+  runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (coerceEvent a')
+  sequenceDMapWithAdjust dm0 dm' = FocusWidget $ sequenceDMapWithAdjust (coerce dm0) (coerceEvent dm')
 
 instance PostBuild t m => PostBuild t (FocusWidget f app t m) where
   getPostBuild = lift getPostBuild
@@ -195,9 +334,9 @@ instance MonadHold t m => MonadHold t (FocusWidget f app t m) where
 instance MonadSample t m => MonadSample t (FocusWidget f app t m) where
   sample = FocusWidget . sample
 
-instance HasWebView m => HasWebView (FocusWidget f app t m) where
-  type WebViewPhantom (FocusWidget f app t m) = WebViewPhantom m
-  askWebView = FocusWidget askWebView
+instance HasJSContext m => HasJSContext (FocusWidget f app t m) where
+  type JSContextPhantom (FocusWidget f app t m) = JSContextPhantom m
+  askJSContext = FocusWidget askJSContext
 
 instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget f app t m) where
   newEventWithTrigger = FocusWidget . newEventWithTrigger
@@ -208,18 +347,9 @@ instance Requester t m => R.Requester t (QueryT t q m) where
   type Response (QueryT t q m) = R.Response m
   withRequesting f = QueryT $ withRequesting $ unQueryT . f
 
--- class ( MonadWidget' t m
---       , MonadFix (WidgetHost m)
---       , Requester t (AppRequest app) m
---       , HasFocus f app
---       ) => MonadFocusWidget f app t m | m -> app t where
---   askEnv :: m (Env app t)
---   tellInterest :: Dynamic t (ViewSelector app ()) -> m ()
---   getView :: m (Dynamic t (View app))
-
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
-type MonadFocusFrontendWidget f app t m =
-    ( MonadFocusWidget f app t m
+type MonadFocusFrontendWidget app t m =
+    ( MonadFocusWidget app t m
     , DomBuilderSpace m ~ GhcjsDomSpace
     )
 
@@ -228,28 +358,43 @@ class (HasView app) => HasEnv f app where
   getToken :: Env app t -> Dynamic t (Maybe (Signed (AuthToken f))) -- This is a Maybe to handle logged-out interactions
   getViews :: Env app t -> Dynamic t (Map (Signed (AuthToken f)) (View app))
 
-class (HasRequest app f, HasView app) => HasFocus f app
+class (HasRequest app f, HasView app, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => HasFocus f app
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
-      , R.Request m ~ AppRequest f app
+      , R.Request m ~ AppRequest Identity app
       , Response m ~ Identity
-      , HasFocus f app
-      , MonadQuery t (ViewSelector app ()) m
-      ) => MonadFocusWidget f app t m | m -> app t where
+      , HasFocus Identity app
+      , MonadQuery t (ViewSelector app SelectedCount) m
+      ) => MonadFocusWidget app t m | m -> app t where
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
          , Requester t m
-         , R.Request m ~ AppRequest f app
+         , R.Request m ~ AppRequest Identity app
          , Response m ~ Identity
-         , HasFocus f app
-         , MonadQuery t (ViewSelector app ()) m
-         ) => MonadFocusWidget f app t m
+         , HasFocus Identity app
+         , MonadQuery t (ViewSelector app SelectedCount) m
+         ) => MonadFocusWidget app t m
 
-watchViewSelector :: (MonadFocusWidget f app t m) => Dynamic t (ViewSelector app ()) -> m (Dynamic t (View app))
-watchViewSelector = fmap uniqDyn . queryDyn
+queryDynUniq :: ( Monad m
+                , Reflex t
+                , MonadQuery t q m
+                , Eq (QueryResult q)
+                )
+             => Dynamic t q
+             -> m (Dynamic t (QueryResult q))
+queryDynUniq = fmap uniqDyn . queryDyn
+
+watchViewSelector :: ( Monad m
+                     , Reflex t
+                     , MonadQuery t q m
+                     , Eq (QueryResult q)
+                     )
+                  => Dynamic t q
+                  -> m (Dynamic t (QueryResult q))
+watchViewSelector = queryDynUniq
 
 --TODO: HasDocument is still not accounted for
 type MonadWidget' t m =
@@ -260,11 +405,11 @@ type MonadWidget' t m =
   , MonadReflexCreateTrigger t m
   , PostBuild t m
   , PerformEvent t m
-  , MonadIO m
-  , MonadIO (Performable m)
+  , MonadJSM m
+  , MonadJSM (Performable m)
   , TriggerEvent t m
-  -- , HasWebView m
-  -- , HasWebView (Performable m)
+  -- , HasJSContext m
+  -- , HasJSContext (Performable m)
   -- , MonadAsyncException m
   -- , MonadAsyncException (Performable m)
   , MonadRef m
@@ -273,25 +418,37 @@ type MonadWidget' t m =
   , Ref (Performable m) ~ Ref IO
   )
 
-
 runFocusWidget :: forall t m a x f app.
                 ( MonadWidget' t m
-                , HasWebView m
+                , HasJSContext m
                 , HasJS x m
                 , HasFocus f app
-                , Eq (ViewSelector app ())
+                , Eq (ViewSelector app SelectedCount)
                 )
                => Signed (AuthToken f)
                -> FocusWidget f app t m a
                -> m a
-runFocusWidget token child = do
+runFocusWidget = runFocusWidget' (Right "/listen")
+
+runFocusWidget' :: forall t m a x f app.
+                 ( MonadWidget' t m
+                 , HasJSContext m
+                 , HasJS x m
+                 , HasFocus f app
+                 , Eq (ViewSelector app SelectedCount)
+                 )
+                => Either WebSocketUrl Text
+                -> Signed (AuthToken f)
+                -> FocusWidget f app t m a
+                -> m a
+runFocusWidget' murl token child = do
   pb <- getPostBuild
-  rec (notification, response) <- openWebSocket "/listen" request' updatedVS
+  rec (notification, response) <- openWebSocket murl request' updatedVS
       (request', response') <- identifyTags request response
       ((a, vs), request) <- flip runRequesterT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
-      let nubbedVs = uniqDyn vs
+      let nubbedVs = uniqDyn (incrementalToDynamic vs)
           updatedVS = leftmost [updated nubbedVs, tag (current nubbedVs) pb]
-      e :: Dynamic t (AppendMap (Signed (AuthToken f)) (QueryResult (ViewSelector app ()))) <- fromNotifications nubbedVs notification
+      e :: Dynamic t (AppendMap (Signed (AuthToken f)) (QueryResult (ViewSelector app SelectedCount))) <- fromNotifications nubbedVs notification
   return a
 
 fromNotifications :: forall m t k vs. (Query vs, MonadHold t m, Reflex t, MonadFix m, Ord k)
@@ -342,31 +499,31 @@ identifyTags send recv = do
 
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
 openWebSocket' :: forall t x m vs v.
-                 ( MonadIO m
-                 , MonadIO (Performable m)
+                 ( MonadJSM m
+                 , MonadJSM (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
                  , PerformEvent t m
-                 , HasWebView m
+                 , HasJSContext m
                  , HasJS x m
                  , MonadFix m
                  , FromJSON v
                  , ToJSON vs
                  )
-              => Text -- ^ URL
+              => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
               -> Dynamic t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    , Event t Text
                    )
-openWebSocket' url request vs = do
+openWebSocket' murl request vs = do
 #ifdef ghcjs_HOST_OS
   rec let platformDecode = rawDecode
-      ws <- rawWebSocket url $ def
+      ws <- rawWebSocket murl $ def
 #else
   rec let platformDecode = decodeValue' . LBS.fromStrict
-      ws <- webSocket url $ def
+      ws <- webSocket murl $ def
 #endif
         & webSocketConfig_send .~ fmap (map (decodeUtf8 . LBS.toStrict . encode)) (mconcat
           [ fmap (map (uncurry WebSocketData_Api)) request
@@ -381,12 +538,12 @@ openWebSocket' url request vs = do
   return (notification, response, version)
 
 openWebSocket :: forall t x m vs v.
-                 ( MonadIO m
-                 , MonadIO (Performable m)
+                 ( MonadJSM m
+                 , MonadJSM (Performable m)
                  , PostBuild t m
                  , TriggerEvent t m
                  , PerformEvent t m
-                 , HasWebView m
+                 , HasJSContext m
                  , HasJS x m
                  , MonadFix m
                  , MonadHold t m
@@ -394,13 +551,13 @@ openWebSocket :: forall t x m vs v.
                  , ToJSON vs
                  , Monoid vs
                  )
-              => Text -- ^ URL
+              => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
               -> Event t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
-openWebSocket url request updatedVs = do
+openWebSocket murl request updatedVs = do
   vs <- holdDyn mempty updatedVs
-  (f, s, _) <- openWebSocket' url request vs
+  (f, s, _) <- openWebSocket' murl request vs
   return (f, s)

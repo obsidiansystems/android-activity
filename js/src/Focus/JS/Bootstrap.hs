@@ -2,16 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Focus.JS.Bootstrap where
 
-import Reflex.Dom hiding (button)
+import Reflex.Dom.Core hiding (button)
 
 import Focus.Account
 import Focus.JS.FontAwesome
@@ -34,7 +32,6 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
 import Safe
-import Text.RawString.QQ
 
 bootstrapCDN :: DomBuilder t m => m ()
 bootstrapCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css") $ return ()
@@ -381,24 +378,24 @@ withLoginWorkflow' signUp wrapper li0 newAccountForm' recoveryForm' loginForm' f
   let loginWorkflow' = Workflow . wrapper $ do
         let newAccountWorkflow = Workflow $ do
               (_ {- eSignupClick -}, eSigninClick) <- newAccountForm'
-              return (never, fmap (const loginWorkflow) eSigninClick)
+              return (never, fmapCheap (const loginWorkflow) eSigninClick)
             recoverAccountWorkflow = Workflow $ do
               (_ {- eReset -}, eSigninClick) <- recoveryForm'
-              return (never, fmap (const loginWorkflow) eSigninClick)
+              return (never, fmapCheap (const loginWorkflow) eSigninClick)
             loginWorkflow = Workflow $ do
               (eLoginSuccess, eNewAccountClick) <- loginForm'
               recoverLink <- elAttr "p" (Map.singleton "class" "text-center") $ do
                 text "Forgot password? "
                 link "Recover account"
-              let eNewAccount = fmap (const newAccountWorkflow) eNewAccountClick
-                  eRecoverAccount = fmap (const recoverAccountWorkflow) (_link_clicked recoverLink)
+              let eNewAccount = fmapCheap (const newAccountWorkflow) eNewAccountClick
+                  eRecoverAccount = fmapCheap (const recoverAccountWorkflow) (_link_clicked recoverLink)
               let eChange = leftmost [eNewAccount, eRecoverAccount]
               return (eLoginSuccess, eChange)
         eLoginInfo <- liftM switch $ hold never =<< workflowView (if signUp then newAccountWorkflow else loginWorkflow)
-        return ((fmap Just eLoginInfo, constDyn mempty), fmap f' eLoginInfo)
+        return ((fmapCheap Just eLoginInfo, constDyn mempty), fmapCheap f' eLoginInfo)
       f' x = Workflow $ do
         (eLogout, a) <- f x
-        return ((fmap (const Nothing) eLogout, a), fmap (const loginWorkflow') eLogout)
+        return ((fmapCheap (const Nothing) eLogout, a), fmapCheap (const loginWorkflow') eLogout)
   in maybe loginWorkflow' f' li0
 
 recoveryForm
@@ -524,42 +521,42 @@ passwordReset token reset = elAttr "form" (Map.singleton "class" "form-signin") 
   return loginInfo
 
 styleTagSignin :: DomBuilder t m => m ()
-styleTagSignin = el "style" $ text [r|
-  .form-signin {
-    max-width: 330px;
-    padding: 15px;
-    margin: 0 auto;
-  }
-  .form-signin .form-signin-heading,
-  .form-signin .checkbox {
-    margin-bottom: 10px;
-  }
-  .form-signin .checkbox {
-    font-weight: normal;
-  }
-  .form-signin .form-control {
-    position: relative;
-    height: auto;
-    -webkit-box-sizing: border-box;
-       -moz-box-sizing: border-box;
-            box-sizing: border-box;
-    padding: 10px;
-    font-size: 16px;
-  }
-  .form-signin .form-control:focus {
-    z-index: 2;
-  }
-  .form-signin input[type="email"] {
-    margin-bottom: -1px;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-  .form-signin input[type="password"] {
-    margin-bottom: 10px;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
-  }
-|]
+styleTagSignin = el "style" $ text
+    "\n\
+    \  .form-signin {\n\
+    \    max-width: 330px;\n\
+    \    padding: 15px;\n\
+    \    margin: 0 auto;\n\
+    \  }\n\
+    \  .form-signin .form-signin-heading,\n\
+    \  .form-signin .checkbox {\n\
+    \    margin-bottom: 10px;\n\
+    \  }\n\
+    \  .form-signin .checkbox {\n\
+    \    font-weight: normal;\n\
+    \  }\n\
+    \  .form-signin .form-control {\n\
+    \    position: relative;\n\
+    \    height: auto;\n\
+    \    -webkit-box-sizing: border-box;\n\
+    \       -moz-box-sizing: border-box;\n\
+    \            box-sizing: border-box;\n\
+    \    padding: 10px;\n\
+    \    font-size: 16px;\n\
+    \  }\n\
+    \  .form-signin .form-control:focus {\n\
+    \    z-index: 2;\n\
+    \  }\n\
+    \  .form-signin input[type=\"email\"] {\n\
+    \    margin-bottom: -1px;\n\
+    \    border-bottom-right-radius: 0;\n\
+    \    border-bottom-left-radius: 0;\n\
+    \  }\n\
+    \  .form-signin input[type=\"password\"] {\n\
+    \    margin-bottom: 10px;\n\
+    \    border-top-left-radius: 0;\n\
+    \    border-top-right-radius: 0;\n\
+    \  }\n"
 
 toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do

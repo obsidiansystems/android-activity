@@ -1,9 +1,15 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
+{-# LANGUAGE CPP, GeneralizedNewtypeDeriving, DefaultSignatures, EmptyDataDecls, MultiParamTypeClasses, TypeFamilies, DeriveGeneric, FlexibleInstances, FlexibleContexts, FunctionalDependencies, StandaloneDeriving, UndecidableInstances, LambdaCase #-}
+#ifdef USE_TEMPLATE_HASKELL
+{-# LANGUAGE TemplateHaskell #-}
+#endif
 module Focus.Patch where
 
 import Control.Applicative
 import Control.Lens
+import Focus.Aeson.Orphans
 import Data.Aeson
+import Data.AppendMap (AppendMap (..))
+import qualified Data.AppendMap as AppendMap
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -144,10 +150,6 @@ unionMapPatch (MapPatch x) (MapPatch y) = MapPatch (Map.unionWith (<>) x y)
 mapPatchInsert :: Map k a -> MapPatch k a
 mapPatchInsert m = MapPatch (fmap ElemPatch_Insert m)
 
-(~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (Map k v)
-k ~: p = MapPatch (Map.singleton k (ElemPatch_Upsert p (Just (patch p def))))
-infixr 5 ~:
-
 mapSetInsert :: k -> a -> MapPatch k (Set a)
 mapSetInsert k v = MapPatch (Map.singleton k (ElemPatch_Upsert (SetPatch (Map.singleton v True)) (Just (Set.singleton v))))
 
@@ -174,7 +176,50 @@ elemUpsert p v = ElemPatch_Upsert p (Just (patch p v))
 elemUpdate :: Patch a -> ElemPatch a
 elemUpdate p = ElemPatch_Upsert p Nothing
 
+#ifdef USE_TEMPLATE_HASKELL
 makeWrapped ''SetPatch
 makeWrapped ''MapPatch
+#else
+instance SetPatch a_a2Epx ~ t_a2Epw =>
+         Rewrapped (SetPatch a_a2CjN) t_a2Epw
+instance Wrapped (SetPatch a_a2CjN) where
+  type Unwrapped (SetPatch a_a2CjN) = Map a_a2CjN Bool
+  _Wrapped' = iso (\ (SetPatch x_a2Epv) -> x_a2Epv) SetPatch
+instance MapPatch k_a2Ett a_a2Etu ~ t_a2Ets =>
+         Rewrapped (MapPatch k_a2CjK a_a2CjL) t_a2Ets
+instance Wrapped (MapPatch k_a2CjK a_a2CjL) where
+  type Unwrapped (MapPatch k_a2CjK a_a2CjL) = Map k_a2CjK (ElemPatch a_a2CjL)
+  _Wrapped' = iso (\ (MapPatch x_a2Etr) -> x_a2Etr) MapPatch
+#endif
 
 instance Patchable Text
+
+newtype AppendMapPatch k a = AppendMapPatch
+          { unAppendMapPatch :: AppendMap k (ElemPatch a)
+          }
+  deriving (Generic, Typeable)
+
+instance (Ord k, Patchable a) => Semigroup (AppendMapPatch k a) where
+  (AppendMapPatch mp) <> (AppendMapPatch mq) = AppendMapPatch $ (<>) mp mq
+
+instance (Ord k, Patchable a) => Monoid (AppendMapPatch k a) where
+  mempty = AppendMapPatch mempty
+  mappend = (<>)
+
+instance (Ord k, Patchable v) => Patchable (AppendMap k v) where
+  type Patch (AppendMap k v) = AppendMapPatch k v
+  patch (AppendMapPatch (AppendMap p)) (AppendMap m) = AppendMap $ patch (MapPatch p) m
+
+(~:) :: (Default v, Patchable v) => k -> Patch v -> Patch (AppendMap k v)
+k ~: p = AppendMapPatch (AppendMap.singleton k (ElemPatch_Upsert p (Just (patch p def))))
+infixr 5 ~:
+
+appendMapInsert :: AppendMap k a -> AppendMapPatch k a
+appendMapInsert = AppendMapPatch . fmap ElemPatch_Insert
+
+deriving instance (Ord k, Eq a, Eq (Patch a)) => Eq (AppendMapPatch k a)
+deriving instance (Ord k, Ord a, Ord (Patch a)) => Ord (AppendMapPatch k a)
+deriving instance (Ord k, Show k, Show a, Show (Patch a)) => Show (AppendMapPatch k a)
+deriving instance (Ord k, Read k, Read a, Read (Patch a)) => Read (AppendMapPatch k a)
+deriving instance (ToJSON k, ToJSON a, ToJSON (Patch a)) => ToJSON (AppendMapPatch k a)
+deriving instance (Ord k, FromJSON k, FromJSON a, FromJSON (Patch a)) => FromJSON (AppendMapPatch k a)
