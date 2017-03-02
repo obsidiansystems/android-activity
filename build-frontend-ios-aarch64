@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+if [ -z "$1" -o -z "$2" ]; then
+  echo "Usage: $0 [APP_NAME] [BUNDLE_IDENTIFIER]" >&2
+  exit 1
+fi
+
+APP_NAME=$1
+shift
+BUNDLE_IDENTIFIER=$1
+shift
 set -euo pipefail
 
 echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
@@ -34,4 +43,4 @@ set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"$APP_NAME\" \"$BUNDLE_IDENTIFIER\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
