@@ -758,7 +758,7 @@ rec {
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
 
-              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
+              /usr/bin/xcrun -sdk iphoneos ${./PackageApplication} -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
               /Applications/Xcode.app/Contents/Applications/Application\ Loader.app/Contents/Frameworks/ITunesSoftwareService.framework/Versions/A/Support/altool --validate-app -f "$IPA_DESTINATION" -t ios "$@"
             '';
             runInSim = builtins.toFile "run-in-sim" ''
