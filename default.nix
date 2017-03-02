@@ -893,10 +893,24 @@ rec {
           '';
           frontendIosSimulator = mkFrontend frontendSrc commonSrc iosSimulatorHaskellPackages staticSrc
               (with iosSimulatorHaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosSimulatorApp = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosSimulator+"/bin"), staticSrc};
+          frontendIosSimulatorApp = mkIosApp { bundleName = "mobile";
+                                               bundleIdentifier = "mobile";
+                                               bundleVersionString = "1.0";
+                                               bundleVersion = "1";
+                                               exeName = "mobile";
+                                               exePath = (frontendIosSimulator+"/bin");
+                                               staticSrc = staticSrc;
+                                             };
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
-          frontendIosAArch64App = mkIosApp {"mobile", "mobile", "1.0", "1", (frontendIosAArch64+"/bin"), staticSrc};
+          frontendIosAArch64App = mkIosApp { bundleName = "mobile";
+                                             bundleIdentifier = "mobile";
+                                             bundleVersionString = "1.0";
+                                             bundleVersion = "1";
+                                             exeName = "mobile";
+                                             exePath = (frontendIosAArch64+"/bin");
+                                             staticSrc = staticSrc;
+                                           };
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
