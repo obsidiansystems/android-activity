@@ -528,6 +528,10 @@ rec {
                 <string>${bundleVersionString}</string>
                 <key>CFBundleVersion</key>
                 <string>${bundleVersion}</string>
+                <key>CFBundleSupportedPlatforms</key>
+                <array>
+                  <string>iPhoneOS</string>
+                </array>
                 <key>LSRequiresIPhoneOS</key>
                 <true/>
                 <key>UILaunchStoryboardName</key>
