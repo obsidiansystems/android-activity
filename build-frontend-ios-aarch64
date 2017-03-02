@@ -47,4 +47,4 @@ set -e
 eval "$(echo "$buildPhase" | sed '\''s/Setup build /Setup build mobile /'\'')"
 '
 
-$(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"$APP_NAME\" \"$BUNDLE_IDENTIFIER\" \"$BUNDLE_VERSION_STRING\" \"$BUNDLE_VERSION\" \"mobile\" $BUILDDIR/build/mobile ./static")/bin/deploy "$@"
+$(nix-build --no-out-link -E "(import ./. {}).mkIosApp { bundleName = \"$APP_NAME\"; bundleIdentifier = \"$BUNDLE_IDENTIFIER\"; bundleVersionString = \"$BUNDLE_VERSION_STRING\"; bundleVersion = \"$BUNDLE_VERSION\"; exeName = \"mobile\"; exePath = $BUILDDIR/build/mobile; staticSrc = ./static; }")/bin/deploy "$@"
