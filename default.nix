@@ -758,6 +758,7 @@ rec {
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
               chmod +w "$tmpdir/${exeName}.app"
               chmod +rw "$tmpdir/${exeName}.app/${exeName}"
+              strip "$tmpdir/${exeName}.app/${exeName}"
               mkdir -p "$tmpdir/${exeName}.app/config"
               cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
