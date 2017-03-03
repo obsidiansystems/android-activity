@@ -76,7 +76,8 @@ library
     split,
     reflex,
     io-streams,
-    lifted-base
+    lifted-base,
+    http-conduit
 
   exposed-modules:
       Focus.Backend
@@ -87,6 +88,8 @@ library
     , Focus.Backend.Listen.Session
     , Focus.Backend.Email
     , Focus.Backend.EmailWorker
+    , Focus.Backend.HereMaps
+    , Focus.Backend.Intercom
     , Focus.Backend.Mustache
     , Focus.Backend.Schema
     , Focus.Backend.Schema.TH

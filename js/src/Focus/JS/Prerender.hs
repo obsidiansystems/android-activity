@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, TypeApplications, ConstraintKinds, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances, UndecidableInstances, Rank2Types, TypeFamilies, EmptyDataDecls #-}
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.JS.Prerender
        ( Prerender (..)
        , prerender
@@ -8,6 +10,11 @@ import Focus.JS.App
 
 import Control.Monad.Reader
 import Data.Constraint
+#ifndef ghcjs_HOST_OS
+import GHCJS.DOM.Types (MonadJSM(..))
+#else
+import GHCJS.DOM.Types (MonadJSM)
+#endif
 import Reflex.Host.Class
 import Reflex.Dom.Core
 
@@ -16,6 +23,8 @@ import Focus.JS.PreprocessedCSSClasses
 type PrerenderClientConstraint js m =
   ( HasJS js m
   , HasJS js (Performable m)
+  , MonadJSM m
+  , MonadJSM (Performable m)
   , HasJSContext m
   , HasJSContext (Performable m)
   , MonadFix m
@@ -33,7 +42,16 @@ prerender server client = case prerenderClientDict :: Maybe (Dict (PrerenderClie
   Nothing -> server
   Just Dict -> client
 
-instance (HasJS js m, HasJS js (Performable m), HasJSContext m, HasJSContext (Performable m), MonadFix m, MonadFix (Performable m), ReflexHost t) => Prerender js (ImmediateDomBuilderT t m) where
+instance ( HasJS js m
+         , HasJS js (Performable m)
+         , HasJSContext m
+         , HasJSContext (Performable m)
+         , MonadJSM m
+         , MonadJSM (Performable m)
+         , MonadFix m
+         , MonadFix (Performable m)
+         , ReflexHost t
+         ) => Prerender js (ImmediateDomBuilderT t m) where
   prerenderClientDict = Just Dict
 
 data NoJavaScript -- This type should never have a HasJS instance
@@ -64,3 +82,14 @@ instance Prerender js m => Prerender js (InputDisabledT m) where
 
 instance Prerender js m => Prerender js (PreprocessedCSSClassesT m) where
   prerenderClientDict = fmap (\Dict -> Dict) (prerenderClientDict @js @m)
+
+#ifndef ghcjs_HOST_OS
+instance MonadJSM m => MonadJSM (StaticDomBuilderT t m) where
+  liftJSM' = StaticDomBuilderT . liftJSM'
+
+instance MonadJSM m => MonadJSM (PreprocessedCSSClassesT m) where
+  liftJSM' = lift . liftJSM'
+
+instance MonadJSM m => MonadJSM (InputDisabledT m) where
+  liftJSM' = lift . liftJSM'
+#endif

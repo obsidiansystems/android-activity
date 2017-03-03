@@ -210,7 +210,7 @@ instance (MonadIO m, MonadBaseControl IO m) => PostgresLargeObject (DbPersist Po
             again
   streamLargeObjectRange oid start end os =
     withLargeObject oid ReadMode $ \lofd -> do
-      liftWithConn $ \conn -> Sql.loSeek conn lofd Sql.AbsoluteSeek start
+      _ <- liftWithConn $ \conn -> Sql.loSeek conn lofd Sql.AbsoluteSeek start
       let again n = do
             let nextChunkSize = min 8192 (end - n)
             chunk <- readLargeObject lofd nextChunkSize

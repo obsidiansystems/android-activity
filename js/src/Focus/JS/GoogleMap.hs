@@ -1,8 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI, CPP, TemplateHaskell, NoMonomorphismRestriction, EmptyDataDecls, RankNTypes, GADTs, RecursiveDo, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, TypeFamilies, FlexibleContexts, DeriveDataTypeable, GeneralizedNewtypeDeriving, StandaloneDeriving, ConstraintKinds, UndecidableInstances, OverloadedStrings #-}
 module Focus.JS.GoogleMap where
 
-#if 0
-
 import Control.Lens hiding (zoom)
 import Control.Monad.IO.Class
 import Control.Monad hiding (forM, forM_, mapM, mapM_, sequence)
@@ -28,7 +26,7 @@ import Reflex.Dom.Core
 #ifdef ghcjs_HOST_OS
 import GHCJS.DOM.Types hiding (Event, fromJSString, Text)
 #else
-import GHCJS.DOM.Types hiding (Event, Text)
+import GHCJS.DOM.Types hiding (Event, Text, fromJSArray, fromJSString)
 #endif
 
 newtype GeolocationPosition x = GeolocationPosition { unGeolocationPosition :: JSRef x }
@@ -467,5 +465,3 @@ getPlaceDetails eChoice = performEventAsync $ fmap (\(address, ref) cb -> liftJS
 --         release cb
 --   s' <- toJSRef s
 --   googleMapsGeocoderPlace_ s' cb
-
-#endif
