@@ -30,7 +30,6 @@ module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType
                             , getSchemaName
                             ) where
 
-import Focus.Account
 import Focus.Api
 import Focus.AppendMap (AppendMap (..))
 import qualified Focus.AppendMap as AppendMap
@@ -38,7 +37,6 @@ import Focus.Backend.DB
 import Focus.Backend.Schema.TH
 import Focus.Request
 import Focus.Schema
-import Focus.Sign
 import Focus.WebSocket
 
 import Control.Concurrent
@@ -461,11 +459,11 @@ listenDB withConn' = do
         _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel
   return (nChan, killThread daemonThread)
 
-handleRequests :: forall h m pub priv f. (Monad m)
+handleRequests :: forall h m pub priv f cred. (Monad m)
                => (forall x. ToJSON x => h x -> m Value) -- Runs request and turns response into JSON
                -> (forall x. pub f x -> h x) -- Public request handler
-               -> (forall x. Signed (AuthToken f) -> priv f x -> h x) -- Private request handler
-               -> SomeRequest (ApiRequest f pub priv) -- Api Request
+               -> (forall x. cred -> priv f x -> h x) -- Private request handler
+               -> SomeRequest (ApiRequest f cred pub priv) -- Api Request
                -> m Value -- JSON response
 handleRequests runRequest fpub fpriv request = case request of
   SomeRequest req -> do

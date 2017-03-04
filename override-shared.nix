@@ -5,6 +5,7 @@ let inherit (nixpkgs) stdenv;
 in
 self: super: {
     reflex = enableCabalFlag super.reflex "specialize-to-spidertimeline-global";
+    reflex-dom-core = dontCheck super.reflex-dom-core;
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
@@ -338,13 +339,15 @@ self: super: {
         sha256 = "1mwibd972n1xv9ywf4jidmfc7w9qbv5xy10afgammn71ziniz29y";
       };
     });
-    gpx-conduit = overrideCabal super.gpx-conduit (drv: {
-      src = nixpkgs.fetchgit {
-        url = git://github.com/obsidiansystems/gpx-conduit;
-        rev = "988d97c433042e5af46ae7c38e1163eecbf928bb";
-        sha256 = "9cd3d6b3c27f9a0ae5c02769001d56f773efab9657d50b948d4355397950f28c";
-      };
-    });
+    # disable tests so that it doesn't build gpx-conduit
+    gps = dontCheck super.gps;
+    # gpx-conduit = overrideCabal super.gpx-conduit (drv: {
+    #   src = nixpkgs.fetchgit {
+    #     url = git://github.com/obsidiansystems/gpx-conduit;
+    #     rev = "988d97c433042e5af46ae7c38e1163eecbf928bb";
+    #     sha256 = "9cd3d6b3c27f9a0ae5c02769001d56f773efab9657d50b948d4355397950f28c";
+    #   };
+    # });
     map-syntax = doJailbreak super.map-syntax;
     zlib-enum = doJailbreak super.zlib-enum;
     reflex-jsx = self.callPackage ./reflex-jsx.nix {};

@@ -16,9 +16,11 @@ import Foreign.Storable
 
 import Reflex.Patch
 
+import Focus.Account
 import Focus.AppendMap (AppendMap)
 import qualified Focus.AppendMap as AppendMap
 import Focus.Request
+import Focus.Sign
 
 class (Monoid (QueryResult a), Semigroup (QueryResult a)) => Query a where
   type QueryResult a :: *
@@ -76,6 +78,8 @@ class ( ToJSON (ViewSelector app SelectedCount), FromJSON (ViewSelector app Sele
 cropView :: (Query q) => q -> QueryResult q -> QueryResult q
 cropView = crop
 
-class (Request (PublicRequest app f), Request (PrivateRequest app f)) => HasRequest app (f :: * -> *) where
+class (Request (PublicRequest app f), Request (PrivateRequest app f), ToJSON (AppCredential app f), FromJSON (AppCredential app f)) => HasRequest app (f :: * -> *) where
   data PublicRequest app f :: * -> *
   data PrivateRequest app f :: * -> *
+  type AppCredential app f :: *
+  type AppCredential app f = Signed (AuthToken f)

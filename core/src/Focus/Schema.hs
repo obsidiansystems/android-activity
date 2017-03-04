@@ -4,11 +4,8 @@ module Focus.Schema where
 
 import GHC.Generics
 import Data.Aeson
-import Data.Aeson.Types
 import Data.Int
 import Data.Typeable
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word

@@ -74,7 +74,7 @@ mkRequestGeneric responseType convertResponse method sendFunc url cb = do
                         readyState <- getReadyState xhr
                         when (readyState == 4) $ do
                           r <- convertResponse xhr
-                          cb r
+                          _ <- cb r
                           freeCallback
   _ <- sendFunc xhr
   return xhr
