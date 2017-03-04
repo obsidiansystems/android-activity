@@ -528,6 +528,10 @@ rec {
                 <string>${bundleVersionString}</string>
                 <key>CFBundleVersion</key>
                 <string>${bundleVersion}</string>
+                <key>CFBundleSupportedPlatforms</key>
+                <array>
+                  <string>iPhoneOS</string>
+                </array>
                 <key>LSRequiresIPhoneOS</key>
                 <true/>
                 <key>UILaunchStoryboardName</key>
@@ -753,12 +757,13 @@ rec {
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
               chmod +w "$tmpdir/${exeName}.app"
+              chmod +rw "$tmpdir/${exeName}.app/${exeName}"
               mkdir -p "$tmpdir/${exeName}.app/config"
               cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
               sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
               /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
 
-              /usr/bin/xcrun -sdk iphoneos PackageApplication -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
+              /usr/bin/xcrun -sdk iphoneos ${./PackageApplication} -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
               /Applications/Xcode.app/Contents/Applications/Application\ Loader.app/Contents/Frameworks/ITunesSoftwareService.framework/Versions/A/Support/altool --validate-app -f "$IPA_DESTINATION" -t ios "$@"
             '';
             runInSim = builtins.toFile "run-in-sim" ''
