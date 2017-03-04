@@ -2,22 +2,24 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Focus.Backend.Sign where
 
-import Focus.Sign
+import Focus.Backend.TH
 import Focus.Brand
 import Focus.Email
-import Focus.Route
 import Focus.Request
-import Focus.Backend.TH
+import Focus.Route
+import Focus.Sign
 
 import Control.Monad.Base
+import Control.Monad.Logger
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Control
 import Control.Monad.Reader
-import qualified Web.ClientSession as CS
-import qualified Data.ByteString.Lazy as LBS
 import Data.Aeson
-import Data.Typeable
+import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
-import Control.Monad.Trans.Maybe
+import Data.Typeable
+import Database.Groundhog
+import qualified Web.ClientSession as CS
 
 signWithKey :: (Typeable b, ToJSON b, MonadIO m) => CS.Key -> b -> m (Signed a)
 signWithKey k (v :: b) = do
@@ -57,6 +59,14 @@ instance MonadIO m => MonadSign (SignT m) where
     return $ readSignedWithKey k s
 
 instance MonadSign m => MonadSign (MaybeT m) where
+  sign = lift . sign
+  readSigned = lift . readSigned
+
+instance MonadSign m => MonadSign (NoLoggingT m) where
+  sign = lift . sign
+  readSigned = lift . readSigned
+
+instance MonadSign m => MonadSign (DbPersist conn m) where
   sign = lift . sign
   readSigned = lift . readSigned
 

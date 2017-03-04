@@ -59,12 +59,16 @@ import qualified Reflex as R
 import Reflex.EventWriter
 import Reflex.Dom.Core hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
+#ifndef ghcjs_HOST_OS
 import GHCJS.DOM.Types (MonadJSM(..))
+#else
+import GHCJS.DOM.Types (MonadJSM)
+#endif
 
 newtype QueryT t q m a = QueryT { unQueryT :: StateT [Behavior t q] (EventWriterT t q (ReaderT (Dynamic t (QueryResult q)) m)) a }
   deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
 
-#ifndef __GHCJS__
+#ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (QueryT t q m) where
   liftJSM' = lift . liftJSM'
 #endif
@@ -276,7 +280,7 @@ type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (
 newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
 
-#ifndef __GHCJS__
+#ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (FocusWidget f app t m) where
   liftJSM' = lift . liftJSM'
 #endif
@@ -405,9 +409,11 @@ type MonadWidget' t m =
   , MonadReflexCreateTrigger t m
   , PostBuild t m
   , PerformEvent t m
-  , MonadJSM m
-  , MonadJSM (Performable m)
   , TriggerEvent t m
+  , MonadIO m
+  , MonadIO (Performable m)
+  -- , MonadJSM m
+  -- , MonadJSM (Performable m)
   -- , HasJSContext m
   -- , HasJSContext (Performable m)
   -- , MonadAsyncException m
@@ -422,6 +428,8 @@ runFocusWidget :: forall t m a x f app.
                 ( MonadWidget' t m
                 , HasJSContext m
                 , HasJS x m
+                , MonadJSM m
+                , MonadJSM (Performable m)
                 , HasFocus f app
                 , Eq (ViewSelector app SelectedCount)
                 )
@@ -434,6 +442,8 @@ runFocusWidget' :: forall t m a x f app.
                  ( MonadWidget' t m
                  , HasJSContext m
                  , HasJS x m
+                 , MonadJSM m
+                 , MonadJSM (Performable m)
                  , HasFocus f app
                  , Eq (ViewSelector app SelectedCount)
                  )
@@ -497,6 +507,13 @@ identifyTags send recv = do
                       Nothing -> Nothing
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
 
+data AppWebSocket t v = AppWebSocket
+  { _appWebSocket_notification :: Event t v
+  , _appWebSocket_response :: Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+  , _appWebSocket_version :: Event t Text
+  , _appWebSocket_connected :: Dynamic t Bool
+  }
+
 -- | Open a websocket connection and split resulting incoming traffic into listen notification and api response channels
 openWebSocket' :: forall t x m vs v.
                  ( MonadJSM m
@@ -507,16 +524,14 @@ openWebSocket' :: forall t x m vs v.
                  , HasJSContext m
                  , HasJS x m
                  , MonadFix m
+                 , MonadHold t m
                  , FromJSON v
                  , ToJSON vs
                  )
               => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
               -> Dynamic t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
-              -> m ( Event t v
-                   , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
-                   , Event t Text
-                   )
+              -> m (AppWebSocket t v)
 openWebSocket' murl request vs = do
 #ifdef ghcjs_HOST_OS
   rec let platformDecode = rawDecode
@@ -535,7 +550,13 @@ openWebSocket' murl request vs = do
       notification = fmapMaybe (^? _Right . _WebSocketData_Listen) eMessages
       response = fmapMaybe (^? _Right . _WebSocketData_Api) eMessages
       version = fmapMaybe (^? _Right . _WebSocketData_Version) eMessages
-  return (notification, response, version)
+  connected <- holdDyn False . leftmost $ [True <$ _webSocket_open ws, False <$ _webSocket_close ws]
+  return $ AppWebSocket
+    { _appWebSocket_notification = notification
+    , _appWebSocket_response = response
+    , _appWebSocket_version = version
+    , _appWebSocket_connected = connected
+    }
 
 openWebSocket :: forall t x m vs v.
                  ( MonadJSM m
@@ -559,5 +580,5 @@ openWebSocket :: forall t x m vs v.
                    )
 openWebSocket murl request updatedVs = do
   vs <- holdDyn mempty updatedVs
-  (f, s, _) <- openWebSocket' murl request vs
-  return (f, s)
+  aws <- openWebSocket' murl request vs
+  return (_appWebSocket_notification aws, _appWebSocket_response aws)

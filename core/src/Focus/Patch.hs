@@ -20,8 +20,6 @@ import Data.Text (Text)
 import Data.Typeable
 import GHC.Generics
 
-import Focus.Schema
-
 class Semigroup (Patch v) => Patchable v where
   type Patch v :: *
   type instance Patch v = First v

@@ -4,14 +4,12 @@
 #endif
 module Focus.Intercom where
 
-import Control.Exception
 #ifdef USE_TEMPLATE_HASKELL
 import Control.Lens (makeLenses)
 #else
 import Control.Lens (Lens')
 #endif
 import Data.Maybe (fromMaybe)
-import Data.Aeson.Compat (decode)
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.SHA (showDigest, hmacSha256)
@@ -20,9 +18,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock.POSIX
-#ifdef FOCUS_BACKEND
-import Network.HTTP.Conduit
-#endif
 
 import Focus.Intercom.Common (IntercomUserHash(..), IntercomUser(..))
 #ifdef USE_TEMPLATE_HASKELL
@@ -98,6 +93,7 @@ instance FromJSON IntercomUserInternal where
       city <- fromMaybe "" <$> locationData .:? "city_name"
       return $ city <> ", " <> country
     _intercomUser_userAgent <- fromMaybe "Unknown" <$> o .:? "user_agent_data"
+    _intercomUser_createdAt <- fmap posixSecondsToUTCTime (o .: "created_at")
     let _intercomUser_device = getDevice _intercomUser_userAgent
     let _intercomUser_browser = getBrowser _intercomUser_userAgent
     return $ IntercomUserInternal $ IntercomUser {..}
@@ -113,36 +109,6 @@ instance FromJSON IntercomUserInternal where
         | "IE" `T.isInfixOf` ua = "Internet Explorer"
         | otherwise = "Unknown"
 
-
-#ifdef FOCUS_BACKEND
-getIntercomUsers :: IntercomEnv -> IO [IntercomUser]
-getIntercomUsers env = getIntercomUsers' Nothing []
-  where
-    url = "https://api.intercom.io/users/scroll"
-    getReq env' mScrollParam = do
-      man <- newManager tlsManagerSettings
-      req <- fmap (asJson . applyBasicAuth user pass) $ parseUrlThrow $ maybe url ((url <> "?scroll_param=") <>) mScrollParam
-      res <- try $ httpLbs req man
-      case res of
-        Left (err :: HttpException) -> do
-          putStrLn $ "ERROR getIntercomUsers: " <> show err
-          return mempty
-        Right res' -> return $ responseBody res'
-      where
-        user = T.encodeUtf8 $ _intercomEnv_appId env'
-        pass = T.encodeUtf8 $ unIntercomSecretKey $ _intercomEnv_secretKey env'
-        asJson req = req { requestHeaders = ("Accept", "application/json"):requestHeaders req }
-
-    getIntercomUsers' :: Maybe String -> [IntercomUser] -> IO [IntercomUser]
-    getIntercomUsers' mScrollParam prev = do
-      res <- getReq env mScrollParam
-      case decode res of
-        Nothing -> return prev
-        Just body -> do
-          let newMScrollParam = either error Just $ parseEither (body .:) "scroll_param"
-          let users = either error id $ parseEither (body .:) "users"
-          if null users then return prev else getIntercomUsers' newMScrollParam (map unIntercomUserInternal users <> prev)
-#endif
 
 conversationsUrlFromId :: Text -> Text -> Text
 conversationsUrlFromId appId userId =
