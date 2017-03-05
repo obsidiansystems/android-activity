@@ -404,4 +404,14 @@ self: super: {
     th-expand-syns = overrideCabal super.th-expand-syns (drv: {
       jailbreak = true;
     });
+    focus-heremaps = self.mkDerivation ({
+      pname = "focus-heremaps";
+      version = "0.1";
+      src = filterGitSource ./heremaps;
+      license = nixpkgs.stdenv.lib.licenses.bsd3;
+      buildDepends = with self; [
+        focus-core aeson text http-conduit time
+      ];
+
+    });
   }

@@ -88,7 +88,6 @@ library
     , Focus.Backend.Listen.Session
     , Focus.Backend.Email
     , Focus.Backend.EmailWorker
-    , Focus.Backend.HereMaps
     , Focus.Backend.Intercom
     , Focus.Backend.Mustache
     , Focus.Backend.Schema

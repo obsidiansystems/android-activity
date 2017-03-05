@@ -16,6 +16,9 @@ library
                , aeson
                , base
                , focus-core
+               , time
+               , http-conduit
   exposed-modules: Focus.HereMaps
+                 , Focus.Backend.HereMaps
 
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
