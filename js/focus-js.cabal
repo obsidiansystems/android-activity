@@ -68,7 +68,6 @@ library
     Focus.JS.Cookie
     Focus.JS.DesktopNotification
     Focus.JS.FontAwesome
-    Focus.JS.GoogleMap
     Focus.JS.Highlight
     Focus.JS.Hotkeys
     Focus.JS.Intercom

@@ -412,6 +412,14 @@ self: super: {
       buildDepends = with self; [
         focus-core aeson text http-conduit time
       ];
-
+    });
+    focus-google-maps = self.mkDerivation ({
+      pname = "focus-google-maps";
+      version = "0.1";
+      src = filterGitSource ./google-maps;
+      license = nixpkgs.stdenv.lib.licenses.bsd3;
+      buildDepends = with self; [
+        bifunctors data-default focus-js ghcjs-dom lens jsaddle reflex reflex-dom-core these text mtl containers
+      ];
     });
   }
