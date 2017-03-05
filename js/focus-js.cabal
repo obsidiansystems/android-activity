@@ -70,7 +70,6 @@ library
     Focus.JS.FontAwesome
     Focus.JS.Highlight
     Focus.JS.Hotkeys
-    Focus.JS.Intercom
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Prerender

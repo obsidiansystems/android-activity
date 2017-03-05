@@ -422,4 +422,13 @@ self: super: {
         bifunctors data-default focus-js ghcjs-dom lens jsaddle reflex reflex-dom-core these text mtl containers
       ];
     });
+    focus-intercom = self.mkDerivation ({
+      pname = "focus-intercom";
+      version = "0.1";
+      src = filterGitSource ./intercom;
+      license = nixpkgs.stdenv.lib.licenses.bsd3;
+      buildDepends = with self; [
+        text focus-js focus-core reflex reflex-dom-core
+      ];
+    });
   }
