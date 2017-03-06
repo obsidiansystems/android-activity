@@ -371,17 +371,17 @@ rec {
           '';
         };
 
-        androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
+        androidApp = { key }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
           name = appName;
           src = androidSrc;
           platformVersions = [ "23" ];
           useGoogleAPIs = false;
           useNDK = true;
           release = true;
-          keyStore = ./keystore;
-          keyAlias = "focus";
-          keyStorePassword = "password";
-          keyAliasPassword = "password";
+          keyStore = key.store;
+          keyAlias = key.alias;
+          keyStorePassword = key.password;
+          keyAliasPassword = key.aliasPassword;
         };
         androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
           name = appName;
