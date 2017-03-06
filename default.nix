@@ -356,7 +356,6 @@ rec {
             ln -s "$emails" "$out/emails"
           fi
         '';
-
         backend =
           backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
             pname = "${appName}-backend";
@@ -895,17 +894,17 @@ rec {
               cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
             '';
           };
-          androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
+          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
             name = appName;
             src = androidSrc;
             platformVersions = [ "23" ];
             useGoogleAPIs = false;
             useNDK = true;
             release = true;
-            keyStore = ./keystore;
-            keyAlias = "focus";
-            keyStorePassword = "password";
-            keyAliasPassword = "password";
+            keyStore = key.store;
+            keyAlias = key.alias;
+            keyStorePassword = key.password;
+            keyAliasPassword = key.aliasPassword;
           };
           androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
             name = appName;
