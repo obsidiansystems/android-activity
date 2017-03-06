@@ -349,50 +349,13 @@ rec {
           ln -s "$backend/bin/"* "$out"
           ln -s "$frontendJsAssets" "$out/frontendJs.assets"
           ln -s "$zoneinfo" "$out/zoneinfo"
-          ln -s "$androidApp" "$out/android"
+          if [ -n "''${androidApp+x}" ] ; then
+            ln -s "$androidApp" "$out/android"
+          fi
           if [ -n "''${emails+x}" ] ; then
             ln -s "$emails" "$out/emails"
           fi
         '';
-        frontendAndroidAArch64 = mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]);
-
-        androidSrc = import ./cross-android/android {
-          inherit (tryReflexAndroid) nixpkgs;
-          inherit (androidArm64Packages) libiconv;
-          inherit (androidAArch64HaskellPackages) ghc;
-          name = appName;
-          app = frontendAndroidAArch64;
-          packagePrefix = androidPackagePrefix;
-          abiVersion = "arm64-v8a";
-          staticSrc = nixpkgs.runCommand "android_asset" {} ''
-            mkdir "$out"
-            cp -r --no-preserve=mode "${staticSrc}"/* "$out"
-            cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
-          '';
-        };
-
-        androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
-          name = appName;
-          src = androidSrc;
-          platformVersions = [ "23" ];
-          useGoogleAPIs = false;
-          useNDK = true;
-          release = true;
-          keyStore = ./keystore;
-          keyAlias = "focus";
-          keyStorePassword = "password";
-          keyAliasPassword = "password";
-        };
-        androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
-          name = appName;
-          app = androidApp;
-          platformVersion = "23";
-          enableGPU = true;
-          abiVersion = "arm64-v8a";
-          useGoogleAPIs = false;
-          package = androidPackagePrefix + "." + appName;
-          activity = ".MainActivity";
-        };
 
         backend =
           backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-serve, focus-core, focus-backend}: mkDerivation (rec {
@@ -917,6 +880,43 @@ rec {
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
                                            };
+          frontendAndroidAArch64 = mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]);
+          androidSrc = import ./cross-android/android {
+            inherit (tryReflexAndroid) nixpkgs;
+            inherit (androidArm64Packages) libiconv;
+            inherit (androidAArch64HaskellPackages) ghc;
+            name = appName;
+            app = frontendAndroidAArch64;
+            packagePrefix = androidPackagePrefix;
+            abiVersion = "arm64-v8a";
+            staticSrc = nixpkgs.runCommand "android_asset" {} ''
+              mkdir "$out"
+              cp -r --no-preserve=mode "${staticSrc}"/* "$out"
+              cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
+            '';
+          };
+          androidApp = tryReflexAndroid.nixpkgs.androidenv.buildApp {
+            name = appName;
+            src = androidSrc;
+            platformVersions = [ "23" ];
+            useGoogleAPIs = false;
+            useNDK = true;
+            release = true;
+            keyStore = ./keystore;
+            keyAlias = "focus";
+            keyStorePassword = "password";
+            keyAliasPassword = "password";
+          };
+          androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
+            name = appName;
+            app = androidApp;
+            platformVersion = "23";
+            enableGPU = true;
+            abiVersion = "arm64-v8a";
+            useGoogleAPIs = false;
+            package = androidPackagePrefix + "." + appName;
+            activity = ".MainActivity";
+          };
           nixpkgs = pkgs;
           backendService = {user, port}: {
             wantedBy = [ "multi-user.target" ];
