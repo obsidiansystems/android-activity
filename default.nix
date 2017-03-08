@@ -15,6 +15,7 @@ let tryReflex = import ./reflex-platform {
       useReflexOptimizer = false;
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
+    inherit (tryReflex.nixpkgs) lib;
 in with nixpkgs.haskell.lib;
 rec {
   inherit tryReflex nixpkgs cabal2nixResult;
@@ -23,8 +24,16 @@ rec {
 
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
-  androidArm64HaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
-  androidArm64Packages = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
+  androidPackagesBase = {
+    "arm64-v8a" = {
+      nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
+      androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
+    };
+    #"armeabi-v7a" = {
+    #  nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.armv7aImpure;
+    #  androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArmv7a;
+    #};
+  };
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
   iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
 
@@ -65,20 +74,23 @@ rec {
       frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
       backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
-      androidAArch64HaskellPackages = androidArm64HaskellPackagesBase.override {
-        overrides = self: super: sharedOverrides self super // {
-          mkDerivation = drv: super.mkDerivation (drv // {
-            dontStrip = true;
-            enableSharedExecutables = false;
-            configureFlags = (drv.configureFlags or []) ++ [
-              "--ghc-option=-fPIC"
-              "--ghc-option=-optc-fPIC"
-              "--ghc-option=-optc-shared"
-              "--ghc-option=-optl-shared"
-            ];
-          });
+      androidPackages = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackagesBase }: {
+        inherit nixpkgsAndroid;
+        androidHaskellPackages = androidHaskellPackagesBase.override {
+          overrides = self: super: sharedOverrides self super // {
+            mkDerivation = drv: super.mkDerivation (drv // {
+              dontStrip = true;
+              enableSharedExecutables = false;
+              configureFlags = (drv.configureFlags or []) ++ [
+                "--ghc-option=-fPIC"
+                "--ghc-option=-optc-fPIC"
+                "--ghc-option=-optc-shared"
+                "--ghc-option=-optl-shared"
+              ];
+            });
+          };
         };
-      };
+      }) androidPackagesBase;
       iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
@@ -884,15 +896,17 @@ rec {
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
                                            };
-          frontendAndroidAArch64 = mkCLibFrontend frontendSrc commonSrc androidAArch64HaskellPackages staticSrc (with androidAArch64HaskellPackages; [ jsaddle jsaddle-clib ]);
+          androidSOs = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackages }: rec {
+            inherit (nixpkgsAndroid.buildPackages) patchelf;
+            inherit (nixpkgsAndroid) libiconv;
+            inherit androidHaskellPackages;
+            hsApp = mkCLibFrontend frontendSrc commonSrc androidHaskellPackages staticSrc (with androidHaskellPackages; [ jsaddle jsaddle-clib ]);
+          }) androidPackages;
           androidSrc = import ./cross-android/android {
             inherit (tryReflexAndroid) nixpkgs;
-            inherit (androidArm64Packages) libiconv;
-            inherit (androidAArch64HaskellPackages) ghc;
             name = appName;
-            app = frontendAndroidAArch64;
+            appSOs = androidSOs;
             packagePrefix = androidPackagePrefix;
-            abiVersion = "arm64-v8a";
             assets = nixpkgs.runCommand "android_asset" {} ''
               mkdir "$out"
               cp -r --no-preserve=mode "${staticSrc}"/* "$out"
@@ -907,7 +921,7 @@ rec {
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
             name = appName;
             src = androidSrc;
-            platformVersions = [ "23" ];
+            platformVersions = [ "21" ];
             useGoogleAPIs = false;
             useNDK = true;
             release = true;
@@ -919,7 +933,7 @@ rec {
           androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
             name = appName;
             app = androidApp;
-            platformVersion = "23";
+            platformVersion = "21";
             enableGPU = true;
             abiVersion = "arm64-v8a";
             useGoogleAPIs = false;
