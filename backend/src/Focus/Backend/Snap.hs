@@ -77,7 +77,7 @@ frontendJsAssetsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs.asse
 
 serveStaticIndex :: MonadSnap m => AppConfig m -> m ()
 serveStaticIndex cfg = do
-  appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "all.js"
+  appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "/all.js"
   initialBody <- fromMaybe (return "") $ _appConfig_initialBody cfg
   let initialHead = fromMaybe "" $ _appConfig_initialHead cfg
   let initialStyles = fromMaybe "" $ _appConfig_initialStyles cfg
