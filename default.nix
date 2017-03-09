@@ -893,10 +893,15 @@ rec {
             app = frontendAndroidAArch64;
             packagePrefix = androidPackagePrefix;
             abiVersion = "arm64-v8a";
-            staticSrc = nixpkgs.runCommand "android_asset" {} ''
+            assets = nixpkgs.runCommand "android_asset" {} ''
               mkdir "$out"
               cp -r --no-preserve=mode "${staticSrc}"/* "$out"
               cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
+            '';
+            res = nixpkgs.runCommand "android_res" {} ''
+              mkdir "$out"
+              find ${staticSrc}
+              cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
             '';
           };
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
