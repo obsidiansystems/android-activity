@@ -307,13 +307,14 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
         runGroundhog (runStateT (getView vsInit mempty) stateInit)
       return ((vsInit, newStateInit), vpInit)
     send' vpInit
-    let sender t0 act wrapper wsd = do
+    let sender {- NOISY LOGGING t0 -} act wrapper wsd = do
           er <- try act
           let payload = case er of
                 Left (se :: SomeException) -> Left (displayException se)
                 Right rsp -> Right rsp
+          {- NOISY LOGGING
           t1 <- formattedTimestamp
-          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, encode payload ]
+          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, encode payload ] -- -}
           sendDataMessage conn . wrapper . encodeR . Right . wsd $ payload
         sender' wrapper wsd = sendDataMessage conn . wrapper . encodeR . Right $ (WebSocketData_Version wsd)
         handleConnectionException = handle $ \e -> case e of
@@ -324,12 +325,13 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
     connectionOpenHook (sender' WS.Text)
     handleConnectionException $ forever $ do
       dm <- receiveDataMessage conn
-      t0 <- formattedTimestamp
       let (wrapper, r) = case dm of
             WS.Text r' -> (WS.Text, r')
             WS.Binary r' -> (WS.Text, r')
           decoded = eitherDecode' r
-      LBSC8.putStrLn $ tabSeparated $ [ "REQUEST", t0, encode decoded ]
+      {- NOISY LOGGING
+      t0 <- formattedTimestamp
+      LBSC8.putStrLn $ tabSeparated $ [ "REQUEST", t0, encode decoded ] -- -}
       case decoded of
         Left s -> do
           sendDataMessage conn . wrapper . encodeR $ Left (mconcat ["error: ", s, "\n", "received: ", show r])
@@ -338,7 +340,7 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
           return ()
         Right (WebSocketData_Api rid rq) -> do
           (_, s) <- readMVar stateRef
-          sender t0 (processRequest s rq) wrapper (WebSocketData_Api rid)
+          sender {- NOISY LOGGING t0 -} (processRequest s rq) wrapper (WebSocketData_Api rid)
         Right (WebSocketData_Listen vs) -> do
           -- Acquire connections
           vp <- modifyTMVar connections $ \currentConnections -> do
@@ -352,14 +354,16 @@ handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewList
             -- Return the patch to be sent, and modify the aligned view selector with the new local view selector.
             return (currentConnections
                    , vp)
+          {- NOISY LOGGING
           t1 <- formattedTimestamp
-          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, "LISTEN" ]
+          LBSC8.putStrLn $ tabSeparated $ [ "RESPONSE", t0, t1, "LISTEN" ] -- -}
           send' vp
 
  where
+   {- NOISY LOGGING
    tabSeparated = LBSC8.intercalate (LBSC8.singleton '\t')
    formattedTimestamp = liftIO $
-     LBSC8.pack . (++"Z") . formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S")) <$> getCurrentTime
+     LBSC8.pack . (++"Z") . formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S")) <$> getCurrentTime -- -}
    encodeR :: Either String (WebSocketData vp (Either String rsp)) -> LBS.ByteString
    encodeR = encode
 
