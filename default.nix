@@ -168,6 +168,11 @@ rec {
                   ghcjs-options: -dedupe
                 if !os(ios) && !arch(aarch64)
                   cpp-options: -DUSE_TEMPLATE_HASKELL
+                if os(ios)
+                  if arch(aarch64)
+                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.2.sdk
+                  else
+                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator10.0.sdk
             '';
             executableHeader = executableName: mainFile: ''
               executable ${executableName}
