@@ -431,4 +431,7 @@ self: super: {
         text focus-js focus-core reflex reflex-dom-core
       ];
     });
+    twilio = overrideCabal super.twilio (drv: {
+      jailbreak = true;
+    });
   }
