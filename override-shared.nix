@@ -434,4 +434,13 @@ self: super: {
     twilio = overrideCabal super.twilio (drv: {
       jailbreak = true;
     });
+    # https://github.com/vincenthz/hs-connection/pull/30
+    connection = overrideCabal super.connection (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "snoyberg";
+        repo = "hs-connection";
+        rev = "f5c88f81e7fcca0e851c0ef9d01d1e702bb03ea1";
+        sha256 = "1jiypxkwlknrnmyspc2w87qxb7bd45g89r8mizf22nd95h7vmcrc";
+      };
+    });
   }
