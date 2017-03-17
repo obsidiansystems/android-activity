@@ -51,7 +51,7 @@ geocodeReq :: Manager -> HereMapsCredentials -> GeocodeRequest -> IO (Maybe (Dou
 geocodeReq mgr creds geoReq = do
   tstart <- getCurrentTime
   let escape = escapeURIString isUnreserved . T.unpack
-      query = intercalate "&" $ catMaybes $ map (\(k, mv) -> mv >>= \v -> return $ escape k <> "=" <> escape v)
+      query' = intercalate "&" $ catMaybes $ map (\(k, mv) -> mv >>= \v -> return $ escape k <> "=" <> escape v)
         [ ("searchtext", _geocodeRequest_searchText geoReq)
         , ("city", _geocodeRequest_city geoReq)
         , ("country", _geocodeRequest_country geoReq)
@@ -63,7 +63,7 @@ geocodeReq mgr creds geoReq = do
         { uriScheme = "https:"
         , uriAuthority = Just $ URIAuth "" "geocoder.api.here.com" ""
         , uriPath = "/6.2/geocode.json"
-        , uriQuery = "?" <> query
+        , uriQuery = "?" <> query'
         }
   req <- parseUrlThrow url
   resp <- try $ responseBody <$> httpLbs (req { requestHeaders = ("Connection", "close") : requestHeaders req }) mgr
