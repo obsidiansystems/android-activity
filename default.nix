@@ -144,6 +144,7 @@ rec {
         overrides = self: super: sharedOverrides self super // {
           focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
           focus-client = dontHaddock (self.callPackage ./client {});
+          focus-heremaps = dontHaddock (self.callPackage ./heremaps {});
           focus-test = dontHaddock (self.callPackage ./test {});
           websockets = overrideCabal super.websockets (drv: {
             src = ./websockets;
