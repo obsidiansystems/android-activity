@@ -49,7 +49,6 @@ data GeocodeRequest = GeocodeRequest
 -- | Geocode an address into a coordinate
 geocodeReq :: Manager -> HereMapsCredentials -> GeocodeRequest -> IO (Maybe (Double, Double))
 geocodeReq mgr creds geoReq = do
-  tstart <- getCurrentTime
   let escape = escapeURIString isUnreserved . T.unpack
       query' = intercalate "&" $ catMaybes $ map (\(k, mv) -> mv >>= \v -> return $ escape k <> "=" <> escape v)
         [ ("searchtext", _geocodeRequest_searchText geoReq)
@@ -67,8 +66,6 @@ geocodeReq mgr creds geoReq = do
         }
   req <- parseUrlThrow url
   resp <- try $ responseBody <$> httpLbs (req { requestHeaders = ("Connection", "close") : requestHeaders req }) mgr
-  tend <- getCurrentTime
-  putStrLn $ "geocodeReq: HERE.com API Call returned in " ++ show (diffUTCTime tend tstart) ++ " [" ++ url ++ "]"
   case resp of
     Left (SomeException e) -> do
       putStrLn ("geocodeReq: Error while connecting to the here.com API: " ++ show e)
