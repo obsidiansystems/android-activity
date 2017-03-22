@@ -29,10 +29,10 @@ rec {
       nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
       androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
     };
-    #"armeabi-v7a" = {
-    #  nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.armv7aImpure;
-    #  androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArmv7a;
-    #};
+    "armeabi-v7a" = {
+      nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.armv7aImpure;
+      androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArmv7a;
+    };
   };
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
   iosArm64HaskellPackagesBase = tryReflex.ghcIosArm64;
