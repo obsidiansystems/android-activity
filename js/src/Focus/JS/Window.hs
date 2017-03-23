@@ -51,8 +51,7 @@ windowSize :: ( Reflex t
            => DOM.Window
            -> m (Dynamic t (Int, Int))
 windowSize w = do
+  initialSize <- DOM.liftJSM $ getWindowSize w
   resizeRaw <- windowResizeEvent w
   resize <- debounce 0.25 resizeRaw -- debounce because the raw resize event can be very spammy in some browsers when a user is dragging
-  pb <- getPostBuild
-  initialSize <- performEvent (DOM.liftJSM (getWindowSize w) <$ pb)
-  holdDyn (0,0) $ leftmost [resize, initialSize]
+  holdDyn initialSize resize
