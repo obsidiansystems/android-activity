@@ -161,17 +161,11 @@ updateLookupWithKey f k = fmap AppendMap . Map.updateLookupWithKey f k . _unAppe
 alter :: Ord k => (Maybe a -> Maybe a) -> k -> AppendMap k a -> AppendMap k a
 alter f k = AppendMap . Map.alter f k . _unAppendMap
 
-union :: Ord k => AppendMap k a -> AppendMap k a -> AppendMap k a
-union ma mb = AppendMap $ Map.union (_unAppendMap ma) (_unAppendMap mb)
-
 unionWith :: Ord k => (a -> a -> a) -> AppendMap k a -> AppendMap k a -> AppendMap k a
 unionWith f ma mb = AppendMap $ Map.unionWith f (_unAppendMap ma) (_unAppendMap mb)
 
 unionWithKey :: Ord k => (k -> a -> a -> a) -> AppendMap k a -> AppendMap k a -> AppendMap k a
 unionWithKey f ma mb = AppendMap $ Map.unionWithKey f (_unAppendMap ma) (_unAppendMap mb)
-
-unions :: Ord k => [AppendMap k a] -> AppendMap k a
-unions = AppendMap . Map.unions . fmap _unAppendMap
 
 unionsWith :: Ord k => (a -> a -> a) -> [AppendMap k a] -> AppendMap k a
 unionsWith f = AppendMap . Map.unionsWith f . fmap _unAppendMap
@@ -184,9 +178,6 @@ differenceWith f ma mb = AppendMap $ Map.differenceWith f (_unAppendMap ma) (_un
 
 differenceWithKey :: Ord k => (k -> a -> b -> Maybe a) -> AppendMap k a -> AppendMap k b -> AppendMap k a
 differenceWithKey f ma mb = AppendMap $ Map.differenceWithKey f (_unAppendMap ma) (_unAppendMap mb)
-
-intersection :: Ord k => AppendMap k a -> AppendMap k b -> AppendMap k a
-intersection ma mb = AppendMap $ Map.intersection (_unAppendMap ma) (_unAppendMap mb)
 
 intersectionWith :: Ord k => (a -> b -> c) -> AppendMap k a -> AppendMap k b -> AppendMap k c
 intersectionWith f ma mb = AppendMap $ Map.intersectionWith f (_unAppendMap ma) (_unAppendMap mb)

@@ -120,7 +120,7 @@ valuesByIndex p f = let ixs = index p f
                     in fmap (\ks -> intersectionByKey ks vals) ixs
 
 instance {-# OVERLAPPING #-} HasIndex p (WithIndex p f) where
-  keysByIndex _ ixs wi = Set.unions $ Map.elems $ Map.intersection (_withIndex_index wi) $ Map.fromSet (const ()) ixs
+  keysByIndex _ ixs wi = Set.unions $ Map.elems $ Map.intersectionWith const (_withIndex_index wi) $ Map.fromSet (const ()) ixs
   index _ = _withIndex_index
 
 instance HasIndex q f => HasIndex q (WithIndex p f) where

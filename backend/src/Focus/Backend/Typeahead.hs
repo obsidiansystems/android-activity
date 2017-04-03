@@ -37,7 +37,7 @@ notificationToTypeaheadPatch nt k x toTextValue toTextPatch qs rlens vlens =
   relevantFetches = fold
                   $ Map.mapMaybe patchToIds
                   $ typeaheadPatch
-  fetchPatch = Map.intersection (Map.singleton k x) (Map.fromSet (\_ -> ()) relevantFetches)
+  fetchPatch = Map.intersectionWith const (Map.singleton k x) (Map.fromSet (\_ -> ()) relevantFetches)
 
 --TODO: This produces patches that are larger than necessary when `NotificationType_Update`ing because we do not have access to the old version
 isPrefix :: Ord a

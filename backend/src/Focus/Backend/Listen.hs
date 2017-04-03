@@ -50,14 +50,11 @@ import Control.Monad.Writer
 import Data.Aeson
 import Data.Align
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC8
 import Data.List.Split
 import Data.Pool
 import Data.String (fromString)
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Data.Time.Clock
-import Data.Time.Format
 import Data.These
 import Data.Traversable
 import Database.Groundhog
@@ -78,6 +75,11 @@ import Snap
 import Debug.Trace (trace)
 
 import Focus.Backend.Listen.Session
+
+-- Noisy backend logging
+--import qualified Data.ByteString.Lazy.Char8 as LBSC8
+--import Data.Time.Clock
+--import Data.Time.Format
 
 type MonadListenDb m = (PersistBackend m, SqlDb (PhantomDb m))
 
