@@ -514,6 +514,10 @@ rec {
                 </array>
                 <key>LSRequiresIPhoneOS</key>
                 <true/>
+                <key>NSPhotoLibraryUsageDescription</key>
+                <string>Allow access to photo library.</string>
+                <key>NSCameraUsageDescription</key>
+                <string>Allow access to camera.</string>
                 <key>UILaunchStoryboardName</key>
                 <string>LaunchScreen</string>
                 <key>UIRequiredDeviceCapabilities</key>
