@@ -74,7 +74,8 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (Preprocesse
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
 
 instance MonadAdjust t m => MonadAdjust t (PreprocessedCSSClassesT m) where
-  sequenceDMapWithAdjust dm0 dm' = PreprocessedCSSClassesT $ sequenceDMapWithAdjust (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
+  traverseDMapWithKeyWithAdjust f dm0 dm' = PreprocessedCSSClassesT $ traverseDMapWithKeyWithAdjust (\k v -> runPreprocessedCSSClassesT $ f k v) (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
+  traverseDMapWithKeyWithAdjustWithMove f dm0 dm' = PreprocessedCSSClassesT $ traverseDMapWithKeyWithAdjustWithMove (\k v -> runPreprocessedCSSClassesT $ f k v) (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
   runWithReplace a0 a' = lift $ runWithReplace (runPreprocessedCSSClassesT a0) (runPreprocessedCSSClassesT <$> a')
 
 

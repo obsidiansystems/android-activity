@@ -44,7 +44,7 @@ cropRequestInterval proj (RequestInterval mp c) m =
         | otherwise ->
             let (k,v) = Map.elemAt splitPoint mOld -- find the first message we want to keep, and its key
                 (_,mOld') = Map.split k mOld -- get the rest of the messages we want to keep
-             in Map.insert k v (Map.union mOld' mNew) -- put everything back together
+             in Map.insert k v (Map.unionWith const mOld' mNew) -- put everything back together
 
 #ifdef USE_TEMPLATE_HASKELL
 makeJson ''RequestInterval

@@ -64,12 +64,14 @@ library
     Focus.JS.AltInput
     Focus.JS.App
     Focus.JS.Bootstrap
+    Focus.JS.BoundingClientRect
     Focus.JS.Chart
     Focus.JS.Cookie
     Focus.JS.DesktopNotification
     Focus.JS.FontAwesome
     Focus.JS.Highlight
     Focus.JS.Hotkeys
+    Focus.JS.HTMLCollection
     Focus.JS.Listen
     Focus.JS.LocalStorage
     Focus.JS.Prerender

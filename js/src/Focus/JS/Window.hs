@@ -1,7 +1,6 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-}
 module Focus.JS.Window where
 
-import Foreign.JavaScript.TH
 import GHCJS.DOM.Types (MonadJSM)
 import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Types as DOM
@@ -11,7 +10,7 @@ import Reflex.Dom.Core
 import Control.Monad
 import Control.Monad.Fix
 
-askDomWindow :: (HasJSContext m, MonadJSM m) => m DOM.Window
+askDomWindow :: MonadJSM m => m DOM.Window
 askDomWindow = DOM.currentWindowUnchecked
 
 windowHasFocus :: ( Reflex t

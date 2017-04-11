@@ -53,7 +53,7 @@ instance Ord k => Monoid (SemiMap k v) where
       SemiMap_Complete oldc -> SemiMap_Complete $ applyMap (coerce p) (coerce oldc)
       where
         applyMap :: Ord k => AppendMap k (Maybe v) -> AppendMap k v -> AppendMap k v
-        applyMap patch old' = insertions `Map.union` (old' `Map.difference` deletions)
+        applyMap patch old' = Map.unionWith const insertions (old' `Map.difference` deletions)
           where (deletions, insertions) = mapPartitionEithers $ maybeToEither <$> patch
                 maybeToEither = \case
                   Nothing -> Left ()
