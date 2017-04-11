@@ -68,6 +68,8 @@ import GHCJS.DOM.Types (MonadJSM)
 newtype QueryT t q m a = QueryT { unQueryT :: StateT [Behavior t q] (EventWriterT t q (ReaderT (Dynamic t (QueryResult q)) m)) a }
   deriving (Functor, Applicative, Monad, MonadException, MonadFix, MonadIO, MonadHold t, MonadSample t, MonadAtomicRef)
 
+deriving instance DomRenderHook t m => DomRenderHook t (QueryT t q m)
+
 #ifndef ghcjs_HOST_OS
 instance MonadJSM m => MonadJSM (QueryT t q m) where
   liftJSM' = lift . liftJSM'
