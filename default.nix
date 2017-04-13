@@ -175,7 +175,7 @@ rec {
                 other-extensions: TemplateHaskell
                 ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}"
                 default-language: Haskell2010
-                default-extensions: NoDatatypeContexts, NondecreasingIndentation
+                default-extensions: NoDatatypeContexts
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
