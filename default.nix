@@ -302,7 +302,7 @@ rec {
             c-sources: cbits/focus.c
             main-is: mobile.hs
             ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
-            default-extensions: NoDatatypeContexts, NondecreasingIndentation
+            default-extensions: NoDatatypeContexts
           EOF
         '';
 
