@@ -929,7 +929,7 @@ rec {
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
             name = appName;
             src = androidSrc version.code version.name;
-            platformVersions = [ "21" ];
+            platformVersions = [ "23" ];
             useGoogleAPIs = false;
             useNDK = true;
             release = true;
@@ -941,7 +941,7 @@ rec {
           androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
             name = appName;
             app = androidApp;
-            platformVersion = "21";
+            platformVersion = "23";
             enableGPU = true;
             abiVersion = "arm64-v8a";
             useGoogleAPIs = false;
