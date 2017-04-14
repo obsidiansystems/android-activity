@@ -907,25 +907,28 @@ rec {
             inherit androidHaskellPackages;
             hsApp = mkCLibFrontend frontendSrc commonSrc androidHaskellPackages staticSrc (with androidHaskellPackages; [ jsaddle jsaddle-clib ]);
           }) androidPackages;
-          androidSrc = import ./cross-android/android {
-            inherit (tryReflexAndroid) nixpkgs;
+          androidSrc = verCode: verName:
+            import ./cross-android/android {
+              inherit (tryReflexAndroid) nixpkgs;
+              name = appName;
+              appSOs = androidSOs;
+              packagePrefix = androidPackagePrefix;
+              assets = nixpkgs.runCommand "android_asset" {} ''
+                mkdir "$out"
+                cp -r --no-preserve=mode "${staticSrc}"/* "$out"
+                cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
+              '';
+              res = nixpkgs.runCommand "android_res" {} ''
+                mkdir "$out"
+                find ${staticSrc}
+                cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
+              '';
+              versionName = verName;
+              versionCode = verCode;
+            };
+          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
             name = appName;
-            appSOs = androidSOs;
-            packagePrefix = androidPackagePrefix;
-            assets = nixpkgs.runCommand "android_asset" {} ''
-              mkdir "$out"
-              cp -r --no-preserve=mode "${staticSrc}"/* "$out"
-              cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
-            '';
-            res = nixpkgs.runCommand "android_res" {} ''
-              mkdir "$out"
-              find ${staticSrc}
-              cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
-            '';
-          };
-          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
-            name = appName;
-            src = androidSrc;
+            src = androidSrc version.code version.name;
             platformVersions = [ "21" ];
             useGoogleAPIs = false;
             useNDK = true;
