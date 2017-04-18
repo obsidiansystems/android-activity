@@ -9,6 +9,11 @@ let tryReflex = import ./reflex-platform {
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = false;
     };
+    tryReflexAndroid = import ./reflex-platform-android {
+      inherit enableExposeAllUnfoldings enableTraceReflexEvents;
+      enableLibraryProfiling = enableProfiling;
+      useReflexOptimizer = false;
+    };
     inherit (tryReflex) nixpkgs cabal2nixResult;
     inherit (tryReflex.nixpkgs) lib;
 in with nixpkgs.haskell.lib;
@@ -21,12 +26,12 @@ rec {
   frontendHaskellPackagesBase = tryReflex.ghcjs;
   androidPackagesBase = {
     "arm64-v8a" = {
-      nixpkgsAndroid = tryReflex.nixpkgsCross.android.arm64Impure;
-      androidHaskellPackagesBase = tryReflex.ghcAndroidArm64;
+      nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.arm64Impure;
+      androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArm64;
     };
     "armeabi-v7a" = {
-      nixpkgsAndroid = tryReflex.nixpkgsCross.android.armv7aImpure;
-      androidHaskellPackagesBase = tryReflex.ghcAndroidArmv7a;
+      nixpkgsAndroid = tryReflexAndroid.nixpkgsCross.android.armv7aImpure;
+      androidHaskellPackagesBase = tryReflexAndroid.ghcAndroidArmv7a;
     };
   };
   iosSimulatorHaskellPackagesBase = tryReflex.ghcIosSimulator64;
@@ -904,7 +909,7 @@ rec {
           }) androidPackages;
           androidSrc = verCode: verName:
             import ./cross-android/android {
-              inherit (tryReflex) nixpkgs;
+              inherit (tryReflexAndroid) nixpkgs;
               name = appName;
               appSOs = androidSOs;
               packagePrefix = androidPackagePrefix;
@@ -921,7 +926,7 @@ rec {
               versionName = verName;
               versionCode = verCode;
             };
-          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildApp {
+          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflexAndroid.nixpkgs.androidenv.buildApp {
             name = appName;
             src = androidSrc version.code version.name;
             platformVersions = [ "23" ];
@@ -933,7 +938,7 @@ rec {
             keyStorePassword = key.password;
             keyAliasPassword = key.aliasPassword;
           };
-          androidEmulate = tryReflex.nixpkgs.androidenv.emulateApp {
+          androidEmulate = tryReflexAndroid.nixpkgs.androidenv.emulateApp {
             name = appName;
             app = androidApp;
             platformVersion = "23";

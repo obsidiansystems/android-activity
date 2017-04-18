@@ -68,6 +68,9 @@
 [submodule "webdriver"]
 	path = webdriver
 	url = git@gitlab.com:obsidian.systems/focus-webdriver.git
+[submodule "reflex-platform-android"]
+	path = reflex-platform-android
+	url = git@github.com:reflex-frp/reflex-platform.git
 [submodule "cross-android"]
 	path = cross-android
 	url = git@github.com:obsidiansystems/cross-android.git
