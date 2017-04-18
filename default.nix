@@ -670,11 +670,12 @@ rec {
                 | openssl x509 -subject -noout; done \
                 | grep "OU=$TEAM_ID/" \
                 | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
-                | head -n 1 \
-                || {
-                  echo "Error: No iPhone Developer certificate found for team id $TEAM_ID" >&2
-                  exit 1
-                })
+                | head -n 1)
+
+              if [ -z "$signer" ]; then
+                echo "Error: No iPhone Developer certificate found for team id $TEAM_ID" >&2
+                exit 1
+              fi
 
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
@@ -725,11 +726,12 @@ rec {
                 | openssl x509 -subject -noout; done \
                 | grep "OU=$TEAM_ID/" \
                 | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
-                | head -n 1 \
-                || {
-                  echo "Error: No iPhone Distribution certificate found for team id $TEAM_ID" >&2
-                  exit 1
-                })
+                | head -n 1)
+
+              if [ -z "$signer" ]; then
+                echo "Error: No iPhone Distribution certificate found for team id $TEAM_ID" >&2
+                exit 1
+              fi
 
               mkdir -p $tmpdir
               cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
