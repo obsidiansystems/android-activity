@@ -58,6 +58,7 @@ import Focus.Request hiding (Some)
 import Focus.Sign
 import Focus.WebSocket
 import qualified Reflex as R
+import qualified Reflex.Patch.MapWithMove as MapWithMove
 import Reflex.EventWriter
 import Reflex.Dom.Core hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
@@ -196,21 +197,21 @@ instance (Reflex t, MonadFix m, Group q, Additive q, Query q, MonadHold t m, Mon
           -- we compute the patch by iterating over the update PatchMap and proceeding by cases. Then we fold over the
           -- child patches and wrap them in AdditivePatch.
           patch <- fmap (AdditivePatch . fold) $ iforM bs' $ \k bs -> case Map.lookup k bs0 of
-            Nothing -> case bs of
+            Nothing -> case MapWithMove._nodeInfo_from bs of
               -- If the update is to delete the state for a child that doesn't exist, the patch is mempty.
-              MapEdit_Delete _ -> return mempty
+              MapWithMove.From_Delete -> return mempty
               -- If the update is to update the state for a child that doesn't exist, the patch is the sample of the new state.
-              MapEdit_Insert _ newBs -> sampleBs newBs
-              MapEdit_Move _ k' -> case Map.lookup k' bs0 of
+              MapWithMove.From_Insert newBs -> sampleBs newBs
+              MapWithMove.From_Move k' -> case Map.lookup k' bs0 of
                 Nothing -> return mempty
                 Just newBs -> sampleBs newBs
-            Just oldBs -> case bs of
+            Just oldBs -> case MapWithMove._nodeInfo_from bs of
               -- If the update is to delete the state for a child that already exists, the patch is the negation of the child's current state
-              MapEdit_Delete _ -> fmap negateG $ sampleBs oldBs
+              MapWithMove.From_Delete -> fmap negateG $ sampleBs oldBs
               -- If the update is to update the state for a child that already exists, the patch is the negation of sampling the child's current state
               -- composed with the sampling the child's new state.
-              MapEdit_Insert _ newBs -> (~~) <$> sampleBs newBs <*> sampleBs oldBs
-              MapEdit_Move _ k'
+              MapWithMove.From_Insert newBs -> (~~) <$> sampleBs newBs <*> sampleBs oldBs
+              MapWithMove.From_Move k'
                 | k' == k -> return mempty
                 | otherwise -> case Map.lookup k' bs0 of
               -- If we are moving from a non-existent key, that is a delete
@@ -219,7 +220,8 @@ instance (Reflex t, MonadFix m, Group q, Additive q, Query q, MonadHold t m, Mon
           return (apply pbs bs0, Just patch)
     (qpatch :: Event t (AdditivePatch q)) <- mapAccumMaybeM_ accumBehaviors liftedBs0 liftedBs'
     tellQueryIncremental $ unsafeBuildIncremental (fmap fold $ mapM sampleBs liftedBs0) qpatch
-    return (liftedResult0, liftedResult')  
+    return (liftedResult0, liftedResult')
+
 instance MonadTrans (QueryT t q) where
   lift = QueryT . lift . lift . lift
 
