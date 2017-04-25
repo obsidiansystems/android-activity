@@ -78,6 +78,11 @@ getTime = do
   Just [PersistUTCTime t] <- queryRaw False "select current_timestamp(3) at time zone 'utc'" [] id
   return t
 
+withTime :: PersistBackend m => (UTCTime -> m a) -> m a
+withTime a = do
+  now <- getTime
+  a now
+
 openDb :: ByteString -> IO (Pool Postgresql)
 openDb dbUri = do
   let openPostgresql = liftM Postgresql $ connectPostgreSQL dbUri
