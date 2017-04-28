@@ -1057,7 +1057,7 @@ rec {
                     after = [ "network.target" ];
                     restartIfChanged = true;
                     script = ''
-                      exec ${nixpkgs.redir}/bin/redir --lport=25 --laddr=0.0.0.0 --cport=2525
+                      exec ${nixpkgs.redir}/bin/redir :25 :2525
                     '';
                     serviceConfig = {
                       User = "root";
