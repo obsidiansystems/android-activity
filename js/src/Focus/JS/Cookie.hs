@@ -51,8 +51,10 @@ setPermanentCookieWithLocation doc loc key mv = do
 -- | Retrieve the current auth token from the given cookie
 getCookie :: MonadJSM m => DOM.Document -> Text -> m (Maybe Text)
 getCookie doc key = do
-  cookieString <- DOM.getCookieUnchecked doc
-  return $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
+  mcookieString <- DOM.getCookie doc
+  case mcookieString of
+    Nothing -> return Nothing
+    Just cookieString -> return $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
 
 setPermanentCookieJson :: (MonadJSM m, HasJSContext m, ToJSON v) => DOM.Document -> Text -> Maybe v -> m ()
 setPermanentCookieJson d k v =
