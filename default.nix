@@ -182,13 +182,13 @@ rec {
                   else
                     ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator10.0.sdk
             '';
-            executableHeader = executableName: mainFile: ''
-              executable ${executableName}
-                main-is: ${if mainFile == null
-                           then ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
-                           else mainFile
-                          }
-            '';
+            defaultMain = ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)'';
+            executableHeader = executableName: mainFile:
+              if mainFile != null then
+                ''executable ${executableName}
+                    main-is: ${mainFile}
+                ''
+              else "";
         in nixpkgs.runCommand "${pname}.cabal" {} ''
         cat > "$out" <<EOF
         name: ${pname}
@@ -198,7 +198,7 @@ rec {
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
-        ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
+        ${if executableName != null then mkCabalTarget (executableHeader executableName defaultMain) else ""}
 
         $(for x in $(ls "${src}" | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
             cat <<INNER_EOF
