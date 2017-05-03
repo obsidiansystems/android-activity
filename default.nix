@@ -221,6 +221,7 @@ rec {
 
       mkFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+          # TODO: Make frontend-src symbolic linking more resilient to nullglobs
           mkDerivation (rec {
             pname = "${appName}-frontend";
             version = appVersion;
@@ -229,7 +230,10 @@ rec {
               buildCommand = ''
                 mkdir "$out"
                 ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
+                ${if frontendSrc != null
+                  then ''ln -s "${frontendSrc}"/src{,-bin}/* "$out"/''
+                  else ""}
+
               '';
             } "";
             preConfigure = mkPreConfigure pname passthru.cabalFile;
@@ -311,11 +315,15 @@ rec {
                   pname = "${appName}-frontend-clib";
                   version = appVersion;
                   license = null;
+                  # TODO: Make frontend-src symbolic linking more resilient to nullglobs
                   src = nixpkgs.runCommand "frontend-src" {
                     buildCommand = ''
                       mkdir "$out"
                       ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                      ln -s "${frontendSrc}"/src{,-bin}/* "$out"
+                      ${if frontendSrc != null
+                          then ''ln -s "${frontendSrc}"/src{,-bin}/* "$out"''
+                          else ""
+                       }
                       cp -r --no-preserve=mode "${crossHs}/cbits" "$out"
                       sed -i 's|systems_obsidian_focus|'"${packageJNIName}"'|' "$out/cbits/"*"."{c,h}
                     '';
