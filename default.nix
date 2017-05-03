@@ -51,6 +51,7 @@ rec {
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
     , fixupStatic ? (x: x)
+    , staticSrc ? fixupStatic (filterGitSource ../static)
     , overrideServerConfig ? (args: outputs: x: x)
     }:
     let
@@ -62,7 +63,6 @@ rec {
       commonSrc = filterGitSource ../common;
       backendSrc = filterGitSource ../backend;
       marketingSrc = filterGitSource ../marketing;
-      staticSrc = filterGitSource ../static;
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
@@ -350,7 +350,7 @@ rec {
 
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        staticAssets = mkAssets (fixupStatic staticSrc);
+        staticAssets = mkAssets staticSrc;
         zoneinfo = ./zoneinfo;
         frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
