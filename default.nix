@@ -485,7 +485,7 @@ rec {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc}: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc, apsEnv}: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -637,6 +637,8 @@ rec {
                 <array>
                   <string><team-id/>.${bundleIdentifier}</string>
                 </array>
+                <key>aps-environment</key>
+                <string>${apsEnv}</string>
               </dict>
               </plist>
             '';
@@ -890,6 +892,7 @@ rec {
                                                exeName = "mobile";
                                                exePath = (frontendIosSimulator+"/bin");
                                                staticSrc = staticSrc;
+                                               apsEnv = "development";
                                              };
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
@@ -900,6 +903,7 @@ rec {
                                              exeName = "mobile";
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
+				             apsEnv = "development";
                                            };
           androidSOs = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackages }: rec {
             inherit (nixpkgsAndroid.buildPackages) patchelf;
