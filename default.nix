@@ -94,6 +94,11 @@ rec {
       iosAArch64HaskellPackages = iosArm64HaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
+          jsaddle = overrideCabal super.jsaddle (drv: {
+            configureFlags = (drv.configureFlags or []) ++ [
+              # "-f-include-app-delegate"
+            ];
+          });
         };
       };
 
