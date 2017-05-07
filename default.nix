@@ -2,6 +2,7 @@
 , runWithHeapProfiling ? false
 , enableExposeAllUnfoldings ? false
 , enableTraceReflexEvents ? false
+, useZopfli ? true
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -155,7 +156,9 @@ rec {
       }).override { overrides = haskellPackagesOverrides; };
 
 
-      mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
+      mkAssets = let assetsMaker = (import ./http/assets.nix { inherit nixpkgs; });
+                 in if useZopfli then assetsMaker.mkAssets else assetsMaker.mkAssetsWith assetsMaker.gzipEncodings;
+
 
       libraryHeader = ''
         library
@@ -989,6 +992,7 @@ rec {
                           proxy_pass http://127.0.0.1:${builtins.toString port};
                           proxy_set_header Host $http_host;
                           proxy_read_timeout 300s;
+                          proxy_max_temp_file_size 4096m;
                           client_max_body_size 1G;
                         }
                       '';
