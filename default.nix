@@ -2,12 +2,14 @@
 , runWithHeapProfiling ? false
 , enableExposeAllUnfoldings ? false
 , enableTraceReflexEvents ? false
+, iosSdkVersion ? "10.2"
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
       inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = false;
+      iosSdkVersion = iosSdkVersion;
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
     inherit (tryReflex.nixpkgs) lib;
