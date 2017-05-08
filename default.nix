@@ -3,6 +3,7 @@
 , enableExposeAllUnfoldings ? false
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
+, useZopfli ? true
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -40,6 +41,8 @@ rec {
     { name
     , version
     , androidPackagePrefix ? "systems.obsidian"
+    , androidIntentFilters ? "" # AndroidManifest.xml content for additional intent filters.
+    , androidPermissions ? "" # AndroidManifest.xml content for additional permissions.
     , backendDepends ? (p: [])
       # Packages in backendTools are made available both at build time and at runtime for the backend
     , backendTools ? (p: [])
@@ -53,6 +56,7 @@ rec {
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
     , fixupStatic ? (x: x)
+    , staticSrc ? fixupStatic (filterGitSource ../static)
     , overrideServerConfig ? (args: outputs: x: x)
     }:
     let
@@ -64,7 +68,6 @@ rec {
       commonSrc = filterGitSource ../common;
       backendSrc = filterGitSource ../backend;
       marketingSrc = filterGitSource ../marketing;
-      staticSrc = filterGitSource ../static;
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
@@ -162,7 +165,9 @@ rec {
       }).override { overrides = haskellPackagesOverrides; };
 
 
-      mkAssets = (import ./http/assets.nix { inherit nixpkgs; }).mkAssets;
+      mkAssets = let assetsMaker = (import ./http/assets.nix { inherit nixpkgs; });
+                 in if useZopfli then assetsMaker.mkAssets else assetsMaker.mkAssetsWith assetsMaker.gzipEncodings;
+
 
       libraryHeader = ''
         library
@@ -189,13 +194,13 @@ rec {
                   else
                     ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator10.0.sdk
             '';
-            executableHeader = executableName: mainFile: ''
-              executable ${executableName}
-                main-is: ${if mainFile == null
-                           then ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)''
-                           else mainFile
-                          }
-            '';
+            defaultMain = ''$(ls "${src}" | grep -i '^\(${executableName}\|main\)\.\(l\|\)hs'$)'';
+            executableHeader = executableName: mainFile:
+              if mainFile != null then
+                ''executable ${executableName}
+                    main-is: ${mainFile}
+                ''
+              else "";
         in nixpkgs.runCommand "${pname}.cabal" {} ''
         cat > "$out" <<EOF
         name: ${pname}
@@ -205,7 +210,7 @@ rec {
 
         ${"" /*mkCabalTarget libraryHeader*/ /* Disabled because nothing was actually building libraries anyhow */}
 
-        ${if executableName != null then mkCabalTarget (executableHeader executableName null) else ""}
+        ${if executableName != null then mkCabalTarget (executableHeader executableName defaultMain) else ""}
 
         $(for x in $(ls "${src}" | sed -n 's/\([a-z].*\)\.hs$/\1/p' | grep -vi '^main'$) ; do
             cat <<INNER_EOF
@@ -228,6 +233,7 @@ rec {
 
       mkFrontend = frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
         haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
+          # TODO: Make frontend-src symbolic linking more resilient to nullglobs
           mkDerivation (rec {
             pname = "${appName}-frontend";
             version = appVersion;
@@ -236,7 +242,10 @@ rec {
               buildCommand = ''
                 mkdir "$out"
                 ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                ln -s "${frontendSrc}"/src{,-bin}/* "$out"/
+                ${if frontendSrc != null
+                  then ''ln -s "${frontendSrc}"/src{,-bin}/* "$out"/''
+                  else ""}
+
               '';
             } "";
             preConfigure = mkPreConfigure pname passthru.cabalFile;
@@ -318,11 +327,15 @@ rec {
                   pname = "${appName}-frontend-clib";
                   version = appVersion;
                   license = null;
+                  # TODO: Make frontend-src symbolic linking more resilient to nullglobs
                   src = nixpkgs.runCommand "frontend-src" {
                     buildCommand = ''
                       mkdir "$out"
                       ${if commonSrc != null then ''ln -s "${commonSrc}"/src/* "$out"/'' else ""}
-                      ln -s "${frontendSrc}"/src{,-bin}/* "$out"
+                      ${if frontendSrc != null
+                          then ''ln -s "${frontendSrc}"/src{,-bin}/* "$out"''
+                          else ""
+                       }
                       cp -r --no-preserve=mode "${crossHs}/cbits" "$out"
                       sed -i 's|systems_obsidian_focus|'"${packageJNIName}"'|' "$out/cbits/"*"."{c,h}
                     '';
@@ -349,7 +362,7 @@ rec {
 
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        staticAssets = mkAssets (fixupStatic staticSrc);
+        staticAssets = mkAssets staticSrc;
         zoneinfo = ./zoneinfo;
         frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
@@ -931,6 +944,8 @@ rec {
               '';
               versionName = verName;
               versionCode = verCode;
+              intentFilters = androidIntentFilters;
+              permissions = androidPermissions;
             };
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildApp {
             name = appName;
@@ -992,6 +1007,7 @@ rec {
                           proxy_pass http://127.0.0.1:${builtins.toString port};
                           proxy_set_header Host $http_host;
                           proxy_read_timeout 300s;
+                          proxy_max_temp_file_size 4096m;
                           client_max_body_size 1G;
                         }
                       '';
