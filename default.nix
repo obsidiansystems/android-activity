@@ -39,6 +39,8 @@ rec {
     { name
     , version
     , androidPackagePrefix ? "systems.obsidian"
+    , androidIntentFilters ? "" # AndroidManifest.xml content for additional intent filters.
+    , androidPermissions ? "" # AndroidManifest.xml content for additional permissions.
     , backendDepends ? (p: [])
       # Packages in backendTools are made available both at build time and at runtime for the backend
     , backendTools ? (p: [])
@@ -931,6 +933,8 @@ rec {
               '';
               versionName = verName;
               versionCode = verCode;
+              intentFilters = androidIntentFilters;
+              permissions = androidPermissions;
             };
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildApp {
             name = appName;
