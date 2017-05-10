@@ -14,7 +14,6 @@ import Data.Pool
 import Database.Groundhog.Postgresql
 import Focus.Backend.DB
 import Focus.Backend.DB.Groundhog
-import Focus.Backend.QueueWorker (worker)
 import Focus.Backend.Schema.TH
 import Focus.Concurrent
 import Focus.Schema
@@ -37,7 +36,7 @@ apnsWorker
   -> m (IO ())
 apnsWorker cfg delay db = return . killThread <=<
   liftIO . forkIO . supervise . void . forever . withAPNSSocket cfg $ \conn -> do
-    _ <- worker delay db $ do
+    void $ forever $ do
       let clear = do
             qm <- Map.toList <$> selectMap ApplePushMessageConstructor (CondEmpty `limitTo` 1)
             case qm of
@@ -46,5 +45,5 @@ apnsWorker cfg delay db = return . killThread <=<
                 deleteBy $ fromId k
                 clear
               _ -> return ()
-      clear
+      runDb db clear >> threadDelay delay
     return ()
