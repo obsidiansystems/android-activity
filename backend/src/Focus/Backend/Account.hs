@@ -64,9 +64,15 @@ tokenToAuth csk = fmap unAuthToken . readSignedWithKey csk
 migrateAccount :: PersistBackend m => Migration m
 migrateAccount = migrate (undefined :: Account)
 
--- Returns whether a new account had to be created
-ensureAccountExists :: (PersistBackend m, SqlDb (PhantomDb m)) => Email -> m (Bool, Id Account)
-ensureAccountExists email = do
+-- Returns whether a new account had to be created. When a new
+-- account is created, 'notifyEntityWithBody'' is called with
+-- @(notifyBody, aid)@
+ensureAccountExists
+  :: (PersistBackend m, SqlDb (PhantomDb m), ToJSON notifyBodyType)
+  => notifyBodyType
+  -> Email
+  -> m (Bool, Id Account)
+ensureAccountExists notifyBody email = do
   nonce <- getTime
   mPrevId <- fmap (listToMaybe . fmap toId) $ project AutoKeyField (lower Account_emailField ==. T.toLower email)
   case mPrevId of
@@ -78,17 +84,18 @@ ensureAccountExists email = do
         Left _ -> error "ensureAccountExists: Creating account failed"
         Right aid -> do
           let aid' = toId aid
-          notifyEntityId NotificationType_Insert aid'
+          notifyEntityWithBody' NotificationType_Insert aid' (notifyBody, aid')
           return (True, aid')
 
 -- Creates account if it doesn't already exist and sends pw email
 ensureAccountExistsEmail
-  :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m), Typeable f, ToJSON (f (Id Account)))
-  => (Id Account -> f (Id Account))
+  :: (PersistBackend m, MonadSign m, SqlDb (PhantomDb m), Typeable f, ToJSON (f (Id Account)), ToJSON notifyBodyType)
+  => notifyBodyType
+  -> (Id Account -> f (Id Account))
   -> (Signed (PasswordResetToken f) -> Email -> m ()) -- pw reset email
   -> Email
   -> m (Bool, Id Account)
-ensureAccountExistsEmail = ensureAccountExistsEmail' ensureAccountExists
+ensureAccountExistsEmail b = ensureAccountExistsEmail' (ensureAccountExists b)
 
 -- Creates account if it doesn't already exist and sends pw email
 -- Allows the option for a custom "ensure account" creation function
