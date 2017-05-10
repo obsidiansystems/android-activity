@@ -39,7 +39,7 @@ getWindowLocationSearch = return ""
 #endif
 
 getWindowLocationPathName :: JSM T.Text
-getWindowLocationPathName = valToText $ eval ("window[location][pathname]" :: T.Text)
+getWindowLocationPathName = valToText $ eval ("window['location']['pathname']" :: T.Text)
 
 getDefaultParam :: FromJSON b => Map BS.ByteString (Maybe BS.ByteString) -> Maybe b
 getDefaultParam params = do
