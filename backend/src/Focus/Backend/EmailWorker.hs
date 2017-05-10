@@ -11,7 +11,6 @@
 
 module Focus.Backend.EmailWorker where
 
-import Control.Concurrent
 import Control.Monad
 import Control.Monad.Reader
 import Data.Aeson
@@ -33,9 +32,9 @@ import Focus.Backend.DB
 import Focus.Backend.DB.Groundhog
 import Focus.Backend.DB.PsqlSimple
 import Focus.Backend.Email
+import Focus.Backend.QueueWorker
 import Focus.Backend.Schema ()
 import Focus.Backend.Schema.TH
-import Focus.Concurrent (supervise)
 import Focus.Schema
 
 -- | Emails waiting to be sent
@@ -108,8 +107,7 @@ emailWorker :: (MonadIO m, RunDb f)
             -> f (Pool Postgresql)
             -> EmailEnv
             -> m (IO ()) -- ^ Action that kills the email worker thread
-emailWorker delay db emailEnv = return . killThread <=< liftIO . forkIO . supervise .  void . forever $
-  runDb db (clearMailQueue emailEnv) >> threadDelay delay
+emailWorker delay db emailEnv = worker delay db $ clearMailQueue emailEnv
 
 deriveJSON defaultOptions ''Mail.Address
 deriveJSON defaultOptions ''Mail.Encoding

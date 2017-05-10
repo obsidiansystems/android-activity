@@ -102,6 +102,7 @@ library
     , Focus.Backend.Route
     , Focus.Backend.Brand
     , Focus.Backend.Typeahead
+    , Focus.Backend.QueueWorker
 
   other-extensions: TemplateHaskell
   ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
