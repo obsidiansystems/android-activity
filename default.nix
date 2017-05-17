@@ -4,6 +4,7 @@
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
+, googleServicesJson ? null
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -933,6 +934,7 @@ rec {
               name = appName;
               appSOs = androidSOs;
               packagePrefix = androidPackagePrefix;
+              googleServicesJson = googleServicesJson;
               assets = nixpkgs.runCommand "android_asset" {} ''
                 mkdir "$out"
                 cp -r --no-preserve=mode "${staticSrc}"/* "$out"
@@ -948,17 +950,22 @@ rec {
               intentFilters = androidIntentFilters;
               permissions = androidPermissions;
             };
-          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildApp {
-            name = appName;
-            src = androidSrc version.code version.name;
-            platformVersions = [ "23" ];
-            useGoogleAPIs = false;
-            useNDK = true;
-            release = true;
-            keyStore = key.store;
+          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildGradleApp {
+            acceptAndroidSdkLicenses = true;
+            buildDirectory = "./.";
+            gradleTask = "assemble";
             keyAlias = key.alias;
-            keyStorePassword = key.password;
             keyAliasPassword = key.aliasPassword;
+            keyStore = key.store;
+            keyStorePassword = key.password;
+            mavenDeps = import ./deps_list;
+            name = appName;
+            platformVersions = [ "25" ];
+            release = true;
+            src = androidSrc version.code version.name;
+            useExtraSupportLibs = true;
+            useGoogleAPIs = true;
+            useNDK = true;
           };
           androidEmulate = tryReflex.nixpkgs.androidenv.emulateApp {
             name = appName;
