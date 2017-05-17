@@ -39,10 +39,13 @@ getWindowLocationSearch = return ""
 
 getRoute :: (HasJS x m, FromJSON r, Default r) => m r
 getRoute = do
-  params <- getLocationParamMap
-  return . fromMaybe def $ do
-    Just v <- Map.lookup (encodeUtf8 "x") params
-    decodeValue' (LBS.fromStrict v)
+  params <- liftJS getWindowLocationSearch
+  return (fromMaybe def (decodeRoute params))
+
+decodeRoute :: (FromJSON r) => T.Text -> Maybe r
+decodeRoute t = do
+  Just v <- Map.lookup (encodeUtf8 "x") (Map.fromList (parseQuery (encodeUtf8 t)))
+  decodeValue' (LBS.fromStrict v)
 
 -- NB: Nothing represents keys without values, e.g. ?...&foo&...
 getLocationParams :: (HasJS x m) => m [(BS.ByteString, Maybe BS.ByteString)]

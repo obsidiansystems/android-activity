@@ -62,7 +62,6 @@ routeToUrlDefault (baseProto, baseHost, basePort) r =
   let base = URI baseProto (Just $ URIAuth "" baseHost basePort) "/"
   in base (routeToQuery r) "" --TODO: https
 
-
 routeToQuery :: (ToJSON r, Default r, Eq r) => r -> String
 routeToQuery r = if r == def
   then ""
@@ -83,3 +82,9 @@ instance MonadTrans (SubRouteT r r') where
 
 runSubRouteT :: SubRouteT r r' m a -> (r' -> r) -> m a
 runSubRouteT (SubRouteT a) f = runReaderT a f
+
+routeToSubdomainUrl :: (MonadRoute r m) => String -> r -> m URI
+routeToSubdomainUrl sub x = fmap (addSubdomain sub) (routeToUrl x)
+
+addSubdomain :: String -> URI -> URI
+addSubdomain sub uri = uri { uriAuthority = fmap (\auth -> auth { uriRegName = sub ++ "." ++ uriRegName auth }) (uriAuthority uri) }
