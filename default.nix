@@ -958,7 +958,7 @@ rec {
             keyAliasPassword = key.aliasPassword;
             keyStore = key.store;
             keyStorePassword = key.password;
-            mavenDeps = import ./deps_list;
+            mavenDeps = import ./android_deps;
             name = appName;
             platformVersions = [ "25" ];
             release = true;
