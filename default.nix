@@ -304,7 +304,7 @@ rec {
           cabal-version: >= 1.8
 
           executable lib${appName}.so
-            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" "jsaddle-clib" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
             default-language: Haskell2010
             cc-options: -shared -fPIC
             ld-options: -shared
