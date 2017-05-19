@@ -443,7 +443,7 @@ self: super: {
         sha256 = "1jiypxkwlknrnmyspc2w87qxb7bd45g89r8mizf22nd95h7vmcrc";
       };
     });
-    phone-push = addBuildDepend (overrideCabal super.phone-push (drv: {
+    phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
       src = nixpkgs.fetchFromGitHub {
         owner = "obsidiansystems";
         repo = "haskell-phone-push";
@@ -451,5 +451,5 @@ self: super: {
         sha256 = "1iy9h4cp177yd1gki60j81jzrbsy3ip9b44s7qwhdjd5747c30r2";
 
       };
-    })) self.casing;
+    })) self.casing) self.data-default;
   }
