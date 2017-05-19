@@ -41,7 +41,7 @@ apnsWorker cfg delay db = return . killThread <=<
             qm <- Map.toList <$> selectMap ApplePushMessageConstructor (CondEmpty `limitTo` 1)
             case qm of
               [(k, m)] -> do
-                liftIO $ sendApplePushMessage m conn
+                liftIO $ sendApplePushMessage conn m
                 deleteBy $ fromId k
                 clear
               _ -> return ()
