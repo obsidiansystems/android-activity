@@ -1,4 +1,4 @@
-Name: apnsworker
+Name: focus-phonepush-worker
 Version: 0.1
 Synopsis: Project Synopsis Here
 Description: Project Description Here
@@ -13,12 +13,14 @@ Cabal-version: >=1.2
 library
   hs-source-dirs: src
   build-depends: base
+               , bytestring
                , containers
                , focus-core
                , focus-backend
                , resource-pool
                , groundhog-postgresql
+               , http-conduit
                , phone-push
-  exposed-modules: PhonePush.IOS.APNSWorker
+  exposed-modules: PhonePush.Worker
 
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

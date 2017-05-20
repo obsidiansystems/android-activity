@@ -126,7 +126,7 @@ rec {
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
              touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
-             apnsworker = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./apnsworker)) {});
+             focus-phonepush-worker = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./phonepush-worker)) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
