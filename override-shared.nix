@@ -372,8 +372,8 @@ self: super: {
       }}/mime-mail";
     });
     hsemail = overrideCabal super.hsemail (drv: {
-      version = "1.7.8";
-      src = filterGitSource ./hsemail;
+      version = "2";
+      sha256 = "1nd8pzsdan6zxddm96xswcm67g43zkbj1rm3m3wx3as4jj3qmw7m";
     });
     imagemagick = super.imagemagick.override {
       imagemagick = nixpkgs.imagemagickBig; # Necessary for PDF support
@@ -443,4 +443,13 @@ self: super: {
         sha256 = "1jiypxkwlknrnmyspc2w87qxb7bd45g89r8mizf22nd95h7vmcrc";
       };
     });
+    phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "haskell-phone-push";
+        rev = "485d9e726f63c418f9089ef08ac26ea9279bca84";
+        sha256 = "1iy9h4cp177yd1gki60j81jzrbsy3ip9b44s7qwhdjd5747c30r2";
+
+      };
+    })) self.casing) self.data-default;
   }

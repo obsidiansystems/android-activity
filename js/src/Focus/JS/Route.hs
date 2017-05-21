@@ -16,6 +16,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
+import Language.Javascript.JSaddle (eval, JSM, valToText, liftJSM, MonadJSM)
 
 #ifdef USE_TEMPLATE_HASKELL
 importJS Unsafe "window['location']['search']" "getWindowLocationSearch_" [t| forall x m. MonadJS x m => m T.Text |]
@@ -47,9 +48,27 @@ decodeRoute t = do
   Just v <- Map.lookup (encodeUtf8 "x") (Map.fromList (parseQuery (encodeUtf8 t)))
   decodeValue' (LBS.fromStrict v)
 
+getWindowLocationPathName :: JSM T.Text
+getWindowLocationPathName = valToText $ eval ("window['location']['pathname']" :: T.Text)
+
+getDefaultParam :: FromJSON b => Map BS.ByteString (Maybe BS.ByteString) -> Maybe b
+getDefaultParam params = do
+  Just v <- Map.lookup (encodeUtf8 "x") params
+  decodeValue' (LBS.fromStrict v)
+
 -- NB: Nothing represents keys without values, e.g. ?...&foo&...
 getLocationParams :: (HasJS x m) => m [(BS.ByteString, Maybe BS.ByteString)]
 getLocationParams = fmap (parseQuery . encodeUtf8) (liftJS getWindowLocationSearch)
 
 getLocationParamMap :: (HasJS x m) => m (Map BS.ByteString (Maybe BS.ByteString))
 getLocationParamMap = fmap Map.fromList getLocationParams
+
+getRouteWith :: (HasJS x m, FromJSON r, Default r, MonadJSM m)
+             => (T.Text -> Map BS.ByteString (Maybe BS.ByteString) -> Maybe r)
+             -> m r
+getRouteWith f = do
+  path <- liftJSM getWindowLocationPathName
+  params <- getLocationParamMap
+  return $ case f path params of
+    Nothing -> def
+    Just r -> r

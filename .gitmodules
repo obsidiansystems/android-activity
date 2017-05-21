@@ -56,9 +56,6 @@
 [submodule "email-parse"]
 	path = email-parse
 	url = git@gitlab.com:obsidian.systems/email-parse
-[submodule "hsemail"]
-	path = hsemail
-	url = git@github.com:obsidiansystems/hsemail
 [submodule "hellosign"]
 	path = hellosign
 	url = git@gitlab.com:obsidian.systems/hellosign

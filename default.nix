@@ -2,13 +2,16 @@
 , runWithHeapProfiling ? false
 , enableExposeAllUnfoldings ? false
 , enableTraceReflexEvents ? false
+, iosSdkVersion ? "10.2"
 , useZopfli ? true
+, googleServicesJson ? null
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
       inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = false;
+      iosSdkVersion = iosSdkVersion;
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
     inherit (tryReflex.nixpkgs) lib;
@@ -97,6 +100,11 @@ rec {
       iosAArch64HaskellPackages = iosArm64HaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
+          jsaddle = overrideCabal super.jsaddle (drv: {
+            configureFlags = (drv.configureFlags or []) ++ [
+              # "-f-include-app-delegate"
+            ];
+          });
         };
       };
 
@@ -118,6 +126,7 @@ rec {
              unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
              hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
              touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
+             focus-phonepush-worker = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./phonepush-worker)) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
@@ -295,7 +304,7 @@ rec {
           cabal-version: >= 1.8
 
           executable lib${appName}.so
-            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
+            build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" "jsaddle-clib" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
             default-language: Haskell2010
             cc-options: -shared -fPIC
             ld-options: -shared
@@ -493,7 +502,7 @@ rec {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc}: nixpkgs.runCommand "${exeName}-app" (rec {
+          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc, apsEnv}: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
               <?xml version="1.0" encoding="UTF-8"?>
@@ -645,6 +654,8 @@ rec {
                 <array>
                   <string><team-id/>.${bundleIdentifier}</string>
                 </array>
+                <key>aps-environment</key>
+                <string>${apsEnv}</string>
               </dict>
               </plist>
             '';
@@ -898,6 +909,7 @@ rec {
                                                exeName = "mobile";
                                                exePath = (frontendIosSimulator+"/bin");
                                                staticSrc = staticSrc;
+                                               apsEnv = "development";
                                              };
           frontendIosAArch64 = mkFrontend frontendSrc commonSrc iosAArch64HaskellPackages staticSrc
               (with iosAArch64HaskellPackages; [ jsaddle jsaddle-wkwebview ]);
@@ -908,6 +920,7 @@ rec {
                                              exeName = "mobile";
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
+				             apsEnv = "development";
                                            };
           androidSOs = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackages }: rec {
             inherit (nixpkgsAndroid.buildPackages) patchelf;
@@ -921,6 +934,7 @@ rec {
               name = appName;
               appSOs = androidSOs;
               packagePrefix = androidPackagePrefix;
+              googleServicesJson = googleServicesJson;
               assets = nixpkgs.runCommand "android_asset" {} ''
                 mkdir "$out"
                 cp -r --no-preserve=mode "${staticSrc}"/* "$out"
@@ -936,17 +950,22 @@ rec {
               intentFilters = androidIntentFilters;
               permissions = androidPermissions;
             };
-          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildApp {
-            name = appName;
-            src = androidSrc version.code version.name;
-            platformVersions = [ "23" ];
-            useGoogleAPIs = false;
-            useNDK = true;
-            release = true;
-            keyStore = key.store;
+          androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildGradleApp {
+            acceptAndroidSdkLicenses = true;
+            buildDirectory = "./.";
+            gradleTask = "assemble";
             keyAlias = key.alias;
-            keyStorePassword = key.password;
             keyAliasPassword = key.aliasPassword;
+            keyStore = key.store;
+            keyStorePassword = key.password;
+            mavenDeps = import ./android_deps;
+            name = appName;
+            platformVersions = [ "25" ];
+            release = true;
+            src = androidSrc version.code version.name;
+            useExtraSupportLibs = true;
+            useGoogleAPIs = true;
+            useNDK = true;
           };
           androidEmulate = tryReflex.nixpkgs.androidenv.emulateApp {
             name = appName;
