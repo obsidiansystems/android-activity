@@ -4,7 +4,6 @@
 #endif
 module Focus.JS.Route where
 
-import Foreign.JavaScript.TH
 import Focus.Request
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
@@ -18,29 +17,12 @@ import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 import Language.Javascript.JSaddle (eval, JSM, valToText, liftJSM, MonadJSM)
 
-#ifdef USE_TEMPLATE_HASKELL
-importJS Unsafe "window['location']['search']" "getWindowLocationSearch_" [t| forall x m. MonadJS x m => m T.Text |]
-#else
-getWindowLocationSearch_ :: MonadJS x m => m T.Text
-getWindowLocationSearch_ = runJS (JSFFI "window['location']['search']") [] >>= fromJS
-#endif
+getWindowLocationSearch :: JSM T.Text
+getWindowLocationSearch = valToText $ eval ("window['location']['search']" :: T.Text)
 
-#ifdef ghcjs_HOST_OS
-
-getWindowLocationSearch :: forall x m. MonadJS x m => m T.Text
-getWindowLocationSearch = getWindowLocationSearch_
-
-#else
-
---TODO: Use the webview JS context here, somehow
-getWindowLocationSearch :: forall x m. MonadJS x m => m T.Text
-getWindowLocationSearch = return ""
-
-#endif
-
-getRoute :: (HasJS x m, FromJSON r, Default r) => m r
+getRoute :: (MonadJSM m, FromJSON r, Default r) => m r
 getRoute = do
-  params <- liftJS getWindowLocationSearch
+  params <- liftJSM getWindowLocationSearch
   return (fromMaybe def (decodeRoute params))
 
 decodeRoute :: (FromJSON r) => T.Text -> Maybe r
@@ -57,13 +39,13 @@ getDefaultParam params = do
   decodeValue' (LBS.fromStrict v)
 
 -- NB: Nothing represents keys without values, e.g. ?...&foo&...
-getLocationParams :: (HasJS x m) => m [(BS.ByteString, Maybe BS.ByteString)]
-getLocationParams = fmap (parseQuery . encodeUtf8) (liftJS getWindowLocationSearch)
+getLocationParams :: MonadJSM m => m [(BS.ByteString, Maybe BS.ByteString)]
+getLocationParams = fmap (parseQuery . encodeUtf8) (liftJSM getWindowLocationSearch)
 
-getLocationParamMap :: (HasJS x m) => m (Map BS.ByteString (Maybe BS.ByteString))
+getLocationParamMap :: MonadJSM m => m (Map BS.ByteString (Maybe BS.ByteString))
 getLocationParamMap = fmap Map.fromList getLocationParams
 
-getRouteWith :: (HasJS x m, FromJSON r, Default r, MonadJSM m)
+getRouteWith :: (FromJSON r, Default r, MonadJSM m)
              => (T.Text -> Map BS.ByteString (Maybe BS.ByteString) -> Maybe r)
              -> m r
 getRouteWith f = do
