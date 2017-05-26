@@ -447,8 +447,8 @@ self: super: {
       src = nixpkgs.fetchFromGitHub {
         owner = "obsidiansystems";
         repo = "haskell-phone-push";
-        rev = "485d9e726f63c418f9089ef08ac26ea9279bca84";
-        sha256 = "1iy9h4cp177yd1gki60j81jzrbsy3ip9b44s7qwhdjd5747c30r2";
+        rev = "a7eb4a0258c6d5f8c907d624a07dbcb00fa33713";
+        sha256 = "1g1hiva6n37ssyvwkckjz8mkcay1r0j4nyiaskrh2qy83fw3mram";
 
       };
     })) self.casing) self.data-default;
