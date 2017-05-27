@@ -51,7 +51,7 @@ eval "$(echo "$buildPhase" | sed '\''s/\.\/Setup build \(.*\)$/\( \
 '
 
 # While working in leksah on frontendIosAArch64 you can deploy to iOS device with (replace [TEAM_ID]):
-# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile ./static")/bin/deploy [TEAM_ID] config/route
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp { bundleName = \"wrinkl\"; bundleIdentifier = \"com.wrinkl.ios\"; bundleVersionString = \"1.0\"; bundleVersion = \"1\"; exeName = \"mobile\"; exePath = dist-newstyle/build/aarch64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile; staticSrc = ./static; }")/bin/deploy [TEAM_ID] config/route
 
 # While working in leksah on frontendIosIosSimulator you can run in simulator with:
-# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp \"wrinkl\" \"com.wrinkl.ios\" \"mobile\" dist-newstyle/build/x86_64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile ./static")/bin/run-in-sim config/route
+# $(nix-build --no-out-link -E "(import ./. {}).mkIosApp { bundleName = \"wrinkl\"; bundleIdentifier = \"com.wrinkl.ios\"; bundleVersionString = \"1.0\"; bundleVersion = \"1\"; exeName = \"mobile\"; exePath = dist-newstyle/build/x86_64-ios/ghc-8.1.20170106/Wrinkl-frontend-0.1/c/mobile/build/mobile; staticSrc = ./static; }")/bin/run-in-sim config/route

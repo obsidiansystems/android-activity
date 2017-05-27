@@ -48,7 +48,7 @@ setPermanentAuthTokenCookie doc = setPermanentAuthTokenCookieWithLocation doc No
 setPermanentAuthTokenCookieWithLocation :: (MonadJSM m, HasJSContext m) => DOM.Document  -> Maybe ByteString -> Text -> Maybe (Signed (AuthToken f)) -> m ()
 setPermanentAuthTokenCookieWithLocation doc loc key mt = do
   currentProtocol <- Reflex.Dom.Core.getLocationProtocol
-  DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mt of
+  DOM.setCookie doc . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mt of
     Nothing -> def
       { setCookieName = encodeUtf8 key
       , setCookieValue = ""
@@ -76,7 +76,7 @@ setPermanentAuthTokenCookieWithLocation doc loc key mt = do
 -- | Retrieve the current auth token from the given cookie
 getAuthTokenCookie :: MonadJSM m => DOM.Document -> Text -> m (Maybe (Signed (AuthToken f)))
 getAuthTokenCookie doc key = do
-  cookieString <- DOM.getCookieUnchecked doc
+  cookieString <- DOM.getCookie doc
   return $ fmap Signed $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
 
 -- | Try to retrieve the auth token from local storage; if we succeed, clear it

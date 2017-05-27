@@ -30,7 +30,7 @@ import Focus.JS.FontAwesome
 import Focus.JS.Highlight
 import Focus.Patch
 
-import qualified GHCJS.DOM.Element as E
+import qualified GHCJS.DOM.HTMLElement as E
 import qualified GHCJS.DOM.HTMLInputElement as IE
 
 -- | A variant of elDynAttr which sets the element's style to "display: none;" initially, until its attributes can be set properly.
@@ -215,19 +215,19 @@ keycodeBackspace :: Int
 keycodeBackspace = 8
 
 comboBoxInput :: forall t m. (DomBuilder t m)
-              => InputElementConfig EventResult t m
+              => InputElementConfig EventResult t (DomBuilderSpace m)
               -> m (InputElement EventResult (DomBuilderSpace m) t, Event t ComboBoxAction)
 comboBoxInput cfg = do
   let keydownFlags = \case
-        Just (EventResult k) -> case keyCodeLookup k of
+        Just (EventResult k) -> case keyCodeLookup $ fromIntegral k of
           ArrowUp -> preventDefault
           ArrowDown -> preventDefault
           _ -> mempty
         Nothing -> mempty
   t <- inputElement $ cfg
     & inputElementConfig_elementConfig . elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Keydown keydownFlags
-  let keypressAction = ComboBoxAction_Select <$ ffilter ((== Enter) . keyCodeLookup) (domEvent Keypress t)
-      keydownAction = fforMaybe (domEvent Keydown t) $ \k -> case keyCodeLookup k of
+  let keypressAction = ComboBoxAction_Select <$ ffilter ((== Enter) . keyCodeLookup . fromIntegral) (domEvent Keypress t)
+      keydownAction = fforMaybe (domEvent Keydown t) $ \k -> case keyCodeLookup $ fromIntegral k of
         Escape -> Just ComboBoxAction_Dismiss
         Backspace -> Just ComboBoxAction_Backspace
         ArrowLeft -> Just ComboBoxAction_Left
@@ -260,7 +260,7 @@ comboBoxList xs li query externalActions = do
   return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
 
 comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
-         => InputElementConfig EventResult t m
+         => InputElementConfig EventResult t (DomBuilderSpace m)
          -> (Dynamic t Text -> m (Dynamic t (Map k v)))
          -> (k -> Dynamic t v -> Dynamic t Bool -> Dynamic t Text -> m (Event t ComboBoxAction))
          -> (k -> v -> Text)
@@ -392,7 +392,7 @@ elAttrWithoutPropagation' :: forall t m a. (DomBuilder t m, DomBuilderSpace m ~ 
 elAttrWithoutPropagation' tagName attrs i = do
   let attrs' = Map.mapKeys (AttributeName Nothing) attrs
   let f = GhcjsEventFilter $ \_ -> return (Reflex.Dom.Core.stopPropagation, return $ Just $ EventResult ())
-      cfg = (def :: ElementConfig EventResult t m)
+      cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
         & elementConfig_initialAttributes .~ attrs'
         & elementConfig_modifyAttributes .~ never
         & elementConfig_eventSpec . ghcjsEventSpec_filters .~ DMap.singleton Click f

@@ -24,8 +24,8 @@ import Data.Time
 import Reflex.Dom.Core hiding (preventDefault)
 
 import GHCJS.DOM.EventM (on, preventDefault)
-import GHCJS.DOM.Element (touchMove, touchEnd)
-import GHCJS.DOM.Types (IsElement, MonadJSM)
+import GHCJS.DOM.GlobalEventHandlers (touchMove, touchEnd)
+import GHCJS.DOM.Types (IsElement, MonadJSM, uncheckedCastTo, HTMLElement(..))
 
 mkTouchStart :: MonadIO m => TouchEventResult -> m TouchEventStage
 mkTouchStart r = liftIO $ do
@@ -192,7 +192,7 @@ gestureEventScrollLockY cfg e = do
       [] -> return ()
       (x:_) -> liftIO $ modifyIORef touch0 $ Map.insert (_touchResult_identifier x) (coords x, Nothing)
     mkTouchStart r
-  end <- fmap (fmapMaybe id) $ wrapDomEvent (_element_raw e) (`on` touchEnd) $ do
+  end <- fmap (fmapMaybe id) $ wrapDomEvent (uncheckedCastTo HTMLElement (_element_raw e)) (`on` touchEnd) $ do
     tstate <- liftIO $ readIORef touch0
     newTouch <- getTouchEvent
     case reverse (_touchEventResult_changedTouches newTouch) of
@@ -206,7 +206,7 @@ gestureEventScrollLockY cfg e = do
                 ax = fromMaybe Axis_Y $ axis coords0 coords1
             suppressY newTouch ax
           Just (_, Just ax) -> suppressY newTouch ax
-  move <- fmap (fmapMaybe id) $ wrapDomEvent (_element_raw e) (`on` touchMove) $ do
+  move <- fmap (fmapMaybe id) $ wrapDomEvent (uncheckedCastTo HTMLElement (_element_raw e)) (`on` touchMove) $ do
     tstate <- liftIO $ readIORef touch0
     newTouch <- getTouchEvent
     case reverse (_touchEventResult_changedTouches newTouch) of

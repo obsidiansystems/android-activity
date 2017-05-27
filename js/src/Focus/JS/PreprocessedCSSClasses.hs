@@ -82,8 +82,7 @@ instance MonadAdjust t m => MonadAdjust t (PreprocessedCSSClassesT m) where
 instance DomBuilder t m => DomBuilder t (PreprocessedCSSClassesT m) where
   type DomBuilderSpace (PreprocessedCSSClassesT m) = DomBuilderSpace m
   element elementTag cfg child = do
-    let cfg' = liftElementConfig $ processCssElementConfig cfg
-    lift $ element elementTag cfg' $ runPreprocessedCSSClassesT child
+    lift $ element elementTag cfg $ runPreprocessedCSSClassesT child
 
 instance HasJSContext m => HasJSContext (PreprocessedCSSClassesT m) where
   type JSContextPhantom (PreprocessedCSSClassesT m) = JSContextPhantom m
