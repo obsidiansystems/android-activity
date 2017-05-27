@@ -1,13 +1,15 @@
-In your new project's git repository,
-git submodule add -b develop git@gitlab.com:obsidian.systems/focus.git
-git submodule update --init --recursive
+In your new project's git repository:
 
-mkdir common common/src frontend frontend/src backend backend/src static config
+```bash
+git submodule add -b develop git@gitlab.com:obsidian.systems/focus
+git submodule update --init --recursive
+mkdir -p common/src frontend/src backend/src static config
+```
 
 Create a default.nix with something like the following contents:
 
 -------------------------------------------------------------------------------
-(import ./focus {}).mkDerivation {
+{}: (import ./focus {}).mkDerivation {
   name = "theProjectName";
   version = "0.1";
   commonDepends = p: with p; [
@@ -56,6 +58,7 @@ rootHandler =
 Create frontend/src/Main.hs and put something like the following in it:
 
 -------------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
 import Reflex.Dom
 
 main = mainWidget $ text "Hello, new project!"
