@@ -4,7 +4,8 @@
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
-, googleServicesJson ? null
+, mobileExecutable ? "mobile.hs"
+, androidConfig ? {}
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -15,6 +16,24 @@ let tryReflex = import ./reflex-platform {
     };
     inherit (tryReflex) nixpkgs cabal2nixResult;
     inherit (tryReflex.nixpkgs) lib;
+    defaultAndroidConfig = {
+      icon = "@drawable/ic_launcher";
+      googleServicesJson = ../config/google-services.json;
+      includeFirebaseService = true;
+      services = ''
+        <service android:name=".LocalFirebaseInstanceIDService">
+        <intent-filter>
+        <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
+        </intent-filter>
+        </service>
+        '';
+      dependencies = ''
+        compile 'com.android.support:appcompat-v7:25.3.0'
+        compile 'com.google.firebase:firebase-messaging:10.2.0'
+        compile 'com.firebase:firebase-jobdispatcher:0.5.2'
+        '';
+    };
+    effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
 in with nixpkgs.haskell.lib;
 rec {
   inherit tryReflex nixpkgs cabal2nixResult;
@@ -313,7 +332,7 @@ rec {
             includes: jni.h
             hs-source-dirs: .
             c-sources: cbits/focus.c
-            main-is: mobile.hs
+            main-is: ${mobileExecutable}
             ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
             default-extensions: NoDatatypeContexts
           EOF
@@ -934,7 +953,11 @@ rec {
               name = appName;
               appSOs = androidSOs;
               packagePrefix = androidPackagePrefix;
-              googleServicesJson = googleServicesJson;
+              googleServicesJson = effectiveAndroidConfig.googleServicesJson;
+              additionalDependencies = effectiveAndroidConfig.dependencies;
+              iconResource = effectiveAndroidConfig.icon;
+              services = effectiveAndroidConfig.services;
+              includeFirebase = effectiveAndroidConfig.includeFirebaseService;
               assets = nixpkgs.runCommand "android_asset" {} ''
                 mkdir "$out"
                 mkdir "$out"/zoneinfo
@@ -944,7 +967,7 @@ rec {
               res = nixpkgs.runCommand "android_res" {} ''
                 mkdir "$out"
                 if [ -e "${staticSrc}"/assets/res ]
-                  then cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
+                  then cp -r --no-preserve=mode "${staticSrc}"/assets/res/* "$out"
                 fi
               '';
               versionName = verName;
