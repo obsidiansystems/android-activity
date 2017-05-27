@@ -937,13 +937,16 @@ rec {
               googleServicesJson = googleServicesJson;
               assets = nixpkgs.runCommand "android_asset" {} ''
                 mkdir "$out"
+                mkdir "$out"/zoneinfo
                 cp -r --no-preserve=mode "${staticSrc}"/* "$out"
                 cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
               '';
               res = nixpkgs.runCommand "android_res" {} ''
                 mkdir "$out"
                 find ${staticSrc}
-                cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
+                if [ -e "${staticSrc}"/assets/res ]
+                  then cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
+                fi
               '';
               versionName = verName;
               versionCode = verCode;
