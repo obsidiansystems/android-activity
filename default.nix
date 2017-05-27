@@ -938,12 +938,11 @@ rec {
               assets = nixpkgs.runCommand "android_asset" {} ''
                 mkdir "$out"
                 mkdir "$out"/zoneinfo
-                cp -r --no-preserve=mode "${staticSrc}"/* "$out"
+                [ "$(ls -A ${staticSrc})" ] && cp -r --no-preserve=mode "${staticSrc}"/* "$out" || echo "static folder empty. skipping..."
                 cp -r --no-preserve=mode "${zoneinfo}"/* "$out/zoneinfo"
               '';
               res = nixpkgs.runCommand "android_res" {} ''
                 mkdir "$out"
-                find ${staticSrc}
                 if [ -e "${staticSrc}"/assets/res ]
                   then cp -r --no-preserve=mode "${staticSrc}"/assets/res/drawable-* "$out"
                 fi
