@@ -7,52 +7,31 @@
 
 module Focus.JS.BoundingClientRect where
 
-import Control.Monad
-import Data.Text (Text)
-import GHCJS.DOM.ClientRect
-#ifdef ghcjs_HOST_OS
+import GHCJS.DOM.DOMRectReadOnly
 import qualified GHCJS.DOM.Element as Element
-#endif
 import GHCJS.DOM.Types (MonadJSM)
 import GHCJS.DOM.Types hiding (Text)
-import Language.Javascript.JSaddle.Evaluate
-import Language.Javascript.JSaddle.Object
 
 data BoundingClientRect = BoundingClientRect
-  { _boundingClientRect_top :: Float
-  , _boundingClientRect_right :: Float
-  , _boundingClientRect_bottom :: Float
-  , _boundingClientRect_left :: Float
-  , _boundingClientRect_width :: Float
-  , _boundingClientRect_height :: Float
+  { _boundingClientRect_top :: Double
+  , _boundingClientRect_right :: Double
+  , _boundingClientRect_bottom :: Double
+  , _boundingClientRect_left :: Double
+  , _boundingClientRect_width :: Double
+  , _boundingClientRect_height :: Double
   }
   deriving (Show, Read, Eq, Ord)
 
-getBoundingClientRect :: (IsElement e, MonadJSM m) => e -> m (Maybe BoundingClientRect)
-#ifdef ghcjs_HOST_OS
+getBoundingClientRect :: (IsElement e, MonadJSM m) => e -> m BoundingClientRect
 getBoundingClientRect e = do
   x <- Element.getBoundingClientRect e
-  forM x $ \x' -> do
-    top <- getTop x'
-    bottom <- getBottom x'
-    right <- getRight x'
-    left <- getLeft x'
-    width <- getWidth x'
-    height <- getHeight x'
-    return $ BoundingClientRect top right bottom left width height
-#else
-getBoundingClientRect e = liftJSM $ do
-  f <- eval ("(function (e) { return e.getBoundingClientRect(); })" :: Text)
-  x <- fromJSVal =<< call f f [e]
-  forM x $ \x' -> do
-    top <- getTop x'
-    bottom <- getBottom x'
-    right <- getRight x'
-    left <- getLeft x'
-    width <- getWidth x'
-    height <- getHeight x'
-    return $ BoundingClientRect top right bottom left width height
-#endif
+  top <- getTop x
+  bottom <- getBottom x
+  right <- getRight x
+  left <- getLeft x
+  width <- getWidth x
+  height <- getHeight x
+  return $ BoundingClientRect top right bottom left width height
 
 invisible :: BoundingClientRect
 invisible = BoundingClientRect

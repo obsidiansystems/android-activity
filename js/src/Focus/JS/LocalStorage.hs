@@ -12,13 +12,13 @@ import Focus.Request
 import Foreign.JavaScript.TH
 import GHCJS.DOM.Types (MonadJSM)
 import GHCJS.DOM.Storage
-import GHCJS.DOM.Window (getLocalStorageUnchecked)
+import GHCJS.DOM.Window (getLocalStorage)
 import Reflex.Dom.Core hiding (Value)
 
 askLocalStorage :: (HasJSContext m, MonadJSM m) => m Storage
 askLocalStorage = do
   dw <- askDomWindow
-  getLocalStorageUnchecked dw
+  getLocalStorage dw
 
 type Key = String
 
@@ -46,7 +46,7 @@ storageSet = liftM (fmap runIdentity) . storageSetMany . fmap Identity
 storageSetMany :: (PerformEvent t m, HasJSContext m, MonadJSM m, MonadJSM (Performable m), Traversable f) => Event t (f (String, Maybe Value)) -> m (Event t (f ()))
 storageSetMany sets = do
   dw <- askDomWindow
-  s <- getLocalStorageUnchecked dw
+  s <- getLocalStorage dw
   performEvent $ ffor sets $ mapM $ \(k, mv) -> case mv of
     Nothing -> removeItem s k
     Just v -> setItem s k v
@@ -54,7 +54,7 @@ storageSetMany sets = do
 storageRemoveAll :: MonadWidget t m => Event t () -> m ()
 storageRemoveAll e = do
   dw <- askDomWindow
-  s <- getLocalStorageUnchecked dw
+  s <- getLocalStorage dw
   performEvent_ $ fmap (const $ clear s) e
 
 storageSetJson :: (MonadWidget t m, ToJSON a) => Event t (String, Maybe a) -> m (Event t ())

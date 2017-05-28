@@ -20,12 +20,12 @@ import Focus.JS.WebSocket (rawDecode)
 #endif
 import GHCJS.DOM.Types
        (JSM, MonadJSM, XMLHttpRequest, liftJSM, PFromJSVal(..),
-        unGObject, FormData)
+        FormData)
 import GHCJS.DOM.Enums (XMLHttpRequestResponseType(..))
 import GHCJS.DOM.EventM (on)
 import GHCJS.DOM.XMLHttpRequest
-       (newXMLHttpRequest, open, send, setResponseType,
-        getReadyState, getResponseUnchecked, getResponseTextUnchecked,
+       (newXMLHttpRequest, openSimple, send, setResponseType,
+        getReadyState, getResponse, getResponseTextUnchecked,
         readyStateChange, sendFormData)
 
 import qualified JavaScript.TypedArray.ArrayBuffer as JS
@@ -68,7 +68,7 @@ mkRequestGeneric :: (MonadJSM m, MonadFix m)
                  -> m XMLHttpRequest
 mkRequestGeneric responseType convertResponse method sendFunc url cb = do
   xhr <- newXMLHttpRequest
-  open xhr method url True (""::Text) (""::Text)
+  openSimple xhr method url
   maybe (return ()) (setResponseType xhr) responseType
   rec freeCallback <- liftJSM . on xhr readyStateChange . liftJSM $ do
                         readyState <- getReadyState xhr
@@ -86,7 +86,7 @@ mkBinaryRequest :: (MonadFix m, MonadJSM m)
                 -> (ByteString -> JSM a)
                 -> m XMLHttpRequest
 mkBinaryRequest = mkRequestGeneric (Just XMLHttpRequestResponseTypeArraybuffer) $
-    bsFromArrayBuffer . pFromJSVal <=< (fmap unGObject . getResponseUnchecked)
+    bsFromArrayBuffer . pFromJSVal <=< getResponse
 
 bsFromArrayBuffer :: MonadJSM m => JS.MutableArrayBuffer -> m ByteString
 bsFromArrayBuffer ab = liftJSM $ JS.unsafeFreeze ab >>=

@@ -23,7 +23,7 @@ setPermanentCookie doc = setPermanentCookieWithLocation doc Nothing
 setPermanentCookieWithLocation :: (MonadJSM m, HasJSContext m) => DOM.Document -> Maybe ByteString -> Text -> Maybe Text -> m ()
 setPermanentCookieWithLocation doc loc key mv = do
   currentProtocol <- Reflex.Dom.Core.getLocationProtocol
-  DOM.setCookie doc . Just . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mv of
+  DOM.setCookie doc . decodeUtf8 . LBS.toStrict . toLazyByteString . renderSetCookie $ case mv of
     Nothing -> def
       { setCookieName = encodeUtf8 key
       , setCookieValue = ""
@@ -51,10 +51,8 @@ setPermanentCookieWithLocation doc loc key mv = do
 -- | Retrieve the current auth token from the given cookie
 getCookie :: MonadJSM m => DOM.Document -> Text -> m (Maybe Text)
 getCookie doc key = do
-  mcookieString <- DOM.getCookie doc
-  case mcookieString of
-    Nothing -> return Nothing
-    Just cookieString -> return $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
+  cookieString <- DOM.getCookie doc
+  return $ lookup key $ parseCookiesText $ encodeUtf8 cookieString
 
 setPermanentCookieJson :: (MonadJSM m, HasJSContext m, ToJSON v) => DOM.Document -> Text -> Maybe v -> m ()
 setPermanentCookieJson d k v =

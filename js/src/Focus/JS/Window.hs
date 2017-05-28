@@ -6,6 +6,7 @@ import qualified GHCJS.DOM as DOM
 import qualified GHCJS.DOM.Types as DOM
 import qualified GHCJS.DOM.EventM as DOM
 import qualified GHCJS.DOM.Window as DOM
+import qualified GHCJS.DOM.GlobalEventHandlers as DOMEvents
 import Reflex.Dom.Core
 import Control.Monad
 import Control.Monad.Fix
@@ -21,8 +22,8 @@ windowHasFocus :: ( Reflex t
                => DOM.Window
                -> m (Dynamic t Bool)
 windowHasFocus w = do
-  f <- wrapDomEvent w (`DOM.on` DOM.focusEvent) $ return True
-  b <- wrapDomEvent w (`DOM.on` DOM.blurEvent) $ return False
+  f <- wrapDomEvent w (`DOM.on` DOMEvents.focus) $ return True
+  b <- wrapDomEvent w (`DOM.on` DOMEvents.blur) $ return False
   holdDyn True $ leftmost [f, b] --TODO: Get the initial value properly
 
 windowResizeEvent :: ( Reflex t
@@ -31,7 +32,7 @@ windowResizeEvent :: ( Reflex t
                   => DOM.Window
                   -> m (Event t (Int, Int))
 windowResizeEvent w = do
-  wrapDomEvent w (`DOM.on` DOM.resize) $ do
+  wrapDomEvent w (`DOM.on` DOMEvents.resize) $ do
     width <- DOM.getInnerWidth w
     height <- DOM.getInnerHeight w
     return (width, height)

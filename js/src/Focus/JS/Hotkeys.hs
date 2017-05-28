@@ -8,7 +8,7 @@ import Data.Maybe
 import Data.Set (Set)
 import GHCJS.DOM.Types
        (JSM, IsElement, KeyboardEvent, MonadJSM,
-        uncheckedCastTo, HTMLElement(..))
+        uncheckedCastTo, HTMLElement(..), EventTarget(..))
 import qualified GHCJS.DOM.Element as E
 import qualified GHCJS.DOM.EventM as E
 import qualified GHCJS.DOM.KeyboardEvent as E
@@ -25,7 +25,7 @@ data KeyModifier = KeyModifier_Alt
 bindKeys :: (MonadJSM m, MonadWidget t m, IsElement e)
          => E.EventName e E.KeyboardEvent -- ^ The keyboard event name (e.g., keyDown)
          -> e -- ^ The element to listen on
-         -> Map (Int, Set KeyModifier) (ReaderT  E.KeyboardEvent JSM k) -- ^ Map of key combinations to actions
+         -> Map (Word, Set KeyModifier) (ReaderT  E.KeyboardEvent JSM k) -- ^ Map of key combinations to actions
          -> m (Event t k) -- ^ Event that fires when any of the specified key combinations is pressed
 bindKeys keyEv keyTarget hotkeys = do
   fmap (fmapMaybe id) $ wrapDomEvent keyTarget (`E.on` keyEv) $ do
@@ -46,5 +46,5 @@ bindKeys keyEv keyTarget hotkeys = do
 inputTarget :: ReaderT KeyboardEvent JSM Bool
 inputTarget = do
   Just e <- fmap (uncheckedCastTo HTMLElement) <$> E.eventTarget
-  n :: Maybe String <- E.getTagName e
-  return $ n `elem` (map Just ["INPUT", "SELECT", "TEXTAREA"])
+  n :: String <- E.getTagName e
+  return $ n `elem` ["INPUT", "SELECT", "TEXTAREA"]
