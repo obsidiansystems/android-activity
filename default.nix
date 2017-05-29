@@ -76,6 +76,7 @@ rec {
     , commonTools ? (p: [])
     , haskellPackagesOverrides ? self: super: {}
     , fixupStatic ? (x: x)
+    , fixupStaticForBackend ? (x: x)
     , staticSrc ? fixupStatic (filterGitSource ../static)
     , overrideServerConfig ? (args: outputs: x: x)
     }:
@@ -383,7 +384,7 @@ rec {
 
       result =  pkgs.stdenv.mkDerivation (rec {
         name = "${appName}-${appVersion}";
-        staticAssets = mkAssets staticSrc;
+        staticAssets = mkAssets (fixupStaticForBackend staticSrc);
         zoneinfo = ./zoneinfo;
         frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
