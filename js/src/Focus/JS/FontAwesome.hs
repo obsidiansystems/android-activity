@@ -31,3 +31,12 @@ icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
 icon2x :: DomBuilder t m => Text -> m ()
 icon2x i = icon (i <> " fa-2x")
+
+icon3x :: DomBuilder t m => Text -> m ()
+icon3x i = icon (i <> " fa-3x")
+
+icon4x :: DomBuilder t m => Text -> m ()
+icon4x i = icon (i <> " fa-4x")
+
+icon5x :: DomBuilder t m => Text -> m ()
+icon5x i = icon (i <> " fa-5x")
