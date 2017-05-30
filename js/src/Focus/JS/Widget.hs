@@ -21,6 +21,7 @@ import Data.Proxy
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as T
 import Reflex.Dom.Core hiding (Delete)
 
 import Focus.App
@@ -398,3 +399,20 @@ elAttrWithoutPropagation' tagName attrs i = do
         & elementConfig_modifyAttributes .~ never
         & elementConfig_eventSpec . ghcjsEventSpec_filters .~ DMap.singleton Click f
   Reflex.Dom.Core.element tagName cfg i
+
+draftWatermark :: DomBuilder t m => m ()
+draftWatermark = elAttr "div" attrs $ text "DRAFT"
+  where attrs = "style" =: T.intercalate ";"
+          [ "position: absolute"
+          , "left: 0"
+          , "right: 0"
+          , "top: 0"
+          , "bottom: 0"
+          , "transform: rotate(-45deg)"
+          , "align-items: center"
+          , "display: flex"
+          , "justify-content: center"
+          , "pointer-events: none"
+          , "opacity: 0.1"
+          , "font-size: 30vmin"
+          ]
