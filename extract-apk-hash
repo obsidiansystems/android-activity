@@ -1,2 +1,3 @@
 #! /bin/bash
 unzip -p $1 META-INF/CERT.DSA | keytool -printcert | grep SHA256
+unzip -p $1 META-INF/CERT.RSA | keytool -printcert | grep SHA256

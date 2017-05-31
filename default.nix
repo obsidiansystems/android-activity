@@ -6,6 +6,8 @@
 , useZopfli ? true
 , mobileExecutable ? "mobile.hs"
 , androidConfig ? {}
+, googleServicesJson ? null
+, host ? null
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -602,25 +604,25 @@ rec {
                   </dict>
                 </dict>
                 <key>DTSDKName</key>
-	            <string>iphoneos10.2</string>
-	            <key>DTXcode</key>
-	            <string>0821</string>
-	            <key>DTSDKBuild</key>
-	            <string>14C89</string>
-	            <key>BuildMachineOSBuild</key>
-	            <string>16D32</string>
-	            <key>DTPlatformName</key>
-	            <string>iphoneos</string>
-	            <key>DTCompiler</key>
-	            <string>com.apple.compilers.llvm.clang.1_0</string>
-	            <key>MinimumOSVersion</key>
-	            <string>10.2</string>
-	            <key>DTXcodeBuild</key>
-	            <string>8C1002</string>
-	            <key>DTPlatformVersion</key>
-	            <string>10.2</string>
-	            <key>DTPlatformBuild</key>
-	            <string>14C89</string>
+                <string>iphoneos10.2</string>
+                <key>DTXcode</key>
+                <string>0821</string>
+                <key>DTSDKBuild</key>
+                <string>14C89</string>
+                <key>BuildMachineOSBuild</key>
+                <string>16D32</string>
+                <key>DTPlatformName</key>
+                <string>iphoneos</string>
+                <key>DTCompiler</key>
+                <string>com.apple.compilers.llvm.clang.1_0</string>
+                <key>MinimumOSVersion</key>
+                <string>10.2</string>
+                <key>DTXcodeBuild</key>
+                <string>8C1002</string>
+                <key>DTPlatformVersion</key>
+                <string>10.2</string>
+                <key>DTPlatformBuild</key>
+                <string>14C89</string>
               </dict>
               </plist>
             '';
@@ -659,7 +661,7 @@ rec {
                 </body>
               </html>
             '';
-            xcent = builtins.toFile "xcent" ''
+            xcent = builtins.toFile "xcent" (''
               <?xml version="1.0" encoding="UTF-8"?>
               <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
               <plist version="1.0">
@@ -676,9 +678,18 @@ rec {
                 </array>
                 <key>aps-environment</key>
                 <string>${apsEnv}</string>
+            ''
+            + (if host == null then "" else ''
+                <key>com.apple.developer.associated-domains</key>
+                <array>
+                  <string>applinks:${host}</string>
+                  <string>applinks:*.${host}</string>
+                </array>
+            '')
+            + ''
               </dict>
               </plist>
-            '';
+            '');
             deployScript = builtins.toFile "deploy" ''
               #!/usr/bin/env bash
               set -eo pipefail
@@ -940,7 +951,7 @@ rec {
                                              exeName = "mobile";
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
-				             apsEnv = "development";
+                                             apsEnv = "development";
                                            };
           androidSOs = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackages }: rec {
             inherit (nixpkgsAndroid.buildPackages) patchelf;
