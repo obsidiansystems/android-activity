@@ -1,0 +1,70 @@
+#!/bin/bash
+
+#Obsidian Systems - Reflex Focus 
+#Author: Ishaq Sloan
+#Desc: This script takes one arguement, the project name, and
+# initializes the Reflex-Focus submodules along with appropriate 
+# directory layout. This script is to be used within an existing 
+# github repository and assumes that you have already 
+# configured/added your SSH key with both github and gitlab.
+
+git submodule add -b develop git@gitlab.com:obsidian.systems/focus
+git submodule update --init --recursive
+
+#list of directories
+common=common/src
+frontend=frontend/src
+backend=backend/src
+static=static
+config=config
+declare -a dirSetup=($common $frontend $backend $static $config)
+
+#nix file 
+defnix=default.nix
+
+#create list of directories if non-existent
+for ((i = 0; i < ${#dirSetup[@]}; i++)) do
+  if [ ! -d $i ]; then
+    mkdir -p ${dirSetup[$i]}
+  fi
+done 
+
+#create nix file if non-existent
+if [ ! -f $defnix ]; then
+  touch $defnix
+fi
+
+nixExp1='{}: (import ./focus {}).mkDerivation {
+  name = "'
+nixExp2='";
+  version = "0.1";
+  commonDepends = p: with p; [
+    data-default
+    file-embed
+  ];
+  frontendDepends = p: with p; [
+    data-default
+    file-embed
+    focus-http-th
+    focus-js
+    ghcjs-dom
+    reflex
+    reflex-dom
+    these
+  ];
+  backendDepends = p: with p; [
+    data-default
+    resource-pool
+    snap
+    snap-core
+    snap-loader-static
+    snap-server
+  ];'
+
+#concat nix expressions with passed arguement
+nixScript=$nixExp1$1$nixExp2
+
+#write to file if empty
+if [ ! -s $defnix ]; then 
+  echo "$nixScript" > "$defnix"
+fi
