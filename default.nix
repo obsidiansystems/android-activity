@@ -6,6 +6,8 @@
 , useZopfli ? true
 , mobileExecutable ? "mobile.hs"
 , androidConfig ? {}
+, googleServicesJson ? null
+, host ? null
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex = import ./reflex-platform {
@@ -17,6 +19,13 @@ let tryReflex = import ./reflex-platform {
     inherit (tryReflex) nixpkgs cabal2nixResult;
     inherit (tryReflex.nixpkgs) lib;
     defaultAndroidConfig = {
+      packagePrefix = "systems.obsidian";
+      # URI information that becomes AndroidManifest.xml content for additional intent filters.
+      # Expected format: [scheme domain port subdomain_pattern]
+      # E.g., ["https:" "obsidian.systems" ":8000" "*."]
+      deepLinkUris = [];
+      # AndroidManifest.xml content for additional permissions.
+      permissions = "";
       icon = "@drawable/ic_launcher";
       googleServicesJson = ../config/google-services.json;
       includeFirebaseService = true;
@@ -26,14 +35,30 @@ let tryReflex = import ./reflex-platform {
         <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
         </intent-filter>
         </service>
-        '';
+      '';
       dependencies = ''
         compile 'com.android.support:appcompat-v7:25.3.0'
         compile 'com.google.firebase:firebase-messaging:10.2.0'
         compile 'com.firebase:firebase-jobdispatcher:0.5.2'
-        '';
+      '';
     };
     effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
+    mkAndroidIntentFilter = x: # x :: ["scheme:" "host" ":port" "subdomain_pattern"], see 'androidConfig.deepLinkUris'
+      let protocol = lib.strings.removeSuffix ":" (builtins.elemAt x 0);
+          host = builtins.elemAt x 1;
+          port = lib.strings.removePrefix ":" (builtins.elemAt x 2);
+          prefix = builtins.elemAt x 3;
+      in ''
+        <intent-filter android:autoVerify="true">
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.DEFAULT" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="${protocol}"
+                android:host="${prefix + host}"
+                ${ if (lib.strings.stringLength port > 0) then ("android:port=\"" + port + "\"") else "" }
+                android:pathPrefix="/" />
+        </intent-filter>
+      '';
 in with nixpkgs.haskell.lib;
 rec {
   inherit tryReflex nixpkgs cabal2nixResult;
@@ -60,9 +85,6 @@ rec {
   mkDerivation = nixpkgs.lib.makeOverridable (
     { name
     , version
-    , androidPackagePrefix ? "systems.obsidian"
-    , androidIntentFilters ? "" # AndroidManifest.xml content for additional intent filters.
-    , androidPermissions ? "" # AndroidManifest.xml content for additional permissions.
     , backendDepends ? (p: [])
       # Packages in backendTools are made available both at build time and at runtime for the backend
     , backendTools ? (p: [])
@@ -341,7 +363,7 @@ rec {
 
       mkCLibFrontend =
         let crossHs = ./cross-android/hs;
-            packageName = androidPackagePrefix + "." + appName;
+            packageName = effectiveAndroidConfig.packagePrefix + "." + appName;
             packageJNIName = builtins.replaceStrings ["."] ["_"] packageName;
         in frontendSrc: commonSrc: haskellPackages: static: additionalDeps:
              haskellPackages.callPackage ({mkDerivation, focus-core, focus-js, ghcjs-dom}:
@@ -602,25 +624,25 @@ rec {
                   </dict>
                 </dict>
                 <key>DTSDKName</key>
-	            <string>iphoneos10.2</string>
-	            <key>DTXcode</key>
-	            <string>0821</string>
-	            <key>DTSDKBuild</key>
-	            <string>14C89</string>
-	            <key>BuildMachineOSBuild</key>
-	            <string>16D32</string>
-	            <key>DTPlatformName</key>
-	            <string>iphoneos</string>
-	            <key>DTCompiler</key>
-	            <string>com.apple.compilers.llvm.clang.1_0</string>
-	            <key>MinimumOSVersion</key>
-	            <string>10.2</string>
-	            <key>DTXcodeBuild</key>
-	            <string>8C1002</string>
-	            <key>DTPlatformVersion</key>
-	            <string>10.2</string>
-	            <key>DTPlatformBuild</key>
-	            <string>14C89</string>
+                <string>iphoneos10.2</string>
+                <key>DTXcode</key>
+                <string>0821</string>
+                <key>DTSDKBuild</key>
+                <string>14C89</string>
+                <key>BuildMachineOSBuild</key>
+                <string>16D32</string>
+                <key>DTPlatformName</key>
+                <string>iphoneos</string>
+                <key>DTCompiler</key>
+                <string>com.apple.compilers.llvm.clang.1_0</string>
+                <key>MinimumOSVersion</key>
+                <string>10.2</string>
+                <key>DTXcodeBuild</key>
+                <string>8C1002</string>
+                <key>DTPlatformVersion</key>
+                <string>10.2</string>
+                <key>DTPlatformBuild</key>
+                <string>14C89</string>
               </dict>
               </plist>
             '';
@@ -659,7 +681,7 @@ rec {
                 </body>
               </html>
             '';
-            xcent = builtins.toFile "xcent" ''
+            xcent = builtins.toFile "xcent" (''
               <?xml version="1.0" encoding="UTF-8"?>
               <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
               <plist version="1.0">
@@ -676,9 +698,18 @@ rec {
                 </array>
                 <key>aps-environment</key>
                 <string>${apsEnv}</string>
+            ''
+            + (if host == null then "" else ''
+                <key>com.apple.developer.associated-domains</key>
+                <array>
+                  <string>applinks:${host}</string>
+                  <string>applinks:*.${host}</string>
+                </array>
+            '')
+            + ''
               </dict>
               </plist>
-            '';
+            '');
             deployScript = builtins.toFile "deploy" ''
               #!/usr/bin/env bash
               set -eo pipefail
@@ -940,7 +971,7 @@ rec {
                                              exeName = "mobile";
                                              exePath = (frontendIosAArch64+"/bin");
                                              staticSrc = staticSrc;
-				             apsEnv = "development";
+                                             apsEnv = "development";
                                            };
           androidSOs = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackages }: rec {
             inherit (nixpkgsAndroid.buildPackages) patchelf;
@@ -953,7 +984,7 @@ rec {
               inherit (tryReflex) nixpkgs;
               name = appName;
               appSOs = androidSOs;
-              packagePrefix = androidPackagePrefix;
+              packagePrefix = effectiveAndroidConfig.packagePrefix;
               googleServicesJson = effectiveAndroidConfig.googleServicesJson;
               additionalDependencies = effectiveAndroidConfig.dependencies;
               iconResource = effectiveAndroidConfig.icon;
@@ -973,8 +1004,8 @@ rec {
               '';
               versionName = verName;
               versionCode = verCode;
-              intentFilters = androidIntentFilters;
-              permissions = androidPermissions;
+              intentFilters = lib.strings.concatStrings (map mkAndroidIntentFilter effectiveAndroidConfig.deepLinkUris);
+              permissions = effectiveAndroidConfig.permissions;
             };
           androidApp = { key ? { store = ./keystore; alias = "focus"; password = "password"; aliasPassword = "password"; },  version ? { code = "1"; name = "1.0"; } }: tryReflex.nixpkgs.androidenv.buildGradleApp {
             acceptAndroidSdkLicenses = true;
