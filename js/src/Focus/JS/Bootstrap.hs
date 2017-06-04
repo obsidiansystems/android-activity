@@ -97,23 +97,50 @@ dayInput d0 = do
   let (year0, month0, _ {- dayOfMonth0 -} ) = toGregorian d0
   rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
       (navigate', dayClicked') <- do
-        (prevButton, nextButton) <- divClass "text-center" $ do
-          p <- linkClass "<<" "btn btn-sm pull-left"
-          elAttr "span" ("style" =: "position:relative; top: 10px") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
-          n <- linkClass ">>" "btn btn-sm pull-right"
-          return (p, n)
-        mc :: Event t (Event t Int) <- dyn $ ffor visibleMonth $ \(y, m) -> do
-          let mDayOfMonth = ffor day $ \d ->
-                let (y', m', dom') = toGregorian d
-                in if (y', intToMonth m') == (y, m)
-                   then Just dom'
-                   else Nothing
-          monthCal y m mDayOfMonth
-        dayClicked <- liftM switch $ hold never mc
-        let navigate = leftmost [ addMonths (-1) <$ _link_clicked prevButton
-                                , addMonths 1 <$ _link_clicked nextButton
-                                ]
-        return (navigate, dayClicked)
+        let getSel (y, m) d =
+              let (y', m', dom') = toGregorian d
+              in if (y', intToMonth m') == (y, m)
+                 then Just dom'
+                 else Nothing
+            sel = zipDynWith getSel visibleMonth day
+        elClass "table" "table-condensed" $ do
+          (prevButton, nextButton) <- el "thead" $ do
+            pn' <- el "tr" $ elAttr "td" ("colspan" =: "7") $ elAttr "div" ("style" =: "display:flex") $ do
+              p <- linkClass "<<" "btn btn-sm pull-left"
+              elAttr "span" ("style" =: "flex:1 1 auto;align-text:center") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
+              n <- linkClass ">>" "btn btn-sm pull-right"
+              return (p, n)
+            el "tr" $ do
+              forM_ [Sunday .. Saturday] $ \d -> do
+                elClass "th" "text-center" $ text $ T.pack $ take 1 $ show d
+            return pn'
+          dayClicked <- el "tbody" $ fmap switch . hold never <=< dyn $ ffor visibleMonth $ \(y, m) -> do
+            let som = fromGregorian y (monthToInt m) 1
+                wd = dayToWeekDay som
+                monthLength = dayToMonthLength som
+                prefix = map (\_ -> Nothing) $ fst $ break ((==) wd) [Sunday .. Saturday]
+                maxCalSquares = 7 * 6 -- 31 days can cross at most 6 weeks
+                suffix = replicate (maxCalSquares - (length prefix + monthLength)) Nothing
+                datesAndWeekDays = mconcat
+                  [ prefix
+                  , map Just [dayToDate som..monthLength]
+                  , suffix
+                  ]
+                toWeeks x = case x of
+                               [] -> []
+                               xs -> take 7 xs : toWeeks (drop 7 xs)
+                weeks :: [[Maybe Int]] = toWeeks datesAndWeekDays
+            fmap (fmapMaybe id . leftmost . concat) $ forM weeks $ \w -> do
+              el "tr" $ forM w $ \n -> do
+                let attrs = maybe mempty (const $ "style" =: "cursor: pointer;" <> "class" =: "mouseover-active") n
+                    active = ffor sel $ \s -> "class" =: ("btn btn-xs" <> if s == n && isJust s then " btn-primary" else "")
+                    nbsp = "\xA0" -- Unicode non-breaking space
+                (e, _) <- elAttr' "td" attrs $ elDynAttr "a" active $ text $ T.pack $ maybe nbsp show n -- We need the nbsp here so that empty cells will show up at the same size as filled cells
+                return $ fmap (const n) $ domEvent Click e
+          let navigate = leftmost [ addMonths (-1) <$ _link_clicked prevButton
+                                  , addMonths 1 <$ _link_clicked nextButton
+                                  ]
+          return (navigate, dayClicked)
       day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
   return day
 
