@@ -16,6 +16,7 @@ focus-init myProject
 Create backend/src/Main.hs and put something like the following in it:
 
 -------------------------------------------------------------------------------
+```
 {-# LANGUAGE OverloadedStrings #-}
 import Data.Default
 import Focus.Backend
@@ -29,15 +30,18 @@ rootHandler :: Snap ()
 rootHandler =
   route [ ("", serveApp "" $ def)
         ]
+```
 -------------------------------------------------------------------------------
 
 Create frontend/src/Main.hs and put something like the following in it:
 
 -------------------------------------------------------------------------------
+```
 {-# LANGUAGE OverloadedStrings #-}
 import Reflex.Dom
 
 main = mainWidget $ text "Hello, new project!"
+```
 -------------------------------------------------------------------------------
 
 Build the frontend by running ./focus/build-frontend
