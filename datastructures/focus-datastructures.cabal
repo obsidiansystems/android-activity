@@ -17,6 +17,7 @@ library
                , containers
                , data-default
                , focus-aeson-orphans
+               , reflex-aeson-orphans
                , lens
                , mtl
                , reflex
@@ -24,7 +25,6 @@ library
 
   exposed-modules:
       Focus.AppendMap
-    , Data.AppendMap
     , Data.Indexed
     , Data.Indexed.Projections
     , Data.SemiMap

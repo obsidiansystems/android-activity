@@ -51,6 +51,7 @@ import Focus.Request hiding (Some)
 import Focus.Sign
 import Focus.WebSocket
 import qualified Reflex as R
+import Reflex.Aeson.Orphans ()
 import Reflex.Dom.Core hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
 #ifndef ghcjs_HOST_OS

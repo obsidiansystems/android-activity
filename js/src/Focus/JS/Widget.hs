@@ -7,7 +7,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-module Focus.JS.Widget where
+module Focus.JS.Widget
+  ( module Focus.JS.Widget
+  , improvingMaybe
+  ) where
 
 import Control.Lens hiding (ix, element)
 import Control.Monad
@@ -22,6 +25,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import Reflex.Dynamic (improvingMaybe)
 import Reflex.Dom.Core hiding (Delete)
 
 import Focus.App
@@ -360,14 +364,6 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
                                                           , const 0 <$ updated (_inputElement_value t)
                                                           ]
       return (selectionE', bs)
-
--- | Dynamic Maybe that can only update from Nothing to Just or Just to Just (i.e., cannot revert to Nothing)
-improvingMaybe :: (MonadHold t m, PostBuild t m) => Dynamic t (Maybe a) -> m (Dynamic t (Maybe a))
-improvingMaybe a = do
-  pb <- getPostBuild
-  holdDyn Nothing $ fmapMaybe (fmap Just) $ leftmost [ updated a
-                                                     , tagPromptlyDyn a pb
-                                                     ]
 
 withFocusSelect :: (MonadWidget t m) => Event t () -> m (TextInput t) -> m (TextInput t)
 withFocusSelect focusSelectE mkTextInput  = do

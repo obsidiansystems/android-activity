@@ -14,7 +14,7 @@ import qualified Data.Map as Map
 import Data.Monoid hiding (First (..))
 import Data.Semigroup
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Reflex.Query.Class (SelectedCount(..))
+import Reflex.Aeson.Orphans ()
 
 instance ToJSON ByteString where
     toJSON = toJSON . decodeUtf8 . B64.encode
@@ -35,9 +35,6 @@ deriving instance ToJSON a => ToJSON (First a)
 
 deriving instance FromJSON Any
 deriving instance ToJSON Any
-
-deriving instance ToJSON SelectedCount
-deriving instance FromJSON SelectedCount
 
 instance (ToJSON (f a)) => ToJSON (Alt f a)
 instance (FromJSON (f a)) => FromJSON (Alt f a)

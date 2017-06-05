@@ -46,6 +46,7 @@ library
     raw-strings-qq,
     ref-tf,
     reflex,
+    reflex-aeson-orphans,
     reflex-dom-core,
     safe,
     safe,

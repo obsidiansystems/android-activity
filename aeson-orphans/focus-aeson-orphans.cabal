@@ -18,6 +18,7 @@ library
                , base64-bytestring
                , containers
                , reflex
+               , reflex-aeson-orphans
                , text
 
   exposed-modules: Focus.Aeson.Orphans
