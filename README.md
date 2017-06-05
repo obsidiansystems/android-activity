@@ -3,7 +3,8 @@ accounts, please proceed with the instructions that follow.
 
 In your new project's git repository:
 
-Download the focus-init script from ... 
+Download the focus-init script from
+https://gitlab.com/obsidian.systems/focus/raw/develop/
 
 The focus-init script will add and update the focus submodule as well as
 generate the necessary boilerplate files and folders. 
