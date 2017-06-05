@@ -94,8 +94,10 @@ numberInput initial = do
 
 dayInput :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Day -> m (Dynamic t Day)
 dayInput d0 = do
-  let (year0, month0, _ {- dayOfMonth0 -} ) = toGregorian d0
-  rec visibleMonth <- foldDyn ($) (year0, intToMonth month0) navigate'
+  let (year0, intMonth0, _ {- dayOfMonth0 -} ) = toGregorian d0
+      month0 = intToMonth intMonth0
+      nbsp = "\xA0" -- Unicode non-breaking space
+  rec visibleMonth <- foldDyn ($) (year0, month0) navigate'
       (navigate', dayClicked') <- do
         let getSel (y, m) d =
               let (y', m', dom') = toGregorian d
@@ -103,17 +105,38 @@ dayInput d0 = do
                  then Just dom'
                  else Nothing
             sel = zipDynWith getSel visibleMonth day
-        elClass "table" "table-condensed" $ do
-          (prevButton, nextButton) <- el "thead" $ do
-            pn' <- el "tr" $ elAttr "td" ("colspan" =: "7") $ elAttr "div" ("style" =: "display:flex") $ do
-              p <- linkClass "<<" "btn btn-sm pull-left"
-              elAttr "span" ("style" =: "flex:1 1 auto;align-text:center") $ dynText $ fmap (\(y, m) -> T.pack (show m) <> " " <> T.pack (show y)) visibleMonth
-              n <- linkClass ">>" "btn btn-sm pull-right"
-              return (p, n)
+        elClass "table" "table-condensed calendar" $ do
+          (prevButton, nextButton, setYear, setMonthOnly) <- el "thead" $ do
+            (prev, next, setYear, setMonthOnly) <- el "tr" $ do
+              prev <- el "td" $ fmap fst $ elAttr' "a" ("class" =: "btn btn-sm pull-left" <> "style" =: "cursor:pointer") $ text "<<"
+              (setYear, setMonthOnly) <- elAttr "td" ("colspan" =: "5") $ elAttr "div" ("style" =: "display:flex") $ do
+                visibleMonthOnly <- holdUniqDyn $ snd <$> visibleMonth
+                let monthCfg = def
+                      -- The "text-align-last" is for chrome
+                      & initialAttributes .~ ("style" =: "flex:1 1 0;text-align:right;text-align-last:right;-moz-appearance:none;-webkit-appearance:none;appearance:none;padding:0;border:0;margin:0;background:transparent;height:auto")
+                      & selectElementConfig_initialValue .~ T.pack (show month0)
+                      & selectElementConfig_setValue .~ fmap (T.pack . show) (updated visibleMonthOnly)
+                (monthSelect, _) <- selectElement monthCfg $ forM_ [January .. December] $ \y -> do
+                  elAttr "option" ("value" =: T.pack (show y)) $ do
+                    text $ T.pack $ show y
+                let setMonthOnly = fmapMaybe (readMay . T.unpack) $ _selectElement_change monthSelect
+                text nbsp
+                visibleYear <- holdUniqDyn $ fst <$> visibleMonth
+                let yearCfg = def
+                      & initialAttributes .~ ("style" =: "flex:1 1 0;text-align:left;-moz-appearance:none;-webkit-appearance:none;appearance:none;padding:0;border:0;margin:0;background:transparent;height:auto")
+                      & selectElementConfig_initialValue .~ T.pack (show year0)
+                      & selectElementConfig_setValue .~ fmap (T.pack . show) (updated visibleYear)
+                (yearSelect, _) <- selectElement yearCfg $ forM_ [1900 :: Int .. 2100] $ \y -> do
+                  elAttr "option" ("value" =: T.pack (show y)) $ do
+                    text $ T.pack $ show y
+                let setYear = fmapMaybe (readMay . T.unpack) $ _selectElement_change yearSelect
+                return (setYear, setMonthOnly)
+              next <- el "td" $ fmap fst $ elAttr' "a" ("class" =: "btn btn-sm pull-left" <> "style" =: "cursor:pointer") $ text ">>"
+              return (prev, next, setYear, setMonthOnly)
             el "tr" $ do
               forM_ [Sunday .. Saturday] $ \d -> do
                 elClass "th" "text-center" $ text $ T.pack $ take 1 $ show d
-            return pn'
+            return (prev, next, setYear, setMonthOnly)
           dayClicked <- el "tbody" $ fmap switch . hold never <=< dyn $ ffor visibleMonth $ \(y, m) -> do
             let som = fromGregorian y (monthToInt m) 1
                 wd = dayToWeekDay som
@@ -132,13 +155,14 @@ dayInput d0 = do
                 weeks :: [[Maybe Int]] = toWeeks datesAndWeekDays
             fmap (fmapMaybe id . leftmost . concat) $ forM weeks $ \w -> do
               el "tr" $ forM w $ \n -> do
-                let attrs = maybe mempty (const $ "style" =: "cursor: pointer;" <> "class" =: "mouseover-active") n
-                    active = ffor sel $ \s -> "class" =: ("btn btn-xs" <> if s == n && isJust s then " btn-primary" else "")
-                    nbsp = "\xA0" -- Unicode non-breaking space
-                (e, _) <- elAttr' "td" attrs $ elDynAttr "a" active $ text $ T.pack $ maybe nbsp show n -- We need the nbsp here so that empty cells will show up at the same size as filled cells
+                let attrs = ffor sel $ \s -> maybe mempty (const $ "style" =: "cursor: pointer;" <> "class" =: ("mouseover-active" <> if s == n && isJust s then " selected" else "")) n
+                    active = "class" =: "btn btn-xs"
+                (e, _) <- elDynAttr' "td" attrs $ elAttr "a" active $ text $ maybe nbsp (T.pack . show) n -- We need the nbsp here so that empty cells will show up at the same size as filled cells
                 return $ fmap (const n) $ domEvent Click e
-          let navigate = leftmost [ addMonths (-1) <$ _link_clicked prevButton
-                                  , addMonths 1 <$ _link_clicked nextButton
+          let navigate = leftmost [ addMonths (-1) <$ domEvent Click prevButton
+                                  , addMonths 1 <$ domEvent Click nextButton
+                                  , (\y (_, m) -> (y, m)) <$> setYear
+                                  , (\m (y, _) -> (y, m)) <$> setMonthOnly
                                   ]
           return (navigate, dayClicked)
       day <- holdDyn d0 $ attachPromptlyDynWith (\(y, m) d -> fromGregorian y (monthToInt m) d) visibleMonth dayClicked'
