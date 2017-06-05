@@ -1,42 +1,17 @@
+Assuming you've already added SSH keys to both your github and gitlab
+accounts, please proceed with the instructions that follow. 
+
 In your new project's git repository:
 
+Download the focus-init script from ... 
+
+The focus-init script will add and update the focus submodule as well as
+generate the necessary boilerplate files and folders. 
+
 ```bash
-git submodule add -b develop git@gitlab.com:obsidian.systems/focus
-git submodule update --init --recursive
-mkdir -p common/src frontend/src backend/src static config
+chmod 755 focus-init
+focus-init myProject
 ```
-
-Create a default.nix with something like the following contents:
-
--------------------------------------------------------------------------------
-{}: (import ./focus {}).mkDerivation {
-  name = "theProjectName";
-  version = "0.1";
-  commonDepends = p: with p; [
-    data-default
-    file-embed
-  ];
-  frontendDepends = p: with p; [
-    data-default
-    file-embed
-    focus-http-th
-    focus-js
-    ghcjs-dom
-    reflex
-    reflex-dom
-    these
-  ];
-  backendDepends = p: with p; [
-    data-default
-    resource-pool
-    snap
-    snap-core
-    snap-loader-static
-    snap-server
-  ];
-}
--------------------------------------------------------------------------------
-
 Create backend/src/Main.hs and put something like the following in it:
 
 -------------------------------------------------------------------------------
