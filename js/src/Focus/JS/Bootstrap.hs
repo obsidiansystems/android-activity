@@ -105,7 +105,15 @@ dayInput d0 = do
                  then Just dom'
                  else Nothing
             sel = zipDynWith getSel visibleMonth day
-        elClass "table" "table-condensed calendar" $ do
+        let noselectStyle = mconcat
+              [ "-webkit-touch-callout: none;"
+              , "-webkit-user-select: none;"
+              , "-khtml-user-select: none;"
+              , "-moz-user-select: none;"
+              , "-ms-user-select: none;"
+              , "user-select: none;"
+              ]
+        elAttr "table" ("class" =: "table-condensed calendar" <> "style" =: noselectStyle) $ do
           (prevButton, nextButton, setYear, setMonthOnly) <- el "thead" $ do
             (prev, next, setYear, setMonthOnly) <- el "tr" $ do
               prev <- el "td" $ fmap fst $ elAttr' "a" ("class" =: "btn btn-sm pull-left" <> "style" =: "cursor:pointer") $ text "<<"
