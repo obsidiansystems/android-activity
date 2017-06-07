@@ -8,6 +8,7 @@
 , androidConfig ? {}
 , googleServicesJson ? null
 , host ? null
+, withHoogle ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex' = import ./reflex-platform {
@@ -67,7 +68,13 @@ let tryReflex' = import ./reflex-platform {
 in lib.makeExtensible (focusSelf:
 let inherit (focusSelf) cabal2nixResult filterGitSource mkDerivation nixpkgs pkgs stdenv tryReflex;
 in with nixpkgs.haskell.lib; {
-  tryReflex = tryReflex';
+  tryReflex = tryReflex' // (if withHoogle then {
+    ghc = tryReflex'.ghc.override {
+      overrides = _: su: {
+        ghcWithPackages = su.ghcWithHoogle;
+      };
+    };
+  } else {});
   inherit (focusSelf.tryReflex) cabal2nixResult nixpkgs;
   inherit (focusSelf.nixpkgs) stdenv pkgs;
 
@@ -156,25 +163,26 @@ in with nixpkgs.haskell.lib; {
         };
       };
 
+      haddockWhenWithHoogle = drv: if withHoogle then drv else dontHaddock drv;
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-        // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
-             focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
-             focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
-             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
-             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
-             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
+        // { focus-aeson-orphans = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
+             focus-core = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
+             focus-datastructures = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
+             focus-emojione = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
+             focus-emojione-data = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
+             focus-http-th = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
              focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
-               doHaddock = false;
+               doHaddock = withHoogle;
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
              });
-             focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
-             focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
-             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
-             email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
-             unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
-             hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
-             touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
-             focus-phonepush-worker = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./phonepush-worker)) {});
+             focus-serve = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
+             focus-th = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
+             focus-webdriver = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
+             email-parse = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
+             unique-id = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
+             hellosign = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
+             touch = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
+             focus-phonepush-worker = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./phonepush-worker)) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
@@ -197,10 +205,10 @@ in with nixpkgs.haskell.lib; {
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
-          focus-backend = dontHaddock (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
-          focus-client = dontHaddock (self.callPackage ./client {});
-          focus-heremaps = dontHaddock (self.callPackage ./heremaps {});
-          focus-test = dontHaddock (self.callPackage ./test {});
+          focus-backend = haddockWhenWithHoogle (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
+          focus-client = haddockWhenWithHoogle (self.callPackage ./client {});
+          focus-heremaps = haddockWhenWithHoogle (self.callPackage ./heremaps {});
+          focus-test = haddockWhenWithHoogle (self.callPackage ./test {});
           websockets = overrideCabal super.websockets (drv: {
             src = ./websockets;
             buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
@@ -210,7 +218,7 @@ in with nixpkgs.haskell.lib; {
             src = ./websockets-snap;
             buildDepends = with self; [ snap-core snap-server io-streams ];
           });
-          snap-stream = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
+          snap-stream = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
         };
       }).override { overrides = haskellPackagesOverrides; };
 
@@ -313,7 +321,7 @@ in with nixpkgs.haskell.lib; {
               inherit haskellPackages;
               cabalFile = mkCabalFile haskellPackages pname "frontend" buildDepends src "-T";
             };
-            doHaddock = false;
+            doHaddock = withHoogle;
           })) {};
 
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
@@ -475,7 +483,7 @@ in with nixpkgs.haskell.lib; {
               haskellPackages = backendHaskellPackages;
               cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src "-N10 -I0";
             };
-            doHaddock = false;
+            doHaddock = withHoogle;
           })) {};
         passthru = rec {
           inherit tryReflex;
@@ -502,7 +510,7 @@ in with nixpkgs.haskell.lib; {
                 haskellPackages = backendHaskellPackages;
                 cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src "-N10 -I0";
               };
-              doHaddock = false;
+              doHaddock = withHoogle;
           })) {};
           ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
             { seleniumHost ? "localhost", seleniumPort ? "4444"}:
@@ -541,7 +549,7 @@ in with nixpkgs.haskell.lib; {
                   haskellPackages = backendHaskellPackages;
                   cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src "-N10 -I0";
                 };
-                doHaddock = false;
+                doHaddock = withHoogle;
           })) {};
           frontend = frontend_.unminified;
           frontendMinified = frontend_;
