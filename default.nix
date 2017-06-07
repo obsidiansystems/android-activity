@@ -35,6 +35,11 @@ let tryReflex = import ./reflex-platform {
         <action android:name="com.google.firebase.INSTANCE_ID_EVENT"/>
         </intent-filter>
         </service>
+        <service android:name=".LocalFirebaseMessagingService">
+          <intent-filter>
+            <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+          </intent-filter>
+        </service>
       '';
       dependencies = ''
         compile 'com.android.support:appcompat-v7:25.3.0'
