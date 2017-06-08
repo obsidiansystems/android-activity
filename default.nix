@@ -10,14 +10,13 @@
 , host ? null
 }:
 assert runWithHeapProfiling -> enableProfiling;
-let tryReflex = import ./reflex-platform {
+let tryReflex' = import ./reflex-platform {
       inherit enableExposeAllUnfoldings enableTraceReflexEvents;
       enableLibraryProfiling = enableProfiling;
       useReflexOptimizer = false;
       iosSdkVersion = iosSdkVersion;
     };
-    inherit (tryReflex) nixpkgs cabal2nixResult;
-    inherit (tryReflex.nixpkgs) lib;
+    inherit (tryReflex'.nixpkgs) lib;
     defaultAndroidConfig = {
       packagePrefix = "systems.obsidian";
       # URI information that becomes AndroidManifest.xml content for additional intent filters.
@@ -64,11 +63,13 @@ let tryReflex = import ./reflex-platform {
                 android:pathPrefix="/" />
         </intent-filter>
       '';
-in with nixpkgs.haskell.lib;
-rec {
-  inherit tryReflex nixpkgs cabal2nixResult;
-  pkgs = tryReflex.nixpkgs;
-  inherit (nixpkgs) stdenv;
+
+in lib.makeExtensible (focusSelf:
+let inherit (focusSelf) cabal2nixResult filterGitSource mkDerivation nixpkgs pkgs stdenv tryReflex;
+in with nixpkgs.haskell.lib; {
+  tryReflex = tryReflex';
+  inherit (focusSelf.tryReflex) cabal2nixResult nixpkgs;
+  inherit (focusSelf.nixpkgs) stdenv pkgs;
 
   backendHaskellPackagesBase = tryReflex.ghc;
   frontendHaskellPackagesBase = tryReflex.ghcjs;
@@ -119,9 +120,9 @@ rec {
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
-      frontendHaskellPackages = extendFrontendHaskellPackages frontendHaskellPackagesBase;
+      frontendHaskellPackages = extendFrontendHaskellPackages focusSelf.frontendHaskellPackagesBase;
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
-      backendHaskellPackages = extendBackendHaskellPackages backendHaskellPackagesBase;
+      backendHaskellPackages = extendBackendHaskellPackages focusSelf.backendHaskellPackagesBase;
       androidPackages = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackagesBase }: {
         inherit nixpkgsAndroid;
         androidHaskellPackages = androidHaskellPackagesBase.override {
@@ -138,13 +139,13 @@ rec {
             });
           };
         };
-      }) androidPackagesBase;
-      iosSimulatorHaskellPackages = iosSimulatorHaskellPackagesBase.override {
+      }) focusSelf.androidPackagesBase;
+      iosSimulatorHaskellPackages = focusSelf.iosSimulatorHaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
         };
       };
-      iosAArch64HaskellPackages = iosArm64HaskellPackagesBase.override {
+      iosAArch64HaskellPackages = focusSelf.iosArm64HaskellPackagesBase.override {
         overrides = self: super: let new = sharedOverrides self super; in new // {
           focus-js = addBuildDepend new.focus-js self.jsaddle-wkwebview;
           jsaddle = overrideCabal super.jsaddle (drv: {
@@ -196,7 +197,7 @@ rec {
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
-          focus-backend = dontHaddock (self.callPackage ./backend { inherit myPostgres; });
+          focus-backend = dontHaddock (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
           focus-client = dontHaddock (self.callPackage ./client {});
           focus-heremaps = dontHaddock (self.callPackage ./heremaps {});
           focus-test = dontHaddock (self.callPackage ./test {});
@@ -1110,7 +1111,7 @@ rec {
                     emacs25-nox
                     git
                     rxvt_unicode.terminfo
-                    myPostgres
+                    focusSelf.myPostgres
                   ];
 
                   networking = {
@@ -1255,4 +1256,4 @@ rec {
         };
       });
     in result);
-}
+})
