@@ -10,6 +10,7 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import Data.Pool
 import Database.Groundhog.Postgresql
@@ -62,9 +63,12 @@ apnsWorker cfg delay db = return . killThread <=<
               selectMap ApplePushMessageConstructor (CondEmpty `limitTo` 1)
             case qm of
               [(k, m)] -> do
-                liftIO $ sendApplePushMessage conn m
-                deleteBy $ fromId k
-                clear
+                if LBS.length (_applePushMessage_payload m) > maxPayloadLength
+                  then deleteBy (fromId k) >> clear
+                  else do
+                    liftIO $ sendApplePushMessage conn m
+                    deleteBy $ fromId k
+                    clear
               _ -> return ()
       runDb db clear >> threadDelay delay
     return ()
