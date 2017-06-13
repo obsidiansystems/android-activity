@@ -170,11 +170,13 @@ in with nixpkgs.haskell.lib; {
              focus-datastructures = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
              focus-emojione = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
              focus-emojione-data = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
+             focus-gitlab = haddockWhenWithHoogle (self.callCabal2nix "focus-gitlab" (filterGitSource ./gitlab) {});
              focus-http-th = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
              focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
                doHaddock = withHoogle;
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
              });
+             focus-pivotal = haddockWhenWithHoogle (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
              focus-serve = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
              focus-th = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
              focus-webdriver = haddockWhenWithHoogle (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});

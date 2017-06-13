@@ -1,0 +1,22 @@
+Name: focus-gitlab
+Version: 0.1
+Synopsis: Gitlab integration
+License: AllRightsReserved
+Author: Obsidian Systems LLC
+Maintainer: maintainer@obsidian.systems
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  build-depends: base
+               , focus-core
+               , aeson
+               , text
+
+  exposed-modules:
+    Focus.Gitlab.Schema
+
+  other-extensions: TemplateHaskell
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
