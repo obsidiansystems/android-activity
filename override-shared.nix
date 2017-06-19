@@ -418,4 +418,12 @@ self: super: {
         sha256 = "0mahkyqrwa66y268sicp2ljn47h9ns5xn0iz7pn2k98grb3mr3r8";
       };
     })) self.casing) self.data-default;
+    MailchimpSimple = overrideCabal super.MailchimpSimple (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "MailchimpSimple";
+        rev = "24d73548a569a22265cb7ee20c621733d9698afa";
+        sha256 = "1g2lz7b84hwnjgiv3sabzhcj069x06cly018cc0s1w9r2m5r2bf1";
+      };
+    });
   }
