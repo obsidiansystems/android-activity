@@ -19,13 +19,14 @@ import System.Directory ( doesDirectoryExist
                         , createDirectoryIfMissing
                         , doesFileExist)
 import Data.Text (Text)
-import Data.FileEmbed (embedStringFile)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 
 main :: IO ()
 main = do
   --TODO consider passing an arg instead of using a prompt
   putStr "Project name: "
-  projectName <- getLine
+  projectName <- Text.getLine
   doesDirectoryExist "focus" >>= \case
     True -> putStrLn "Skipping focus (already exists)"
     False -> do
@@ -43,32 +44,59 @@ main = do
         , "--recursive"
         ]
   mkdirs ["common/src", "frontend/src", "backend/src", "static", "config"]
-  let defNix    = "default.nix"
+  let defNix    = "default.nix" :: FilePath
   let frontend  = "frontend/src/Main.hs" :: FilePath
   let backend   = "backend/src/Main.hs" :: FilePath
-  -- Warning: Data.FileEmbed (embedFile functions) may not work with all environments.
-  createFileIfMissing defNix $(embedStringFile "ob-init-default.nix")
+  createFileIfMissing defNix $ nixExpr projectName
   createFileIfMissing frontend frontSrc
   createFileIfMissing backend backSrc
 
-{-
+
 --TODO: Consider using fileEmbed to generate default.nix in initializing folder
-nixExpr :: String -- ^ The name of the project; this must be a valid Cabal package name
-        -> String
-nixExpr projectName = USE UNLINES TO MERGE PROJECT NAME WITH default.nix code
--}
-frontSrc :: String
+nixExpr :: Text -- ^ The name of the project; this must be a valid Cabal package name
+        -> Text
+nixExpr projectName = Text.unlines [
+  "{}: (import ./focus {}).mkDerivation {"
+  , "name ="
+  , (Text.concat[" \"",projectName, "\";"])
+  , "version = \"0.1\";"
+  , "commonDepends = p: with p; ["
+  , "data-default"
+  ,  "file-embed"
+  , "];"
+  , "frontendDepends = p: with p; ["
+  , "data-default"
+  , "file-embed"
+  , "focus-http-th"
+  , "focus-js"
+  , "ghcjs-dom"
+  , "reflex"
+  , "reflex-dom"
+  , "these"
+  , "];"
+  , "backendDepends = p: with p; ["
+  , "data-default"
+  , "resource-pool"
+  , "snap"
+  , "snap-core"
+  , "snap-loader-static"
+  , "snap-server"
+  , "];"
+  , "}"] 
+ 
+
+frontSrc :: Text
 frontSrc = "{-# LANGUAGE OverloadedStrings #-}\n\nimport Reflex.Dom\n\nmain = mainWidget $ text \"Hello, new project!\"" 
 
-backSrc :: String
+backSrc :: Text
 backSrc = "{-# LANGUAGE OverloadedStrings #-}\n\nimport Data.Default\nimport Focus.Backend\nimport Focus.Backend.Snap\nimport Snap\n\nmain :: IO ()\nmain = withFocus . quickHttpServe $ rootHandler\n\nrootHandler :: Snap ()\nrootHandler =\n  route [ (\"\", serveApp \"\" $ def)\n  ]"
  
 
 mkdirs :: [FilePath] -> IO ()
 mkdirs = mapM_ $ createDirectoryIfMissing True
 
-createFileIfMissing :: FilePath -> String -> IO ()
+createFileIfMissing :: FilePath -> Text -> IO ()
 createFileIfMissing aFile content = 
   doesFileExist aFile >>= \case
     True -> putStrLn "Skipping frontend/src/Main.hs (already exist)"
-    False -> writeFile aFile content
+    False -> Text.writeFile aFile content
