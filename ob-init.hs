@@ -98,5 +98,5 @@ mkdirs = mapM_ $ createDirectoryIfMissing True
 createFileIfMissing :: FilePath -> Text -> IO ()
 createFileIfMissing aFile content = 
   doesFileExist aFile >>= \case
-    True -> putStrLn "Skipping frontend/src/Main.hs (already exist)"
+    True -> putStrLn ("Skipping " ++ show aFile ++ "(already exist)")
     False -> Text.writeFile aFile content
