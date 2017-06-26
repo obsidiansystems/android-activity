@@ -55,41 +55,65 @@ main = do
 --TODO: Consider using fileEmbed to generate default.nix in initializing folder
 nixExpr :: Text -- ^ The name of the project; this must be a valid Cabal package name
         -> Text
-nixExpr projectName = Text.unlines [
+nixExpr projectName = Text.unlines 
+  [
   "{}: (import ./focus {}).mkDerivation {"
-  , "name ="
+  , "  name ="
   , (Text.concat[" \"",projectName, "\";"])
-  , "version = \"0.1\";"
-  , "commonDepends = p: with p; ["
-  , "data-default"
-  ,  "file-embed"
-  , "];"
-  , "frontendDepends = p: with p; ["
-  , "data-default"
-  , "file-embed"
-  , "focus-http-th"
-  , "focus-js"
-  , "ghcjs-dom"
-  , "reflex"
-  , "reflex-dom"
-  , "these"
-  , "];"
-  , "backendDepends = p: with p; ["
-  , "data-default"
-  , "resource-pool"
-  , "snap"
-  , "snap-core"
-  , "snap-loader-static"
-  , "snap-server"
-  , "];"
-  , "}"] 
+  , "  version = \"0.1\";"
+  , "  commonDepends = p: with p; ["
+  , "     data-default"
+  , "     file-embed"
+  , "  ];"
+  , "  frontendDepends = p: with p; ["
+  , "     data-default"
+  , "     file-embed"
+  , "     focus-http-th"
+  , "     focus-js"
+  , "     ghcjs-dom"
+  , "     reflex"
+  , "     reflex-dom"
+  , "     these"
+  , "  ];"
+  , "  backendDepends = p: with p; ["
+  , "     data-default"
+  , "     resource-pool"
+  , "     snap"
+  , "     snap-core"
+  , "     snap-loader-static"
+  , "     snap-server"
+  , "  ];"
+  , "}"
+  ] 
  
 
 frontSrc :: Text
-frontSrc = "{-# LANGUAGE OverloadedStrings #-}\n\nimport Reflex.Dom\n\nmain = mainWidget $ text \"Hello, new project!\"" 
+frontSrc = Text.unlines 
+  [
+  "{-# LANGUAGE OverloadedStrings #-}"
+  , ""
+  , "import Reflex.Dom"
+  , ""
+  , "main = mainWidget $ text \"Hello, new project!\""
+  ] 
 
 backSrc :: Text
-backSrc = "{-# LANGUAGE OverloadedStrings #-}\n\nimport Data.Default\nimport Focus.Backend\nimport Focus.Backend.Snap\nimport Snap\n\nmain :: IO ()\nmain = withFocus . quickHttpServe $ rootHandler\n\nrootHandler :: Snap ()\nrootHandler =\n  route [ (\"\", serveApp \"\" $ def)\n  ]"
+backSrc = Text.unlines 
+  [
+  "{-# LANGUAGE OverloadedStrings #-}"
+  , ""
+  , "import Data.Default"
+  , "import Focus.Backend"
+  , "import Focus.Backend.Snap"
+  , "import Snap" 
+  , ""
+  , "main :: IO ()"
+  , "main = withFocus . quickHttpServe $ rootHandler"
+  , "rootHandler :: Snap ()"
+  , "rootHandler ="
+  , "  route [ (\"\", serveApp \"\" $ def)"
+  , "  ]"
+  ]
  
 
 mkdirs :: [FilePath] -> IO ()
