@@ -59,8 +59,7 @@ nixExpr :: Text -- ^ The name of the project; this must be a valid Cabal package
 nixExpr projectName = Text.unlines 
   [
   "{}: (import ./focus {}).mkDerivation {"
-  , "  name ="
-  , " \"" <> projectName <> "\";"
+  , "  name = \"" <> projectName <> "\";"
   , "  version = \"0.1\";"
   , "  commonDepends = p: with p; ["
   , "     data-default"
