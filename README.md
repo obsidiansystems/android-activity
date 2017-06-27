@@ -1,10 +1,14 @@
 Assuming you've already added SSH keys to both your github and gitlab
-accounts, please proceed with the instructions that follow. 
+accounts,please proceed with the instructions that follow. 
 
 In your new project's git repository:
 
+```bash
+git init
+```
+
 Download the ob-init.hs script from
-https://gitlab.com/obsidian.systems/focus/raw/develop/
+https://gitlab.com/obsidian.systems/focus/raw/develop/ob-init.hs
 
 The ob-init.hs script will add and update the focus submodule as well as
 generate the necessary boilerplate files and folders. Enter the following in

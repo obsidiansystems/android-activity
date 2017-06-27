@@ -1,5 +1,5 @@
 #!/usr/bin/env runhaskell
--- |TODO: Don't depend on the user's environment - everything should be based on nixpkgs via reflex-platform
+--TODO: Don't depend on the user's environment - everything should be based on nixpkgs via reflex-platform
 {-|
  Description: This script prompts user for the project name, and
  initializes the Reflex-Focus submodules along with appropriate
@@ -57,8 +57,7 @@ main = do
 nixExpr :: Text -- ^ The name of the project; this must be a valid Cabal package name
         -> Text
 nixExpr projectName = Text.unlines 
-  [
-  "{}: (import ./focus {}).mkDerivation {"
+  [ "{}: (import ./focus {}).mkDerivation {"
   , "  name = \"" <> projectName <> "\";"
   , "  version = \"0.1\";"
   , "  commonDepends = p: with p; ["
@@ -89,8 +88,7 @@ nixExpr projectName = Text.unlines
 
 frontSrc :: Text
 frontSrc = Text.unlines 
-  [
-  "{-# LANGUAGE OverloadedStrings #-}"
+  [ "{-# LANGUAGE OverloadedStrings #-}"
   , ""
   , "import Reflex.Dom"
   , ""
@@ -99,8 +97,7 @@ frontSrc = Text.unlines
 
 backSrc :: Text
 backSrc = Text.unlines 
-  [
-  "{-# LANGUAGE OverloadedStrings #-}"
+  [ "{-# LANGUAGE OverloadedStrings #-}"
   , ""
   , "import Data.Default"
   , "import Focus.Backend"
@@ -109,10 +106,9 @@ backSrc = Text.unlines
   , ""
   , "main :: IO ()"
   , "main = withFocus . quickHttpServe $ rootHandler"
+  , ""
   , "rootHandler :: Snap ()"
-  , "rootHandler ="
-  , "  route [ (\"\", serveApp \"\" $ def)"
-  , "  ]"
+  , "rootHandler = route [(\"\", serveApp \"\" $ def)]"
   ]
  
 
