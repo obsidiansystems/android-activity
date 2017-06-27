@@ -21,7 +21,7 @@ import System.Directory ( doesDirectoryExist
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Data.Monoid
+import Data.Monoid ((<>))
 
 main :: IO ()
 main = do
