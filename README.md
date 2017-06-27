@@ -30,7 +30,7 @@ main
 
 at the GHCi prompt.
 
-Point your web browser at [a link](localhost:8000) and everything should work.
+Point your web browser at [localhost:8000](localhost:8000) and everything should work.
 
 Feel free to edit the frontend and backend directories as you see fit.
 
