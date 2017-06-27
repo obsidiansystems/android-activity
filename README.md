@@ -16,7 +16,7 @@ your console, followed by your project's name when prompted.
 
 ```bash
 chmod 755 ob-init.hs
-ob-init.hs
+./ob-init.hs
 ```
 Build the frontend by running ./focus/build-frontend
 
