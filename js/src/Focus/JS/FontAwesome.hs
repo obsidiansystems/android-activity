@@ -121,6 +121,26 @@ icon4x i = icon (i <> " fa-4x")
 icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
 
+-- ^ icon prime functions
+icon' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon' i = elClass' "i" ("fa fa-" <> i) $ return ()
+
+icon1g' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon1g' i = icon' (i <> " fa-1g")
+
+icon2x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon2x' i = icon' (i <> " fa-2x")
+
+icon3x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon3x' i = icon' (i <> " fa-3x")
+
+icon4x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon4x' i = icon' (i <> " fa-4x")
+
+icon5x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon5x' i = icon' (i <> " fa-5x")
+
+-- ^ Type checked faIcon functions
 faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
@@ -138,6 +158,25 @@ faIcon4x i conf = icon4x $ drop3class i <> faConfigClass conf
 
 faIcon5x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 faIcon5x i conf = icon5x $ drop3class i <> faConfigClass conf
+
+-- ^ faIcon prime functions 
+faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+
+faIcon1g' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon1g' i conf = icon1g' $ drop3class i <> faConfigClass conf
+
+faIcon2x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon2x' i conf = icon2x' $ drop3class i <> faConfigClass conf
+
+faIcon3x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon3x' i conf = icon3x' $ drop3class i <> faConfigClass conf
+
+faIcon4x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon4x' i conf = icon4x' $ drop3class i <> faConfigClass conf
+
+faIcon5x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon5x' i conf = icon5x' $ drop3class i <> faConfigClass conf
 
 -- helper functions --
 drop3class :: FontAwesome -> Text
