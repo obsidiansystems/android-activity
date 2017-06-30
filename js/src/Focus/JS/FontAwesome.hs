@@ -7,6 +7,8 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import Web.FontAwesomeType -- ^ FontAwesome Enumerations
+
 fontAwesomeCDN :: DomBuilder t m => m ()
 fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css") $ return ()
 
@@ -29,6 +31,9 @@ dynIcon2x = dynIcon2xAttr mempty
 icon :: DomBuilder t m => Text -> m ()
 icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
+icon1g :: DomBuilder t m => Text -> m ()
+icon1g i = icon (i <> " fa-1g")
+
 icon2x :: DomBuilder t m => Text -> m ()
 icon2x i = icon (i <> " fa-2x")
 
@@ -40,3 +45,25 @@ icon4x i = icon (i <> " fa-4x")
 
 icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
+
+faIcon :: DomBuilder t m => FontAwesome -> m ()
+faIcon i = elClass "i" ("fa " <> (T.pack (fontAwesomeClass i))) $ return ()
+
+faIcon1g :: DomBuilder t m => FontAwesome -> m ()
+faIcon1g i = icon1g $ drop3class i
+
+faIcon2x :: DomBuilder t m => FontAwesome -> m ()
+faIcon2x i = icon2x $ drop3class i 
+
+faIcon3x :: DomBuilder t m => FontAwesome -> m ()
+faIcon3x i = icon3x $ drop3class i
+
+faIcon4x :: DomBuilder t m => FontAwesome -> m ()
+faIcon4x i = icon4x $ drop3class i
+
+faIcon5x :: DomBuilder t m => FontAwesome -> m ()
+faIcon5x i = icon5x $ drop3class i
+
+-- helper functions --
+drop3class :: FontAwesome -> Text
+drop3class = T.drop 3 . T.pack . fontAwesomeClass
