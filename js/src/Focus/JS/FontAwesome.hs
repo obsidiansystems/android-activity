@@ -40,6 +40,7 @@ data FAConfig = FAConfig
   , _faConfig_animation :: Maybe Animation
   , _faConfig_rotate :: Maybe Rotation
   , _faConfig_flip :: Maybe Flip
+	, _faConfig_listIcon :: Bool
   }
 
 instance Default FAConfig where
@@ -51,6 +52,7 @@ instance Default FAConfig where
     , _faConfig_animation = Nothing
     , _faConfig_rotate = Nothing
     , _faConfig_flip = Nothing
+		, _faConfig_listIcon = False
     }
 
 faConfigClass :: FAConfig -> Text
@@ -82,6 +84,7 @@ faConfigClass c = T.intercalate " " . catMaybes $
          Just Flip_Horizontal -> Just "fa-flip-horizontal"
          Just Flip_Vertical -> Just "fa-flip-vertical"
          Nothing -> Nothing
+	, if _faConfig_listIcon c then Just "fa-li" else Nothing
   ]
 
 fontAwesomeCDN :: DomBuilder t m => m ()
@@ -184,3 +187,6 @@ drop3class = T.drop 3 . T.pack . fontAwesomeClass
 
 faPack :: FontAwesome -> Text
 faPack = T.pack . fontAwesomeClass
+
+--TODO Consider creating a function that can create an <ul> of font awesome <li>.
+--faUnorderedList :: DomBuilder t m => [(FontAwesome,FAConfig)] -> m()
