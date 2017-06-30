@@ -7,7 +7,81 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import Data.Default
+import Data.Maybe
+
 import Web.FontAwesomeType -- ^ FontAwesome Enumerations
+
+data Size = Size_Default
+          | Size_Large
+          | Size_2x
+          | Size_3x
+          | Size_4x
+          | Size_5x
+
+data Pull = Pull_Left
+          | Pull_Right
+
+data Animation = Animation_Spin
+               | Animation_Pulse
+
+data Rotation = Rotate_90
+              | Rotate_180
+              | Rotate_270
+
+data Flip = Flip_Horizontal
+          | Flip_Vertical
+
+data FAConfig = FAConfig
+  { _faConfig_size :: Size
+  , _faConfig_fixedWidth :: Bool
+  , _faConfig_border :: Bool
+  , _faConfig_pull :: Maybe Pull
+  , _faConfig_animation :: Maybe Animation
+  , _faConfig_rotate :: Maybe Rotation
+  , _faConfig_flip :: Maybe Flip
+  }
+
+instance Default FAConfig where
+  def = FAConfig
+    { _faConfig_size = Size_Default
+    , _faConfig_fixedWidth = False
+    , _faConfig_border = False
+    , _faConfig_pull = Nothing
+    , _faConfig_animation = Nothing
+    , _faConfig_rotate = Nothing
+    , _faConfig_flip = Nothing
+    }
+
+faConfigClass :: FAConfig -> Text
+faConfigClass c = T.intercalate " " . catMaybes $
+  [ Just " fa"
+  , case _faConfig_size c of
+         Size_Default -> Nothing
+         Size_2x -> Just "fa-2x"
+         Size_3x -> Just "fa-3x"
+         Size_4x -> Just "fa-4x"
+         Size_5x -> Just "fa-5x"
+  , if _faConfig_fixedWidth c then Just "fa-fw" else Nothing
+  , if _faConfig_border c then Just "fa-border" else Nothing
+  , case _faConfig_pull c of
+         Just Pull_Right -> Just "fa-pull-right"
+         Just Pull_Left -> Just "fa-pull-left"
+         Nothing -> Nothing
+  , case _faConfig_animation c of
+         Just Animation_Pulse -> Just "fa-pulse"
+         Just Animation_Spin -> Just "fa-spin"
+         Nothing -> Nothing
+  , case _faConfig_rotate c of
+         Just Rotate_90 -> Just "fa-rotate-90"
+         Just Rotate_180 -> Just "fa-rotate-180"
+         Just Rotate_270 -> Just "fa-rotate-270"
+         Nothing -> Nothing
+  , case _faConfig_flip c of
+         Just Flip_Horizontal -> Just "fa-flip-horizontal"
+         Just Flip_Vertical -> Just "fa-flip-vertical"
+         Nothing -> Nothing
+  ]
 
 fontAwesomeCDN :: DomBuilder t m => m ()
 fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css") $ return ()
@@ -46,23 +120,23 @@ icon4x i = icon (i <> " fa-4x")
 icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
 
-faIcon :: DomBuilder t m => FontAwesome -> m ()
-faIcon i = elClass "i" ("fa " <> (T.pack (fontAwesomeClass i))) $ return ()
+faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon i conf = elClass "i" ((T.pack (fontAwesomeClass i)) <> (faConfigClass conf)) $ return ()
 
-faIcon1g :: DomBuilder t m => FontAwesome -> m ()
-faIcon1g i = icon1g $ drop3class i
+faIcon1g :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon1g i conf = icon1g $ drop3class i <> faConfigClass conf
 
-faIcon2x :: DomBuilder t m => FontAwesome -> m ()
-faIcon2x i = icon2x $ drop3class i 
+faIcon2x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon2x i conf = icon2x $ drop3class i <> faConfigClass conf
 
-faIcon3x :: DomBuilder t m => FontAwesome -> m ()
-faIcon3x i = icon3x $ drop3class i
+faIcon3x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon3x i conf = icon3x $ drop3class i <> faConfigClass conf
 
-faIcon4x :: DomBuilder t m => FontAwesome -> m ()
-faIcon4x i = icon4x $ drop3class i
+faIcon4x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon4x i conf = icon4x $ drop3class i <> faConfigClass conf
 
-faIcon5x :: DomBuilder t m => FontAwesome -> m ()
-faIcon5x i = icon5x $ drop3class i
+faIcon5x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon5x i conf = icon5x $ drop3class i <> faConfigClass conf
 
 -- helper functions --
 drop3class :: FontAwesome -> Text
