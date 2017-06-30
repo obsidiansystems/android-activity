@@ -58,6 +58,7 @@ faConfigClass c = T.intercalate " " . catMaybes $
   [ Just " fa"
   , case _faConfig_size c of
          Size_Default -> Nothing
+         Size_Large -> Just "fa-lg"
          Size_2x -> Just "fa-2x"
          Size_3x -> Just "fa-3x"
          Size_4x -> Just "fa-4x"
@@ -121,7 +122,7 @@ icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
 
 faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon i conf = elClass "i" ((T.pack (fontAwesomeClass i)) <> (faConfigClass conf)) $ return ()
+faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
 faIcon1g :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 faIcon1g i conf = icon1g $ drop3class i <> faConfigClass conf
@@ -141,3 +142,6 @@ faIcon5x i conf = icon5x $ drop3class i <> faConfigClass conf
 -- helper functions --
 drop3class :: FontAwesome -> Text
 drop3class = T.drop 3 . T.pack . fontAwesomeClass
+
+faPack :: FontAwesome -> Text
+faPack = T.pack . fontAwesomeClass
