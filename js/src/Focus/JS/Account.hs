@@ -58,12 +58,12 @@ setPermanentAuthTokenCookieWithLocation doc loc key mt = do
     Just (Signed t) -> def
       { setCookieName = encodeUtf8 key
       , setCookieValue = encodeUtf8 t
-        -- | We don't want these to expire, but browsers don't support
+        -- We don't want these to expire, but browsers don't support
         -- non-expiring cookies.  Some systems have trouble representing dates
         -- past 2038, so use 2037.
       , setCookieExpires = Just $ UTCTime (fromGregorian 2037 1 1) 0
       , setCookieSecure = currentProtocol == "https:"
-        -- | This helps prevent CSRF attacks; we don't want strict, because it
+        -- This helps prevent CSRF attacks; we don't want strict, because it
         -- would prevent links to the page from working; lax is secure enough,
         -- because we don't take dangerous actions simply by executing a GET
         -- request.

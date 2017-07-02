@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+PORT=$1
+if [ -z $PORT ]
+then
+  PORT=8080
+fi
+
+nix-shell -E 'with import ./. { withHoogle = true; }; backend.env' --run "hoogle serve --local -p $PORT"

@@ -117,7 +117,7 @@ notificationListener :: FromJSON a
                      -> IO (TChan a, IO ())
 notificationListener db = listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
 
-notificationListenerWithSession :: FromJSON a -- ^ Notifications from the database are serialized as JSON
+notificationListenerWithSession :: FromJSON a -- Notifications from the database are serialized as JSON
                                 => Pool Postgresql -- ^ DB pool
                                 -> (Id Session -> FocusPersist ()) -- ^ Clean up sessions that have disappeared
                                 -> IO (TChan a, Id Session, IO ()) -- ^ Tuple of (notifications, session id, and  finalizer action)

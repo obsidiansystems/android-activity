@@ -1,0 +1,21 @@
+Name: focus-pivotal
+Version: 0.1
+Synopsis: Pivotal integration
+License: AllRightsReserved
+Author: Obsidian Systems LLC
+Maintainer: maintainer@obsidian.systems
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  build-depends: base
+               , aeson
+               , text
+
+  exposed-modules:
+    Focus.Pivotal.Schema
+
+  other-extensions: TemplateHaskell
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts
