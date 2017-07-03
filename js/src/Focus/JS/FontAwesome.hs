@@ -12,15 +12,19 @@ import Data.Maybe
 
 import Web.FontAwesomeType -- ^ FontAwesome Enumerations
 
-data Size = Size_Default
-          | Size_Large
-          | Size_2x
-          | Size_3x
-          | Size_4x
-          | Size_5x
+{- | The Size, Pull, Animation, Rotation, Flip data types are available to
+ - define configurable Font Awesome options.  
+-}
 
-data Pull = Pull_Left
-          | Pull_Right
+data Size = Size_Default
+          | Size_Large -- ^ Make icon 33% bigger
+          | Size_2x    -- ^ Double icon size
+          | Size_3x    -- ^ Triple icon size
+          | Size_4x    -- ^ Cuadruple icon size
+          | Size_5x    -- ^ Quintuple icon size
+
+data Pull = Pull_Left  -- ^ Float left 
+          | Pull_Right -- ^ Float right
 
 data Animation = Animation_Spin
                | Animation_Pulse
@@ -32,6 +36,9 @@ data Rotation = Rotate_90
 data Flip = Flip_Horizontal
           | Flip_Vertical
 
+{- | Use the FAConfig data type to create custom instances of how you would
+ - like your icon to appear/behave. 
+-}
 data FAConfig = FAConfig
   { _faConfig_size :: Size
   , _faConfig_fixedWidth :: Bool
@@ -43,6 +50,7 @@ data FAConfig = FAConfig
 	, _faConfig_listIcon :: Bool
   }
 
+-- ^ Use the default FAConfig instance "def" to simply display an icon normally. 
 instance Default FAConfig where
   def = FAConfig
     { _faConfig_size = Size_Default
@@ -55,6 +63,9 @@ instance Default FAConfig where
 		, _faConfig_listIcon = False
     }
 
+{- | This function takes an FAConfig type and generated the necessary "fa"
+  -- class names for desired icon behavior
+-}
 faConfigClass :: FAConfig -> Text
 faConfigClass c = T.intercalate " " . catMaybes $
   [ Just " fa"
@@ -87,6 +98,9 @@ faConfigClass c = T.intercalate " " . catMaybes $
 	, if _faConfig_listIcon c then Just "fa-li" else Nothing
   ]
 
+{- | This function is used to generate a <link> tag that references MaxCDN
+ - bootstrap content.
+ -}
 fontAwesomeCDN :: DomBuilder t m => m ()
 fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css") $ return ()
 
@@ -106,6 +120,8 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
+{- | Warning: This function has been depreciated, please faIcon functions
+ - instead -}
 icon :: DomBuilder t m => Text -> m ()
 icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
