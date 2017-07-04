@@ -47,7 +47,7 @@ data FAConfig = FAConfig
   , _faConfig_animation :: Maybe Animation
   , _faConfig_rotate :: Maybe Rotation
   , _faConfig_flip :: Maybe Flip
-	, _faConfig_listIcon :: Bool
+  , _faConfig_listIcon :: Bool
   }
 
 -- ^ Use the default FAConfig instance "def" to simply display an icon normally. 
@@ -120,82 +120,14 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
-{- | Warning: This function has been depreciated, please faIcon functions
- - instead -}
-icon :: DomBuilder t m => Text -> m ()
-icon i = elClass "i" ("fa fa-" <> i) $ return ()
-
-icon1g :: DomBuilder t m => Text -> m ()
-icon1g i = icon (i <> " fa-1g")
-
-icon2x :: DomBuilder t m => Text -> m ()
-icon2x i = icon (i <> " fa-2x")
-
-icon3x :: DomBuilder t m => Text -> m ()
-icon3x i = icon (i <> " fa-3x")
-
-icon4x :: DomBuilder t m => Text -> m ()
-icon4x i = icon (i <> " fa-4x")
-
-icon5x :: DomBuilder t m => Text -> m ()
-icon5x i = icon (i <> " fa-5x")
-
--- ^ icon prime functions
-icon' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon' i = elClass' "i" ("fa fa-" <> i) $ return ()
-
-icon1g' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon1g' i = icon' (i <> " fa-1g")
-
-icon2x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon2x' i = icon' (i <> " fa-2x")
-
-icon3x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon3x' i = icon' (i <> " fa-3x")
-
-icon4x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon4x' i = icon' (i <> " fa-4x")
-
-icon5x' :: DomBuilder t m => Text -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon5x' i = icon' (i <> " fa-5x")
 
 -- ^ Type checked faIcon functions
-faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
-
-faIcon1g :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon1g i conf = icon1g $ drop3class i <> faConfigClass conf
-
-faIcon2x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon2x i conf = icon2x $ drop3class i <> faConfigClass conf
-
-faIcon3x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon3x i conf = icon3x $ drop3class i <> faConfigClass conf
-
-faIcon4x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon4x i conf = icon4x $ drop3class i <> faConfigClass conf
-
-faIcon5x :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-faIcon5x i conf = icon5x $ drop3class i <> faConfigClass conf
+icon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+icon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
 -- ^ faIcon prime functions 
-faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
-
-faIcon1g' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon1g' i conf = icon1g' $ drop3class i <> faConfigClass conf
-
-faIcon2x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon2x' i conf = icon2x' $ drop3class i <> faConfigClass conf
-
-faIcon3x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon3x' i conf = icon3x' $ drop3class i <> faConfigClass conf
-
-faIcon4x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon4x' i conf = icon4x' $ drop3class i <> faConfigClass conf
-
-faIcon5x' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-faIcon5x' i conf = icon5x' $ drop3class i <> faConfigClass conf
+icon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+icon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
 -- helper functions --
 drop3class :: FontAwesome -> Text
