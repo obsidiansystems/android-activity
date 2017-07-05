@@ -121,11 +121,11 @@ dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
 
--- ^ Type checked faIcon functions
+-- ^ Type checked icon functions
 icon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 icon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
--- ^ faIcon prime functions 
+-- ^ icon prime functions 
 icon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
 icon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
