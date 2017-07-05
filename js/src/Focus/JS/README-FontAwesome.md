@@ -23,17 +23,9 @@ create simple icons.
 
 FontAwesome Icon Widgets can now be created as so:
 ```Haskell
-faIcon :: DomBuilder t m => FontAwesome -> FAConf -> m ()
+icon :: DomBuilder t m => FontAwesome -> FAConf -> m ()
 
-faIcon FaReddit def -- creates a Reddit icon 
-```
-
-New 1g (half sized), 2x...5x sizes are now available. Simply append the desired size to the end of the function name. 
-(Try these examples in "theBody" widget)
-
-```Haskell
-faIcon1g FaTwitter def
-faIcon3x FaReddit def
+icon FaReddit def -- creates a Reddit icon 
 ```
 
 FOR A COMPLETE LIST OF FONT AWESOME TYPES, visit the hackage documentation below:
