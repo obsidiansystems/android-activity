@@ -77,7 +77,8 @@ library
     reflex,
     io-streams,
     lifted-base,
-    http-conduit
+    http-conduit,
+    svg-builder
 
   exposed-modules:
       Focus.Backend

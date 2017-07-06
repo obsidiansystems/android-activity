@@ -15,12 +15,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Diagrams.Prelude (Diagram, renderDia, mkWidth)
 import Diagrams.Backend.SVG
-import Diagrams.Backend.SVG.Attributes
+import qualified Graphics.Svg as SVG
+import Graphics.Svg.Attributes
 import Lucid
 import System.FilePath
 import Text.RawString.QQ
 import Control.Monad.IO.Class
-import Lucid.Base (makeAttribute)
 
 error404 :: MonadSnap m => m ()
 error404 = do
@@ -137,8 +137,8 @@ serveIndex cfg = do
         }
       |]
     body_ $ do
-      let svgOpts = SVGOptions (mkWidth 400) Nothing "preload-logo-" [makeAttribute "id" "preload-logo"] False
-      renderDia SVG svgOpts $ svgId "preload-logo" $ _appConfig_logo cfg
+      let svgOpts = SVGOptions (mkWidth 400) Nothing "preload-logo-" [bindAttr Id_ "preload-logo"] False
+      toHtml $ SVG.renderBS $ renderDia SVG svgOpts $ _appConfig_logo cfg
       script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
