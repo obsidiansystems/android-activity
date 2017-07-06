@@ -1,5 +1,23 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings #-}
-module Focus.Backend.Snap where
+
+-------------------------------------------------------------------------------
+-- | 
+-- Module      :  Focus.Backend.Snap
+-- Copyright   :  
+-- License     :  
+-- Maintainer  :  obsidian.systems
+-- Portability :  portable
+-------------------------------------------------------------------------------
+
+module Focus.Backend.Snap 
+    ( AppConfig
+    , serveAppAt
+    , serveApp
+    , serveStaticIndex
+    , serveIndex
+    , appConfig_initialHead
+    , appConfig_initialBody
+    )where
 
 import Focus.HTTP.Serve
 
@@ -22,11 +40,10 @@ import System.FilePath
 import Text.RawString.QQ
 import Control.Monad.IO.Class
 
-error404 :: MonadSnap m => m ()
-error404 = do
-  modifyResponse $ setResponseCode 404
-  writeBS "404 Not Found"
 
+{- | Takes a port number and session handle to determine if what has been 
+ - passed is an HTTPS Session. If not, it will request URI along with the name
+ - of host and return a HTTPS redirect. -}
 ensureSecure :: Int -> Handler a b () -> Handler a b ()
 ensureSecure port h = do
   s <- getsRequest rqIsSecure
@@ -35,6 +52,7 @@ ensureSecure port h = do
     host <- getsRequest rqHostName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
 
+-- | Data type for app configuration
 data AppConfig m
    = AppConfig { _appConfig_logo :: Diagram SVG
                , _appConfig_extraHeadMarkup :: Html ()
@@ -45,6 +63,7 @@ data AppConfig m
                , _appConfig_jsexe :: FilePath
                }
 
+-- | Default instance for app configuration
 instance Default (AppConfig m) where
   def = AppConfig { _appConfig_logo = mempty
                   , _appConfig_extraHeadMarkup = mempty
@@ -55,6 +74,10 @@ instance Default (AppConfig m) where
                   , _appConfig_jsexe = "frontend.jsexe"
                   }
 
+-- | Takes a location, app, and an app configuration as arguements and
+-- routes the request to the correct handler. If "appConfig_serveJsexe"
+-- returns "True", additional js paths and asset paths will be appended to
+-- handler. Otherwise, it will return "404 Not Found"
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig m -> m ()
 serveAppAt loc app cfg = do
   route $ [ (loc, ifTop $ serveStaticIndex cfg)
@@ -66,15 +89,27 @@ serveAppAt loc app cfg = do
             else []
        ++ [ (loc, doNotCache >> error404) ]
 
+-- | Writes a 404 error message in ByteString
+error404 :: MonadSnap m => m ()
+error404 = do
+  modifyResponse $ setResponseCode 404
+  writeBS "404 Not Found"
+
+-- | Partial serveAppAt function whose awaiting to be passed an AppConfig
+-- argument
 serveApp :: MonadSnap m => FilePath -> AppConfig m -> m ()
 serveApp = serveAppAt ""
 
+-- | Takes an AppConfig argument and returns a frontendJs/... filepath 
 frontendJsPath :: AppConfig m -> FilePath
 frontendJsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs" </> jsexe
 
+-- | Takes an AppConfig argument and returns a frontendJs.assets/... filepath
 frontendJsAssetsPath :: AppConfig m -> FilePath
 frontendJsAssetsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs.assets" </> jsexe
 
+-- | Takes an AppConfig monad and uses it to generate & write Lazy ByteString
+-- to the body of the https response
 serveStaticIndex :: MonadSnap m => AppConfig m -> m ()
 serveStaticIndex cfg = do
   appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "/all.js"
@@ -94,7 +129,9 @@ serveStaticIndex cfg = do
       script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
       return ()
 
-
+-- | Takes an AppConfig monad and uses it to generate & write Lazy ByteString
+-- to the body of the https response. This one comes with hard coded values
+-- for the logo 
 serveIndex :: MonadSnap m => AppConfig m -> m ()
 serveIndex cfg = do
   appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "all.js"
