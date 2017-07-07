@@ -122,7 +122,7 @@ notificationListenerWithSession :: FromJSON a -- Notifications from the database
                                 -> (Id Session -> FocusPersist ()) -- ^ Clean up sessions that have disappeared
                                 -> IO (TChan a, Id Session, IO ()) -- ^ Tuple of (notifications, session id, and  finalizer action)
 notificationListenerWithSession db cleanup = do
-  sid <- runDb (Identity db) $ fmap toId . insert . Session =<< getTime
+  sid <- runDb (Identity db) $ fmap toId . insert . flip Session True =<< getTime
   killHb <- heartbeat db sid
   killSupervise <- superviseSessions db cleanup
   (nchan, nfinalize)  <- listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
