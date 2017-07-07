@@ -357,7 +357,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
         l <- holdUniqDyn $ fmap reverse selections
         simpleList l $ \x -> elClass "span" "typeahead-pill" $ do
           dynText $ fmap snd x
-          close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ icon FaTimes fa_fw
+          close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ faIcon FaTimes fa_fw
           return $ tag (current x) close
       let remove = switch $ current $ fmap leftmost removeEvents
       (sel, bs) <- elClass "span" "typeahead-multi-input" $ comboBox' attrs getter' (comboBoxListItem noHighlight (\_ v -> v)) (el "ul")
