@@ -120,14 +120,47 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
+{-# DEPRECATED icon is unsafe and has been replaced by faIcon #-}
+icon :: DomBuilder t m => Text -> m ()
+icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
--- ^ Type checked icon functions
-icon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-icon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+{-# DEPRECATED icon1g is unsafe and has been replaced by faIcon. For
+ - additional faIcon configurations, pass an FAConf type as a second arg to
+ - faIcon.  #-}
+icon1g :: DomBuilder t m => Text -> m ()
+icon1g i = icon (i <> " fa-1g")
 
--- ^ icon prime functions 
-icon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+{-# DEPRECATED icon2x is unsafe and has been replaced by faIcon. For
+ - additional faIcon configurations, pass an FAConf type as a second arg to
+ - faIcon.  #-}
+icon2x :: DomBuilder t m => Text -> m ()
+icon2x i = icon (i <> " fa-2x")
+
+{-# DEPRECATED icon3x is unsafe and has been replaced by faIcon. For
+ - additional faIcon configurations, pass an FAConf type as a second arg to
+ - faIcon.  #-}
+icon3x :: DomBuilder t m => Text -> m ()
+icon3x i = icon (i <> " fa-3x")
+
+{-# DEPRECATED icon4x is unsafe and has been replaced by faIcon. For
+ - additional faIcon configurations, pass an FAConf type as a second arg to
+ - faIcon.  #-}
+icon4x :: DomBuilder t m => Text -> m ()
+icon4x i = icon (i <> " fa-4x")
+
+{-# DEPRECATED icon5x is unsafe and has been replaced by faIcon. For
+ - additional faIcon configurations, pass an FAConf type as a second arg to
+ - faIcon.  #-}
+icon5x :: DomBuilder t m => Text -> m ()
+icon5x i = icon (i <> " fa-5x")
+
+-- | Type checked faIcon functions
+faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+
+-- | faIcon prime functions 
+faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
 -- helper functions --
 drop3class :: FontAwesome -> Text
