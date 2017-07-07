@@ -120,14 +120,32 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
+-- | Depreciated functions 
+icon :: DomBuilder t m => Text -> m ()
+icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
--- ^ Type checked icon functions
-icon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
-icon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+icon1g :: DomBuilder t m => Text -> m ()
+icon1g i = icon (i <> " fa-1g")
 
--- ^ icon prime functions 
-icon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
-icon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+icon2x :: DomBuilder t m => Text -> m ()
+icon2x i = icon (i <> " fa-2x")
+
+icon3x :: DomBuilder t m => Text -> m ()
+icon3x i = icon (i <> " fa-3x")
+
+icon4x :: DomBuilder t m => Text -> m ()
+icon4x i = icon (i <> " fa-4x")
+
+icon5x :: DomBuilder t m => Text -> m ()
+icon5x i = icon (i <> " fa-5x")
+
+-- | Type checked icon functions
+faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
+faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
+
+-- | icon prime functions 
+faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
+faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
 -- helper functions --
 drop3class :: FontAwesome -> Text
