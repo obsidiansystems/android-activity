@@ -243,7 +243,7 @@ utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, Mo
 utcTimeInputMini tz0 tzWidget t = do
   rec let timeShown = zipDynWith (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
-        elClass "span" "input-group-addon" $ icon FaClockO def
+        elClass "span" "input-group-addon" $ faIcon FaClockO def
         _ <- inputElement $ def
           & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ updated timeShown
@@ -306,8 +306,8 @@ substringFilter q s = case q of
 alphaSortSelector :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => m (Dynamic t SortOrder)
 alphaSortSelector = do
   divClass "btn-group" $ do
-    rec asc <- buttonDynAttr attrsA $ icon FaSortAlphaAsc def
-        desc <- buttonDynAttr attrsD $ icon FaSortAlphaDesc def
+    rec asc <- buttonDynAttr attrsA $ faIcon FaSortAlphaAsc def
+        desc <- buttonDynAttr attrsD $ faIcon FaSortAlphaDesc def
         order <- holdDyn Ascending $ leftmost [fmap (const Ascending) asc, fmap (const Descending) desc]
         let active = "class" =: "btn btn-default active"
             inactive = "class" =: "btn btn-default"
@@ -318,7 +318,7 @@ alphaSortSelector = do
 searchBox' :: DomBuilder t m => FontAwesome -> Text -> m (Dynamic t (Maybe Text))
 searchBox' i p = do
   divClass "input-group" $ do
-    elClass "span" "input-group-addon" $ icon i def
+    elClass "span" "input-group-addon" $ faIcon i def
     q <- value <$> textInputWithPlaceholder p
     return $ ffor q $ \v -> let x = T.strip v in if x == "" then Nothing else Just x
 
@@ -358,7 +358,7 @@ labelledInput name content = do
 
 buttonWithIcon :: forall t m. DomBuilder t m => FontAwesome -> Text -> Text -> m (Event t ())
 buttonWithIcon i s btnClass = button' btnClass $ do
-  icon i def
+  faIcon i def
   text $ " " <> s
 
 stamp :: DomBuilder t m => Text -> Text -> m ()
@@ -385,7 +385,7 @@ tristateButton k l b = do
     buttonContents x = case x of
                             Just True -> do
                               text $ l <> " "
-                              icon FaCheck def
+                              faIcon FaCheck def
                             _ -> text l
 
 maybeBadge :: forall t m a. (DomBuilder t m, PostBuild t m, Show a) => Dynamic t (Maybe a) -> m (Event t ())
@@ -518,7 +518,7 @@ defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
       eEmailEnter = keypress Enter emailBox
       ePasswordEnter = keypress Enter passwordBox
       submitE = tagPromptlyDyn credentialsD $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
-      showWarningE = (icon FaWarning def  >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
+      showWarningE = (faIcon FaWarning def  >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
   _ <- widgetHold blank showWarningE
   return (submitE, _link_clicked signupLink)
 
@@ -622,10 +622,10 @@ styleTagSignin = el "style" $ text
 toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
-        _ <- dyn $ fmap (\sel' -> if sel' then icon FaCheck def else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if sel' then faIcon FaCheck def else return ()) sel
         text t1
       long <- buttonDynAttr selAttrB $ do
-        _ <- dyn $ fmap (\sel' -> if not sel' then icon FaCheck def else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if not sel' then faIcon FaCheck def else return ()) sel
         text t2
       sel <- holdDyn b0 $ leftmost [fmap (const True) short, fmap (const False) long]
       let baseAttr :: Text -> Map Text Text
@@ -651,7 +651,7 @@ dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Da
 dayInputMini d0 = do
   let showDate = T.pack . formatTime defaultTimeLocale "%b %e, %Y"
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
-        elClass "span" "input-group-addon" $ icon FaClockO def
+        elClass "span" "input-group-addon" $ faIcon FaClockO def
         _ <- inputElement $ def
           & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ fmap showDate date
