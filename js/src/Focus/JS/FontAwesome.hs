@@ -36,9 +36,8 @@ data Rotation = Rotate_90
 data Flip = Flip_Horizontal
           | Flip_Vertical
 
-{- | Use the FAConfig data type to create custom instances of how you would
- - like your icon to appear/behave. 
--}
+-- | A data type to create custom instances of how you would
+-- like your icon to appear/behave. 
 data FAConfig = FAConfig
   { _faConfig_size :: Size
   , _faConfig_fixedWidth :: Bool
@@ -50,7 +49,7 @@ data FAConfig = FAConfig
   , _faConfig_listIcon :: Bool
   }
 
--- ^ Use the default FAConfig instance "def" to simply display an icon normally. 
+-- | Use the default 'FAConfig' instance 'def' to simply display an icon normally. 
 instance Default FAConfig where
   def = FAConfig
     { _faConfig_size = Size_Default
@@ -63,8 +62,8 @@ instance Default FAConfig where
 		, _faConfig_listIcon = False
     }
 
-{- | This function takes an FAConfig type and generated the necessary "fa"
-  -- class names for desired icon behavior
+-- | This function takes an 'FAConfig' type and generated the necessary "fa"
+-- class names for desired icon behavior
 -}
 faConfigClass :: FAConfig -> Text
 faConfigClass c = T.intercalate " " . catMaybes $
@@ -98,9 +97,8 @@ faConfigClass c = T.intercalate " " . catMaybes $
 	, if _faConfig_listIcon c then Just "fa-li" else Nothing
   ]
 
-{- | This function is used to generate a <link> tag that references MaxCDN
- - bootstrap content.
- -}
+-- | This function is used to generate a '<link>' tag that references MaxCDN
+-- bootstrap content.
 fontAwesomeCDN :: DomBuilder t m => m ()
 fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css") $ return ()
 
@@ -120,42 +118,44 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
-{-# DEPRECATED icon "is unsafe and has been replaced by faIcon" #-}
+{-# DEPRECATED icon "use 'faIcon [className :: FontAwesome] def' instead" #-}
 icon :: DomBuilder t m => Text -> m ()
 icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
-{-# DEPRECATED icon1g "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
+{-# DEPRECATED icon1g "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
 icon1g :: DomBuilder t m => Text -> m ()
 icon1g i = icon (i <> " fa-1g")
 
-{-# DEPRECATED icon2x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
+{-# DEPRECATED icon2x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
 icon2x :: DomBuilder t m => Text -> m ()
 icon2x i = icon (i <> " fa-2x")
 
-{-# DEPRECATED icon3x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
+{-# DEPRECATED icon3x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
 icon3x :: DomBuilder t m => Text -> m ()
 icon3x i = icon (i <> " fa-3x")
 
-{-# DEPRECATED icon4x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
+{-# DEPRECATED icon4x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
 icon4x :: DomBuilder t m => Text -> m ()
 icon4x i = icon (i <> " fa-4x")
 
-{-# DEPRECATED icon5x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
+{-# DEPRECATED icon5x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
 icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
 
--- | Type checked faIcon functions
+-- | Creates a Font Awesome icon using a 'FontAwesome' type and a
+-- configuration, 'FAConfig', type
 faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
--- | faIcon prime functions 
+-- | Like 'faIcon' but instead uses elClass'
 faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
 faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
--- helper functions --
+-- | Converts a 'FontAwesome' type to Text and drops "fa-"
 drop3class :: FontAwesome -> Text
 drop3class = T.drop 3 . T.pack . fontAwesomeClass
 
+-- | Converts a 'FontAwesome' type to Text
 faPack :: FontAwesome -> Text
 faPack = T.pack . fontAwesomeClass
 
