@@ -512,15 +512,24 @@ in with nixpkgs.haskell.lib; {
                 haskellPackages = backendHaskellPackages;
                 cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src "-N10 -I0";
               };
-              doHaddock = withHoogle;
+              doHaddock = false;
           })) {};
           ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
             { seleniumHost ? "localhost", seleniumPort ? "4444"}:
             let selenium-server = nixpkgs.selenium-server-standalone;
                 chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
                 inherit webdriver-tests;
             in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${backend}/bin/backend" -p 8000 > /dev/null 2>&1 &
+                 BACKEND_PID=$!
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
                  "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 # "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${google-chrome}/bin/google-chrome-stable"
+                 kill $BACKEND_PID
+                 kill $SELENIUM_PID
                '';
           ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
