@@ -42,7 +42,7 @@ handleStoppedSession db cleanup = do
   continue <- fmap isJust . runDb (Identity db) $ do
     now <- getTime
     let timeLimit = addUTCTime (-10*60) now
-    dead <- fmap (fmap toId . listToMaybe) . project AutoKeyField $ (Session_timestampField <. timeLimit) `limitTo` 1
+    dead <- fmap (fmap toId . listToMaybe) . project AutoKeyField $ (Session_activeField ==. True &&. Session_timestampField <. timeLimit) `limitTo` 1
     forM dead $ \deadId -> cleanup deadId >> void (execute [sql| UPDATE "Session" SET active = ?  WHERE id = ? |] (False, deadId))
   when continue $ handleStoppedSession db cleanup
 
