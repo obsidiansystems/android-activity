@@ -514,6 +514,20 @@ in with nixpkgs.haskell.lib; {
               };
               doHaddock = false;
           })) {};
+          ${if builtins.pathExists ../tests/webdriver then "dev-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "dev-webdriver-tests" ''
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 kill $SELENIUM_PID
+               '';
+
           ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
             { seleniumHost ? "localhost", seleniumPort ? "4444"}:
             let selenium-server = nixpkgs.selenium-server-standalone;
