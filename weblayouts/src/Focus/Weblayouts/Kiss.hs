@@ -67,7 +67,7 @@ isActive :: (WebRoute a) => a -> Bool -> Map Text Text
 isActive ia isit = "id" =: (routeToTitle ia)
            <> "style" =: ("border-bottom: " <> active isit)
   where
-    active True = "4px solid #D92323"
+    active True = "4px solid #D92323;" --TODO Consider allowing this color to be altered
     active False = "none;"
 
 -------------MOBILE NAV MENU BUILDER ----------------------------------
