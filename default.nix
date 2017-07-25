@@ -185,6 +185,7 @@ in with nixpkgs.haskell.lib; {
              hellosign = haddockWhenWithHoogle (self.callCabal2nix "hellosign" (filterGitSource ./hellosign) {});
              touch = haddockWhenWithHoogle (self.callCabal2nix "touch" (filterGitSource ./touch) {});
              focus-phonepush-worker = haddockWhenWithHoogle (self.callCabal2nix "focus-phonepush-worker" (filterGitSource ./phonepush-worker) {});
+             focus-weblayouts = haddockWhenWithHoogle (self.callCabal2nix "focus-weblayout" (filterGitSource ./weblayouts) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {

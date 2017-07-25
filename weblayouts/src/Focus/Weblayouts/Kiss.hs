@@ -1,33 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecursiveDo, TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecursiveDo #-}
 
-module Focus.Weblayouts.Kiss where
+module Focus.Weblayouts.Kiss  where
 
 import Reflex
-import Reflex.Dom
+import Reflex.Dom.Core
 import Reflex.Dom.Path
 
+import Control.Monad.Fix
+import Control.Monad
+
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Monoid
-import Control.Monad
-import Data.Map (Map)
-import Data.Text (Text)
-
-import Focus.JS.Prerender (Prerender, prerender)
-import Control.Monad.Fix
 
 import Focus.JS.FontAwesome as FA
-import Web.FontAwesomeType
+import Web.FontAwesomeType 
 
--- TODO You need Common.Route data types and the Route functions
--- TODO Consider creating a type class that will allow an individual to defined Route Data types, assign them String values
--- and be able to manipulate and be able to append them to the URI and use them in the website's navbar
+-- | Set of functions to handle website directories/routes
+class WebRoute a where 
+  routeToTitle :: a -> Text -- ^ returns text to be printed on a Nav Bar's Dom
+  routeToUrl :: a -> Text -- ^ returns text to be appended to the URI
+  routeToWidget :: (DomBuilder t m) => a -> m () -- ^ returns the corresponding widget
+  urlToRoute :: Text -> Maybe a -- ^ opposite of routeToUrl
 
-bodyGen :: (DomBuilder t m, PostBuild t m, Prerender js m, MonadHold t m, MonadFix m, PerformEvent t m, TriggerEvent t m) 
-							=> Text -> [Route] -> Route ->  m ()
+-- | Body generating function, adds navbar and corresponding widgets
+bodyGen :: (DomBuilder t m, PostBuild t m, Prerender js m, MonadHold t m
+          , MonadFix m, PerformEvent t m, TriggerEvent t m, WebRoute a, IsPath a, Ord a) 
+              => Text  -- ^ path to image in project directory
+              -> [a]   -- ^ list of directories/routes of website
+              -> a     -- ^ directory/route website starts on initially
+              ->  m () 
 bodyGen theLogo pageTabs ir = do
   rec
     pageSwitch <- elClass "div" "header" $ do
@@ -41,14 +46,13 @@ bodyGen theLogo pageTabs ir = do
       (pathWidget $ \r -> do
         routeToWidget r
         return (pageSwitch, r))
-
-    footer  
   return ()
 
+----------------------------------------------------NAV MENU BUILDER ---------------------------------------------------
 -- | Nav Bar generator produces click-able Widget Events
-navMenu :: (DomBuilder t m, MonadHold t m, MonadFix m, PostBuild t m) => Dynamic t Route -> [Route] -> m (Event t Route)
+navMenu :: (DomBuilder t m, MonadHold t m, MonadFix m, PostBuild t m, WebRoute a, IsPath a, Ord a) => Dynamic t a -> [a] -> m (Event t a)
 navMenu currentTab tabList = do
-  let currentTabDemux = demux currentTab      -- ^ change type (Dynamic t Route) to (Demux t Route)
+  let currentTabDemux = demux currentTab      -- ^ change type (Dynamic t a) to (Demux t a)
   rec events <- forM tabList $ \route -> do
         let selected = demuxed currentTabDemux route -- ^ compare currentTab and section
         let highlight = zipDynWith isActive currentTab selected -- ^ if selected is True, highlight currentTab
@@ -59,13 +63,21 @@ navMenu currentTab tabList = do
   -- | send clicked Route to \route function
   return $ leftmost events
 
+isActive :: (WebRoute a) => a -> Bool -> Map Text Text
+isActive ia isit = "id" =: (routeToTitle ia)
+           <> "style" =: ("border-bottom: " <> active isit)
+  where
+    active True = "4px solid #D92323"
+    active False = "none;"
+
+-------------MOBILE NAV MENU BUILDER ----------------------------------
 --TODO some of the style changes that are within the style.css file may want
 --to be integrated into the function somehow in order to avoid fingering
 --through css code to figure out how to get this function to be useful
 --straight out of the box.
 -- | Make the mobile app Menu become the parent ul of the li generated from
 -- 'navMenu'
-mobileNavMenu :: (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m)=> m (Event t Route) -> Dynamic t Route -> m (Event t Route)
+mobileNavMenu :: (DomBuilder t m, MonadFix m, MonadHold t m, PostBuild t m, WebRoute a, IsPath a, Ord a)=> m (Event t a) -> Dynamic t a -> m (Event t a)
 mobileNavMenu items activeTab = do
   rec
     isOpen <- toggle False onClick                      -- ^ add toggle-able Boolean Event when clicked
@@ -81,32 +93,8 @@ mobileNavMenu items activeTab = do
       return widg
   return (mWidg)
 
-isActive :: Route -> Bool -> Map Text Text
-isActive ia isit = "id" =: (routeToTitle ia)
-           <> "style" =: ("border-bottom: " <> active isit)
-  where
-    active True = "4px solid #CCC"
-    active False = "none;"
-
--- | Produces Text for navMenu, takes a route as an arguement
-routeToTitle :: Route -> Text
-routeToTitle r = case r of
-     Route_AboutUs -> "About Us"
-     Route_Technology -> "Technology"
-     Route_DataAnalysis -> "Past Work: Data Analysis"
-     Route_GroupMessaging -> "Past Work: Group Messaging"
-     Route_Logistics -> "Past Work: Logistics"
-
--- | Receives a route and returns it's corresponding widget 
-routeToWidget :: DomBuilder t m => Route -> m ()
-routeToWidget r = case r of
-     Route_AboutUs -> aboutUs
-     Route_Technology -> technology
-     Route_DataAnalysis -> dataAnalysis
-     Route_GroupMessaging -> groupMessaging
-     Route_Logistics -> logistics
-
 -- | helper function for mobileNavMenu
 section :: Bool -> Map Text Text
 section True = "class" =: "sections"
 section False = "class" =: "noshow"
+
