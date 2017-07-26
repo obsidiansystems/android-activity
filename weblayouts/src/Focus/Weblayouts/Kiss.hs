@@ -65,10 +65,10 @@ navMenu currentTab tabList = do
 
 isActive :: (WebRoute a) => a -> Bool -> Map Text Text
 isActive ia isit = "id" =: (routeToTitle ia)
-           <> "style" =: ("border-bottom: " <> active isit)
+           <> "class" =: (active isit)
   where
-    active True = "4px solid #D92323"
-    active False = "none;"
+    active True = "chosenOne"
+    active False = ""
 
 -------------MOBILE NAV MENU BUILDER ----------------------------------
 --TODO some of the style changes that are within the style.css file may want
