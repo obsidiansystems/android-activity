@@ -1,4 +1,4 @@
-Name: focus-weblayouts
+Name: focus-weblayouts-backend
 Version: 0.1
 Synopsis: Project Synopsis Here
 Description: Project Description Here
@@ -27,7 +27,9 @@ library
     focus-js,
     focus-http-th,
     focus-serve,
+    focus-backend,
     font-awesome-type,
+    focus-weblayouts,
     ghcjs-dom,
     jsaddle,
     lens,
@@ -37,11 +39,15 @@ library
     reflex-dom-core,
     resource-pool,
     semigroups,
+    snap,
+    snap-core,
+    snap-loader-static,
+    snap-server,
     text,
     transformers
 
   exposed-modules:
-    Focus.Weblayouts.Kiss
+    Focus.Weblayouts.Backend.KissBackend
 
   if os(ios)
     build-depends: jsaddle-wkwebview
