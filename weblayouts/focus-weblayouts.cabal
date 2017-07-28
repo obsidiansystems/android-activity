@@ -19,11 +19,15 @@ library
 
   build-depends:
     base,
+    bytestring,
     containers,
     data-default,
     filepath,
+    focus-backend,
     focus-core,
     focus-js,
+    focus-http-th,
+    focus-serve,
     font-awesome-type,
     ghcjs-dom,
     jsaddle,
@@ -32,12 +36,18 @@ library
     reflex,
     reflex-aeson-orphans,
     reflex-dom-core,
+    resource-pool,
     semigroups,
+    snap,
+    snap-core,
+    snap-loader-static,
+    snap-server,
     text,
     transformers
 
   exposed-modules:
     Focus.Weblayouts.Kiss
+    Focus.Weblayouts.KissBackend
 
   if os(ios)
     build-depends: jsaddle-wkwebview
