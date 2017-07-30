@@ -1,10 +1,14 @@
+/*
+@import url('https://fonts.googleapis.com/css?family=Asap:400,400i,500,500i,700,700i|PT+Sans:400,400i,700,700i');
+*/
+
 * {
     box-sizing: border-box;
 }
 
 html {
     font-size: 1em;
-  	font-family: serif;
+  	font-family: Alegreya, serif;
     font-weight: 400;
     overflow: hidden;
 		height: 100%;
@@ -50,7 +54,7 @@ body {
 }
 
 ul.sections {
-    margin: 0 0 3rem 0;
+    margin: 0 8px 3rem 8px;
     padding: 0.5rem;
     display: flex;
     justify-content: center;
@@ -163,7 +167,7 @@ ul.noshow i {
     display: block;    
     background-color: white;
     width: 100%;
-		margin-top: 8.8rem;
+		margin-top: 9.1rem;
   }
 
   .header ul li {
@@ -192,6 +196,8 @@ ul.noshow i {
     float: right;
   }
 
+	div.noshow {
+	}
   ul.noshow {
       margin: 0 0 1.7rem 0;
       padding: 0.5rem;
@@ -219,9 +225,101 @@ ul.noshow i {
   ul.noshow i {
     display: inline-block;
   }
+	
 }
 
-@media (min-width: 362px) and (max-width: 600px)  {
+@media (orientation: landscape) and (max-width: 736px) {
+
+  html {
+    overflow: scroll; 
+  }	
+}
+
+@media (min-width: 362px) and (max-width: 376px) and (orientation: portrait) {
+
+  .logo {
+    width: 70%;
+		margin-bottom: 7%;
+		margin-top: 7%;
+  }
+
+  div.sections {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-color: rgba(0,0,0,0.1);
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+  }
+
+  ul.sections {
+    display: block;    
+    background-color: white;
+    width: 100%;
+		margin-top: 4.4rem;
+  }
+
+  .header ul li {
+    border-top: none;
+  }
+  
+  ul.sections li {
+    display: block;
+    text-align: center;
+  }
+  
+  ul.sections li + li {
+    border-left: none; 
+  }
+
+  ul.sections li a {
+    display: -webkit-inline-box;
+  }
+  
+  ul.sections p {
+    display: none;
+  }
+  
+  ul.sections i {
+    display: block;
+    float: right;
+  }
+  .chosenOne {
+    border-bottom: hidden;
+  }
+
+	div.noshow {
+	}
+  ul.noshow {
+      margin: 0 0 1.7rem 0;
+      padding: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      list-style: none;
+      border-top: 1px solid #d1dadc;
+      border-bottom: 1px solid #d1dadc;
+  }
+  
+  ul.noshow li {
+    display: none;
+  }
+
+  ul.noshow p {
+    display: inline;
+    margin-top: 0; 
+    margin-bottom: 0;
+    align-self: center;
+  }
+  
+  ul.noshow i {
+    display: inline-block;
+  }
+}
+
+@media (min-width: 377px) and (max-width: 600px) and (orientation: portrait) {
 
   .logo {
     width: 70%;
@@ -303,7 +401,91 @@ ul.noshow i {
   }
 }
 
-@media screen and (max-width: 360px) {
+@media screen and (max-width: 320px) and (orientation: portrait) {  
+  
+  .logo {
+    width: 70%;
+		margin-bottom: 7%;
+		margin-top: 7%;
+  }
+
+  div.sections {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		background-color: rgba(0,0,0,0.1);
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+  }
+
+  ul.sections {
+    display: block;
+    background-color: white;
+    width: 100%;
+		margin-top: 3.6rem;
+  }
+
+  .header ul li {
+    border-top: none;
+  }
+  
+  ul.sections li {
+    display: block;
+    text-align: center;
+  }
+  
+  ul.sections li + li {
+    border-left: none; 
+  }
+
+  ul.sections li a {
+    display: -webkit-inline-box;
+  }
+
+   ul.sections p {
+    display: none;    
+    margin-top: 0; 
+    margin-bottom: 0;
+  }
+  
+  ul.sections i {
+    display: block;
+    float: right;
+  }
+  .chosenOne {
+    border-bottom: hidden;
+  }
+
+  ul.noshow {
+      margin: 0 0 5% 0;
+      padding: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      list-style: none;
+      border-top: 1px solid #d1dadc;
+      border-bottom: 1px solid #d1dadc;
+  }
+  
+  ul.noshow li {
+    display: none;
+  }
+
+  ul.noshow p {
+    display: inline;
+    margin-top: 0; 
+    margin-bottom: 0;
+    align-self: center;
+  }
+  
+  ul.noshow i {
+    display: inline-block;
+  }
+}
+
+@media (min-width: 321px) and (max-width: 360px) and (orientation: portrait){
 
   .logo {
     width: 70%;
@@ -362,7 +544,7 @@ ul.noshow i {
   }
 
   ul.noshow {
-      margin: 0 0 0.3rem 0;
+      margin: 0 0 5% 0;
       padding: 0.5rem;
       display: flex;
       justify-content: space-between;
