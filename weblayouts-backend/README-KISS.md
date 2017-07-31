@@ -25,7 +25,7 @@ at the top of the page.
 The second '[a]' parameter takes a data type that represents each page you would 
 like your website to change to. This is important because what appears in the 
 NavBar, what appends to the URI, and what widgets will be loaded depend on this 
-arguement. 
+argument. 
   - It is best to specify all of this information in the 'common/' directory,
     for example: 
 
@@ -89,4 +89,4 @@ root handler in the 'backend/src/Main.hs'
 	```
 
 Utilize the style.css template found in 'weblayouts/src/Focus/Weblayouts/CSS', double check 
-your module imports and type constraints and you should be albe to build.
+your module imports and type constraints and you should be able to build.
