@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu
+echo -ne '\033]0;BACKEND\007'
+nix-shell -E 'let this = import ./. {}; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in this.backend.env' --command "ghci -Wall -DUSE_TEMPLATE_HASKELL -icommon/src -ibackend/src -ifrontend/src Main -e main" "$@"

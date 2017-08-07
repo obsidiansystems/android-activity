@@ -71,6 +71,7 @@ import Network.WebSockets.Connection as WS
 import Network.WebSockets.Snap
 import Reflex (FunctorMaybe(..), ffor)
 import Snap
+import System.IO
 
 import Debug.Trace (trace)
 
@@ -246,7 +247,7 @@ makeViewListener chan getPatches = do
         These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
         _ -> return Nothing
     logNotificationError :: SomeException -> IO ()
-    logNotificationError e = putStrLn $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
+    logNotificationError e = hPutStrLn stderr $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
 
 ensureSchemaViewListenerExists :: (Ord k)
                                => k
