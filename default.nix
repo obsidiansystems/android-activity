@@ -1,6 +1,6 @@
 { enableProfiling ? false
 , runWithHeapProfiling ? false
-, enableExposeAllUnfoldings ? false
+, enableExposeAllUnfoldings ? true
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
