@@ -1,5 +1,23 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings #-}
-module Focus.Backend.Snap where
+
+-------------------------------------------------------------------------------
+-- | 
+-- Copyright   :  Copyright (C) 2017 Obsidian Systems LLC 
+-- License     :  BSD3
+-- Maintainer  :  maintainer@obsidian.systems
+-- Portability :  non-portable
+-- Stability   :  experimental
+-------------------------------------------------------------------------------
+
+module Focus.Backend.Snap 
+    ( AppConfig
+    , serveAppAt
+    , serveApp
+    , serveStaticIndex
+    , serveIndex
+    , appConfig_initialHead
+    , appConfig_initialBody
+    )where
 
 import Focus.HTTP.Serve
 
@@ -22,11 +40,10 @@ import System.FilePath
 import Text.RawString.QQ
 import Control.Monad.IO.Class
 
-error404 :: MonadSnap m => m ()
-error404 = do
-  modifyResponse $ setResponseCode 404
-  writeBS "404 Not Found"
 
+{- | Takes a port number and session handle to determine if what has been 
+ - passed is an HTTPS Session. If not, it will request URI along with the name
+ - of host and return a HTTPS redirect. -}
 ensureSecure :: Int -> Handler a b () -> Handler a b ()
 ensureSecure port h = do
   s <- getsRequest rqIsSecure
@@ -35,6 +52,7 @@ ensureSecure port h = do
     host <- getsRequest rqHostName --TODO: It might be better to use the canonical base of the server
     redirect $ "https://" <> host <> (if port == 443 then "" else ":" <> fromString (show port)) <> uri
 
+-- | Data type for web app configuration
 data AppConfig m
    = AppConfig { _appConfig_logo :: Diagram SVG
                , _appConfig_extraHeadMarkup :: Html ()
@@ -45,6 +63,7 @@ data AppConfig m
                , _appConfig_jsexe :: FilePath
                }
 
+-- | Default instance for app configuration
 instance Default (AppConfig m) where
   def = AppConfig { _appConfig_logo = mempty
                   , _appConfig_extraHeadMarkup = mempty
@@ -55,6 +74,10 @@ instance Default (AppConfig m) where
                   , _appConfig_jsexe = "frontend.jsexe"
                   }
 
+-- | Takes a location, app, and an app configuration as arguements and
+-- routes the request to the correct handler. If "appConfig_serveJsexe"
+-- returns "True", additional js paths and asset paths will be appended to
+-- handler. Otherwise, it will return "404 Not Found"
 serveAppAt :: MonadSnap m => ByteString -> FilePath -> AppConfig m -> m ()
 serveAppAt loc app cfg = do
   route $ [ (loc, ifTop $ serveStaticIndex cfg)
@@ -66,43 +89,61 @@ serveAppAt loc app cfg = do
             else []
        ++ [ (loc, doNotCache >> error404) ]
 
+-- | Writes a 404 error message in ByteString
+error404 :: MonadSnap m => m ()
+error404 = do
+  modifyResponse $ setResponseCode 404
+  writeBS "404 Not Found"
+
+-- | specialized to the root directory
 serveApp :: MonadSnap m => FilePath -> AppConfig m -> m ()
 serveApp = serveAppAt ""
 
+-- | Returns a frontendJs/... filepath 
 frontendJsPath :: AppConfig m -> FilePath
 frontendJsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs" </> jsexe
 
+-- | Returns a frontendJs.assets/... filepath
 frontendJsAssetsPath :: AppConfig m -> FilePath
 frontendJsAssetsPath (AppConfig { _appConfig_jsexe = jsexe }) = "frontendJs.assets" </> jsexe
 
+-- | Writes Lazy ByteString to the body of the https response
 serveStaticIndex :: MonadSnap m => AppConfig m -> m ()
 serveStaticIndex cfg = do
+  -- | Decode, pack, and append asset target to file path, 
   appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "/all.js"
+  -- | extract initial body from 'AppConfig'. Otherwise, return an  empty string
   initialBody <- fromMaybe (return "") $ _appConfig_initialBody cfg
+  -- | extract initial head from 'AppConfig'. Otherwise, return an empty string
   let initialHead = fromMaybe "" $ _appConfig_initialHead cfg
+  -- | extract initial styles from 'AppConfig'. Otherwise, return an empty string
   let initialStyles = fromMaybe "" $ _appConfig_initialStyles cfg
 
+  -- | Render and Write the html head and body to the Response
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
-      meta_ [charset_ "utf-8"]
-      meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0"]
-      _appConfig_extraHeadMarkup cfg
-      toHtmlRaw initialHead
-      style_ initialStyles
-    body_ $ do
-      toHtmlRaw initialBody
+      meta_ [charset_ "utf-8"] -- ^ charset meta-data description
+      meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0"] -- ^ viewport meta-data description
+      _appConfig_extraHeadMarkup cfg -- ^ any additional head html from 'AppConfig' type
+      toHtmlRaw initialHead -- ^ convert html to HtmlT monad unit
+      style_ initialStyles -- ^ generate style element or attribute
+    body_ $ do -- ^ body element
+      toHtmlRaw initialBody -- ^ convert html to HtmlT monad unit
       script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
+      -- ^ create script element
       return ()
-
 
 serveIndex :: MonadSnap m => AppConfig m -> m ()
 serveIndex cfg = do
+  -- | Decode, pack, and append asset target to file path, 
   appJsPath <- liftIO $ getAssetPath (frontendJsAssetsPath cfg) "all.js"
+  -- | Render and Write the html head and body to the Response
   writeLBS $ renderBS $ doctypehtml_ $ do
     head_ $ do
-      meta_ [charset_ "utf-8"]
-      meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0"]
-      _appConfig_extraHeadMarkup cfg
+      meta_ [charset_ "utf-8"] -- ^ charset meta-data description
+      meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1.0"] -- ^ viewport meta-data description
+      _appConfig_extraHeadMarkup cfg -- ^ any additional head html from 'AppConfig' type
+      -- | style element for specified browsers
       style_ [r|
         #preload-logo {
             position: fixed;
@@ -136,9 +177,12 @@ serveIndex cfg = do
             to   { opacity: 1; }
         }
       |]
-    body_ $ do
+    body_ $ do -- ^ body element
+      -- | set SVG logo/effect configurations
       let svgOpts = SVGOptions (mkWidth 400) Nothing "preload-logo-" [bindAttr Id_ "preload-logo"] False
+      -- | render logo data and convert it to 'HtmlT m ()' 
       toHtml $ SVG.renderBS $ renderDia SVG svgOpts $ _appConfig_logo cfg
+      -- | create script element
       script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
