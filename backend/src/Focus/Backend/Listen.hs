@@ -71,6 +71,7 @@ import Network.WebSockets.Connection as WS
 import Network.WebSockets.Snap
 import Reflex (FunctorMaybe(..), ffor)
 import Snap
+import System.IO
 
 import Debug.Trace (trace)
 
@@ -122,7 +123,7 @@ notificationListenerWithSession :: FromJSON a -- Notifications from the database
                                 -> (Id Session -> FocusPersist ()) -- ^ Clean up sessions that have disappeared
                                 -> IO (TChan a, Id Session, IO ()) -- ^ Tuple of (notifications, session id, and  finalizer action)
 notificationListenerWithSession db cleanup = do
-  sid <- runDb (Identity db) $ fmap toId . insert . Session =<< getTime
+  sid <- runDb (Identity db) $ fmap toId . insert . flip Session True =<< getTime
   killHb <- heartbeat db sid
   killSupervise <- superviseSessions db cleanup
   (nchan, nfinalize)  <- listenDB (\f -> withResource db $ \(Postgresql conn) -> f conn)
@@ -246,7 +247,7 @@ makeViewListener chan getPatches = do
         These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
         _ -> return Nothing
     logNotificationError :: SomeException -> IO ()
-    logNotificationError e = putStrLn $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
+    logNotificationError e = hPutStrLn stderr $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
 
 ensureSchemaViewListenerExists :: (Ord k)
                                => k

@@ -36,9 +36,8 @@ data Rotation = Rotate_90
 data Flip = Flip_Horizontal
           | Flip_Vertical
 
-{- | Use the FAConfig data type to create custom instances of how you would
- - like your icon to appear/behave. 
--}
+-- | A data type to create custom instances of how you would
+-- like your icon to appear/behave. 
 data FAConfig = FAConfig
   { _faConfig_size :: Size
   , _faConfig_fixedWidth :: Bool
@@ -50,7 +49,7 @@ data FAConfig = FAConfig
   , _faConfig_listIcon :: Bool
   }
 
--- ^ Use the default FAConfig instance "def" to simply display an icon normally. 
+-- | Use the default 'FAConfig' instance 'def' to simply display an icon normally. 
 instance Default FAConfig where
   def = FAConfig
     { _faConfig_size = Size_Default
@@ -63,8 +62,8 @@ instance Default FAConfig where
 		, _faConfig_listIcon = False
     }
 
-{- | This function takes an FAConfig type and generated the necessary "fa"
-  -- class names for desired icon behavior
+-- | This function takes an 'FAConfig' type and generated the necessary "fa"
+-- class names for desired icon behavior
 -}
 faConfigClass :: FAConfig -> Text
 faConfigClass c = T.intercalate " " . catMaybes $
@@ -98,9 +97,8 @@ faConfigClass c = T.intercalate " " . catMaybes $
 	, if _faConfig_listIcon c then Just "fa-li" else Nothing
   ]
 
-{- | This function is used to generate a <link> tag that references MaxCDN
- - bootstrap content.
- -}
+-- | This function is used to generate a '<link>' tag that references MaxCDN
+-- bootstrap content.
 fontAwesomeCDN :: DomBuilder t m => m ()
 fontAwesomeCDN = elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css") $ return ()
 
@@ -152,12 +150,11 @@ faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
 faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
--- helper functions --
+-- | Converts a 'FontAwesome' type to Text and drops "fa-"
 drop3class :: FontAwesome -> Text
 drop3class = T.drop 3 . T.pack . fontAwesomeClass
 
+-- | Converts a 'FontAwesome' type to Text
 faPack :: FontAwesome -> Text
 faPack = T.pack . fontAwesomeClass
 
---TODO Consider creating a function that can create an <ul> of font awesome <li>.
---faUnorderedList :: DomBuilder t m => [(FontAwesome,FAConfig)] -> m()

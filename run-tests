@@ -8,7 +8,10 @@ TESTS="$(nix-build --no-out-link -A $TEST_TYPE-tests)"
 #BACKEND="$(nix-build --no-out-link -A backend)"
 
 #"$TESTS/bin/tests" "$BACKEND/bin/backend" +RTS -N || pkill backend #TODO: Not needing this
-"$TESTS/bin/$TEST_TYPE-tests" "$@" +RTS -N || pkill backend #TODO: Not needing this
-
-#TODO: Not needing this
-pkill backend
+if [[ -d "$TESTS" ]]; then
+    "$TESTS/bin/$TEST_TYPE-tests" "$@" +RTS -N || pkill backend #TODO: Not needing this
+    #TODO: Not needing this
+    pkill backend
+elif [[ -f "$TESTS" && -x "$TESTS" ]]; then
+    "$TESTS" "$@"
+fi

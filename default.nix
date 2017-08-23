@@ -1,6 +1,6 @@
 { enableProfiling ? false
 , runWithHeapProfiling ? false
-, enableExposeAllUnfoldings ? false
+, enableExposeAllUnfoldings ? true
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
@@ -164,16 +164,17 @@ in with nixpkgs.haskell.lib; {
       };
 
       haddockWhenWithHoogle = drv: if withHoogle then drv else dontHaddock drv;
+      exposeAllUnfoldings = drv: appendConfigureFlag drv "--ghc-options=-fexpose-all-unfoldings";
+      focusFlags = drv: haddockWhenWithHoogle (exposeAllUnfoldings drv);
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-        // { focus-aeson-orphans = haddockWhenWithHoogle (self.callCabal2nix "focus-aeson-orphans" (filterGitSource ./aeson-orphans) {});
-             focus-core = haddockWhenWithHoogle (self.callCabal2nix "focus-core" (filterGitSource ./core) {});
-             focus-datastructures = haddockWhenWithHoogle (self.callCabal2nix "focus-datastructures" (filterGitSource ./datastructures) {});
-             focus-emojione = haddockWhenWithHoogle (self.callCabal2nix "focus-emojione" (filterGitSource ./emojione) {});
-             focus-emojione-data = haddockWhenWithHoogle (self.callCabal2nix "focus-emojione-data" (filterGitSource ./emojione/data) {});
-             focus-gitlab = haddockWhenWithHoogle (self.callCabal2nix "focus-gitlab" (filterGitSource ./gitlab) {});
-             focus-http-th = haddockWhenWithHoogle (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
-             focus-js = overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
-               doHaddock = withHoogle;
+        // { focus-aeson-orphans = focusFlags (self.callCabal2nix "focus-aeson-orphans" (filterGitSource ./aeson-orphans) {});
+             focus-core = focusFlags (self.callCabal2nix "focus-core" (filterGitSource ./core) {});
+             focus-datastructures = focusFlags (self.callCabal2nix "focus-datastructures" (filterGitSource ./datastructures) {});
+             focus-emojione = focusFlags (self.callCabal2nix "focus-emojione" (filterGitSource ./emojione) {});
+             focus-emojione-data = focusFlags (self.callCabal2nix "focus-emojione-data" (filterGitSource ./emojione/data) {});
+             focus-gitlab = focusFlags (self.callCabal2nix "focus-gitlab" (filterGitSource ./gitlab) {});
+             focus-http-th = focusFlags (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
+             focus-js = focusFlags (overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
              });
              focus-pivotal = haddockWhenWithHoogle (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
@@ -209,20 +210,20 @@ in with nixpkgs.haskell.lib; {
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
-          focus-backend = haddockWhenWithHoogle (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
-          focus-client = haddockWhenWithHoogle (self.callPackage ./client {});
-          focus-heremaps = haddockWhenWithHoogle (self.callPackage ./heremaps {});
-          focus-test = haddockWhenWithHoogle (self.callPackage ./test {});
-          websockets = overrideCabal super.websockets (drv: {
+          focus-backend = focusFlags (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
+          focus-client = focusFlags (self.callPackage ./client {});
+          focus-heremaps = focusFlags (self.callPackage ./heremaps {});
+          focus-test = focusFlags (self.callPackage ./test {});
+          websockets = focusFlags (overrideCabal super.websockets (drv: {
             src = ./websockets;
             buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
             jailbreak = true;
-          });
-          websockets-snap = overrideCabal super.websockets-snap (drv: {
+          }));
+          websockets-snap = focusFlags (overrideCabal super.websockets-snap (drv: {
             src = ./websockets-snap;
             buildDepends = with self; [ snap-core snap-server io-streams ];
-          });
-          snap-stream = haddockWhenWithHoogle (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
+          }));
+          snap-stream = focusFlags (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
         };
       }).override { overrides = haskellPackagesOverrides; };
 
@@ -242,7 +243,7 @@ in with nixpkgs.haskell.lib; {
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}"
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}" -fspecialise-aggressively
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts
                 if impl(ghcjs)
@@ -514,15 +515,38 @@ in with nixpkgs.haskell.lib; {
                 haskellPackages = backendHaskellPackages;
                 cabalFile = mkCabalFile backendHaskellPackages pname "webdriver-tests" buildDepends src "-N10 -I0";
               };
-              doHaddock = withHoogle;
+              doHaddock = false;
           })) {};
+          ${if builtins.pathExists ../tests/webdriver then "dev-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "dev-webdriver-tests" ''
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 kill $SELENIUM_PID
+               '';
+
           ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
             { seleniumHost ? "localhost", seleniumPort ? "4444"}:
             let selenium-server = nixpkgs.selenium-server-standalone;
                 chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
                 inherit webdriver-tests;
             in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${backend}/bin/backend" -p 8000 > /dev/null 2>&1 &
+                 BACKEND_PID=$!
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
                  "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 # "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${google-chrome}/bin/google-chrome-stable"
+                 kill $BACKEND_PID
+                 kill $SELENIUM_PID
                '';
           ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {

@@ -4,17 +4,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Focus.App where
 
 import Data.Aeson
 import Data.Align
-import Data.Bits
-import Data.Data
-import Data.Ix
 import Data.Semigroup
-import Foreign.Storable
 
-import Reflex.Patch
 import Reflex.Query.Class
 
 import Focus.Account

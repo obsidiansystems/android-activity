@@ -21,7 +21,10 @@ import Focus.Backend.DB.Groundhog
 import Focus.Backend.Schema.TH
 import Focus.Schema
 
-data Session = Session { _session_timestamp :: UTCTime }
+data Session = Session
+  { _session_timestamp :: UTCTime
+  , _session_active :: Bool
+  }
 
 instance HasId Session
 
@@ -39,8 +42,8 @@ handleStoppedSession db cleanup = do
   continue <- fmap isJust . runDb (Identity db) $ do
     now <- getTime
     let timeLimit = addUTCTime (-10*60) now
-    dead <- fmap (fmap toId . listToMaybe) . project AutoKeyField $ (Session_timestampField <. timeLimit) `limitTo` 1
-    forM dead $ \deadId -> cleanup deadId >> void (execute [sql| DELETE FROM "Session" WHERE id = ? |] (Only deadId))
+    dead <- fmap (fmap toId . listToMaybe) . project AutoKeyField $ (Session_activeField ==. True &&. Session_timestampField <. timeLimit) `limitTo` 1
+    forM dead $ \deadId -> cleanup deadId >> void (execute [sql| UPDATE "Session" SET active = ?  WHERE id = ? |] (False, deadId))
   when continue $ handleStoppedSession db cleanup
 
 superviseSessions :: Pool Postgresql
