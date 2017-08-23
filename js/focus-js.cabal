@@ -34,7 +34,6 @@ library
     filepath,
     focus-core,
     focus-http-th,
-    font-awesome-type,
     ghcjs-dom,
     http-types,
     jsaddle,

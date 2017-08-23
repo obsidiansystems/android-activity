@@ -159,5 +159,3 @@ drop3class = T.drop 3 . T.pack . fontAwesomeClass
 faPack :: FontAwesome -> Text
 faPack = T.pack . fontAwesomeClass
 
---TODO Consider creating a function that can create an <ul> of font awesome <li>.
---faUnorderedList :: DomBuilder t m => [(FontAwesome,FAConfig)] -> m()

@@ -32,7 +32,6 @@ import Focus.App
 import Focus.Highlight
 import Focus.JS.App
 import Focus.JS.FontAwesome
-import Web.FontAwesomeType
 import Focus.JS.Highlight
 import Focus.Patch
 
@@ -329,19 +328,6 @@ collapsibleSectionWithDefault collapsedByDefault header content = divClass "coll
     collapse b = "style" =: ("display: " <> if b then "none" else "block") <>
       "class" =: "collapsible-content"
 
--- | fixed width configuration for Font Awesome
-fa_fw :: FAConfig
-fa_fw = FAConfig
-    { _faConfig_size = Size_Default
-    , _faConfig_fixedWidth = True
-    , _faConfig_border = False
-    , _faConfig_pull = Nothing
-    , _faConfig_animation = Nothing
-    , _faConfig_rotate = Nothing
-    , _faConfig_flip = Nothing
-    , _faConfig_listIcon = False
-    }
-
 -- | Typeahead that displays selected items using pills, handles backspace and clicking to remove items
 typeaheadMulti :: forall k t m. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k)
                => Text -- ^ Placeholder text for input
@@ -357,7 +343,7 @@ typeaheadMulti ph getter = divClass "typeahead-multi" $ do
         l <- holdUniqDyn $ fmap reverse selections
         simpleList l $ \x -> elClass "span" "typeahead-pill" $ do
           dynText $ fmap snd x
-          close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ faIcon FaTimes fa_fw
+          close <- fmap (domEvent Click . fst) $ elAttr' "button" ("type" =: "button") $ icon "times fa-fw"
           return $ tag (current x) close
       let remove = switch $ current $ fmap leftmost removeEvents
       (sel, bs) <- elClass "span" "typeahead-multi-input" $ comboBox' attrs getter' (comboBoxListItem noHighlight (\_ v -> v)) (el "ul")

@@ -4,17 +4,11 @@ with nixpkgs.haskell.lib;
 let inherit (nixpkgs) stdenv;
 in
 self: super: {
-    reflex = enableCabalFlag super.reflex "specialize-to-spidertimeline-global";
     reflex-dom-core = dontCheck super.reflex-dom-core;
+    clay = dontCheck super.clay;
     attoparsec-enumerator = overrideCabal super.attoparsec-enumerator (drv: {
       version = "0.3.4";
       sha256 = "127mj0v6342mzxnc73qki3k197vhwsff8qkf92gm5idyxdisg5dy";
-    });
-    clay = overrideCabal super.clay (drv: {
-      version = "0.11";
-      sha256 = "1hdk551wl5hg9danz4yf4h7bs8w3076s6hyg6h3fq20mn9hj65y3";
-      revision = null;
-      editedCabalFile = null;
     });
     snap = self.callPackage ({ mkDerivation, aeson, async, attoparsec, base, bytestring, cereal
            , clientsession, configurator, containers, deepseq, directory
@@ -330,36 +324,11 @@ self: super: {
         sha256 = "0gxpsaf1gwd24frrlfkf7arjpylv11x2vkrp9qwi85l2gq35di2x";
       };
     });
-    diagrams-svg = overrideCabal super.diagrams-svg (drv: {
-      version = "1.3.1.10";
-      src = nixpkgs.fetchFromGitHub {
-        owner = "diagrams";
-        repo = "diagrams-svg";
-        rev = "0fcfe833844baccd567bc01986ffe0462f2c2d18";
-        sha256 = "1mwibd972n1xv9ywf4jidmfc7w9qbv5xy10afgammn71ziniz29y";
-      };
-    });
     # disable tests so that it doesn't build gpx-conduit
     gps = dontCheck super.gps;
-    # gpx-conduit = overrideCabal super.gpx-conduit (drv: {
-    #   src = nixpkgs.fetchgit {
-    #     url = git://github.com/obsidiansystems/gpx-conduit;
-    #     rev = "988d97c433042e5af46ae7c38e1163eecbf928bb";
-    #     sha256 = "9cd3d6b3c27f9a0ae5c02769001d56f773efab9657d50b948d4355397950f28c";
-    #   };
-    # });
     map-syntax = doJailbreak super.map-syntax;
     zlib-enum = doJailbreak super.zlib-enum;
     reflex-jsx = self.callPackage ./reflex-jsx.nix {};
-    pontarius-xmpp =
-      let p = overrideCabal super.pontarius-xmpp (drv: {
-                src = nixpkgs.fetchgit {
-                  url = git://github.com/pontarius/pontarius-xmpp;
-                  rev = "446f11ea70b3921ad44fee6d532135fb9b775d7d";
-                  sha256 = "0bjv0s1s5916d37270xhv0lfixf60n691wn7bin37pvm5hxs51xj";
-                };
-              });
-      in dontCheck p;
     postie = overrideCabal super.postie (drv: {
       version = "0.5.0.1";
       src = filterGitSource ./postie;
@@ -397,9 +366,6 @@ self: super: {
         rev = "e9d2c7a7087ca3a88e517dafc6d2de4323fb177e";
         sha256 = "0vsvb5k9k42r5hpdqr87qy0yahqapyldzmdqr5nxpkyyddsn2bfs";
       };
-    });
-    diagrams-lib = overrideCabal super.diagrams-lib (drv: {
-      jailbreak = true;
     });
     th-expand-syns = overrideCabal super.th-expand-syns (drv: {
       jailbreak = true;
@@ -451,4 +417,12 @@ self: super: {
         sha256 = "0mahkyqrwa66y268sicp2ljn47h9ns5xn0iz7pn2k98grb3mr3r8";
       };
     })) self.casing) self.data-default;
+    MailchimpSimple = overrideCabal super.MailchimpSimple (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "obsidiansystems";
+        repo = "MailchimpSimple";
+        rev = "24d73548a569a22265cb7ee20c621733d9698afa";
+        sha256 = "1g2lz7b84hwnjgiv3sabzhcj069x06cly018cc0s1w9r2m5r2bf1";
+      };
+    });
   }

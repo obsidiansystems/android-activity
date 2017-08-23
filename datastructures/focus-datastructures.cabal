@@ -25,6 +25,7 @@ library
 
   exposed-modules:
       Focus.AppendMap
+    , Data.Cond
     , Data.Indexed
     , Data.Indexed.Projections
     , Data.SemiMap

@@ -34,8 +34,7 @@ import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce
 import Data.Constraint
-import Data.Dependent.Map (DMap, DSum (..))
-import qualified Data.Dependent.Map as DMap
+import Data.Dependent.Map (DSum (..))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -80,7 +79,8 @@ instance HasJS x m => HasJS x (FocusWidget f app t m) where
 instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
   type Request (FocusWidget f app t m) = AppRequest f app
   type Response (FocusWidget f app t m) = Identity
-  withRequesting f = FocusWidget $ withRequesting $ unFocusWidget . f
+  requesting = FocusWidget . requesting
+  requesting_ = FocusWidget . requesting_
 
 instance PerformEvent t m => PerformEvent t (FocusWidget f app t m) where
   type Performable (FocusWidget f app t m) = Performable m
@@ -260,16 +260,16 @@ fromNotifications vs ePatch = do
 
 data Decoder f = forall a. FromJSON a => Decoder (f a)
 
-identifyTags :: forall t k v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (DMap k v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (DMap k Identity))
+identifyTags :: forall t v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (RequesterData v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (RequesterData Identity))
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
-      waitingFor :: Incremental t (PatchMap Int (Decoder k)) <- holdIncremental mempty $ leftmost
+      waitingFor :: Incremental t (PatchMap Int (Decoder RequesterDataKey)) <- holdIncremental mempty $ leftmost
         [ fmap (\(_, b, _) -> b) send'
         , fmap snd recv'
         ]
       let send' = flip pushAlways send $ \dm -> do
             oldNextId <- sample nextId
-            let (result, newNextId) = flip runState oldNextId $ forM (DMap.toList dm) $ \(k :=> v) -> do
+            let (result, newNextId) = flip runState oldNextId $ forM (requesterDataToList dm) $ \(k :=> v) -> do
                   n <- get
                   put $ succ n
                   return (n, k :=> v)
@@ -288,7 +288,7 @@ identifyTags send recv = do
                     return $ case Map.lookup n wf of
                       Just (Decoder k) -> Just $
                         let Just v = parseMaybe parseJSON jsonV
-                        in (DMap.singleton k $ Identity v, PatchMap $ Map.singleton n Nothing)
+                        in (singletonRequesterData k $ Identity v, PatchMap $ Map.singleton n Nothing)
                       Nothing -> Nothing
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
 

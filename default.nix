@@ -1,6 +1,6 @@
 { enableProfiling ? false
 , runWithHeapProfiling ? false
-, enableExposeAllUnfoldings ? false
+, enableExposeAllUnfoldings ? true
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
@@ -8,6 +8,7 @@
 , androidConfig ? {}
 , googleServicesJson ? null
 , host ? null
+, withHoogle ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex' = import ./reflex-platform {
@@ -65,10 +66,16 @@ let tryReflex' = import ./reflex-platform {
       '';
 
 in lib.makeExtensible (focusSelf:
-let inherit (focusSelf) cabal2nixResult filterGitSource mkDerivation nixpkgs pkgs stdenv tryReflex;
+let inherit (focusSelf) filterGitSource mkDerivation nixpkgs pkgs stdenv tryReflex;
 in with nixpkgs.haskell.lib; {
-  tryReflex = tryReflex';
-  inherit (focusSelf.tryReflex) cabal2nixResult nixpkgs;
+  tryReflex = tryReflex' // (if withHoogle then {
+    ghc = tryReflex'.ghc.override {
+      overrides = _: su: {
+        ghcWithPackages = su.ghcWithHoogle;
+      };
+    };
+  } else {});
+  inherit (focusSelf.tryReflex) nixpkgs;
   inherit (focusSelf.nixpkgs) stdenv pkgs;
 
   backendHaskellPackagesBase = tryReflex.ghc;
@@ -156,25 +163,29 @@ in with nixpkgs.haskell.lib; {
         };
       };
 
+      haddockWhenWithHoogle = drv: if withHoogle then drv else dontHaddock drv;
+      exposeAllUnfoldings = drv: appendConfigureFlag drv "--ghc-options=-fexpose-all-unfoldings";
+      focusFlags = drv: haddockWhenWithHoogle (exposeAllUnfoldings drv);
       sharedOverrides = self: super: (import ./override-shared.nix { inherit nixpkgs filterGitSource; }) self super
-        // { focus-aeson-orphans = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./aeson-orphans)) {});
-             focus-core = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./core)) {});
-             focus-datastructures = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./datastructures)) {});
-             focus-emojione = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione)) {});
-             focus-emojione-data = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./emojione/data)) {});
-             focus-http-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/th)) {});
-             focus-js = overrideCabal (self.callPackage (cabal2nixResult (filterGitSource ./js)) {}) (drv: {
-               doHaddock = false;
+        // { focus-aeson-orphans = focusFlags (self.callCabal2nix "focus-aeson-orphans" (filterGitSource ./aeson-orphans) {});
+             focus-core = focusFlags (self.callCabal2nix "focus-core" (filterGitSource ./core) {});
+             focus-datastructures = focusFlags (self.callCabal2nix "focus-datastructures" (filterGitSource ./datastructures) {});
+             focus-emojione = focusFlags (self.callCabal2nix "focus-emojione" (filterGitSource ./emojione) {});
+             focus-emojione-data = focusFlags (self.callCabal2nix "focus-emojione-data" (filterGitSource ./emojione/data) {});
+             focus-gitlab = focusFlags (self.callCabal2nix "focus-gitlab" (filterGitSource ./gitlab) {});
+             focus-http-th = focusFlags (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
+             focus-js = focusFlags (overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
-             });
-             focus-serve = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./http/serve)) {});
-             focus-th = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./th)) {});
-             focus-webdriver = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./webdriver)) {});
-             email-parse = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./email-parse)) {});
-             unique-id = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./unique-id)) {});
-             hellosign = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./hellosign)) {});
-             touch = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./touch)) {});
-             focus-phonepush-worker = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./phonepush-worker)) {});
+             }));
+             focus-pivotal = focusFlags (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
+             focus-serve = focusFlags (self.callCabal2nix "focus-serve" (filterGitSource ./http/serve) {});
+             focus-th = focusFlags (self.callCabal2nix "focus-th" (filterGitSource ./th) {});
+             focus-webdriver = focusFlags (self.callCabal2nix "focus-webdriver" (filterGitSource ./webdriver) {});
+             email-parse = focusFlags (self.callCabal2nix "email-parse" (filterGitSource ./email-parse) {});
+             unique-id = focusFlags (self.callCabal2nix "unique-id" (filterGitSource ./unique-id) {});
+             hellosign = focusFlags (self.callCabal2nix "hellosign" (filterGitSource ./hellosign) {});
+             touch = focusFlags (self.callCabal2nix "touch" (filterGitSource ./touch) {});
+             focus-phonepush-worker = focusFlags (self.callCabal2nix "focus-phonepush-worker" (filterGitSource ./phonepush-worker) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {
@@ -197,20 +208,20 @@ in with nixpkgs.haskell.lib; {
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
         overrides = self: super: sharedOverrides self super // {
-          focus-backend = dontHaddock (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
-          focus-client = dontHaddock (self.callPackage ./client {});
-          focus-heremaps = dontHaddock (self.callPackage ./heremaps {});
-          focus-test = dontHaddock (self.callPackage ./test {});
-          websockets = overrideCabal super.websockets (drv: {
+          focus-backend = focusFlags (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
+          focus-client = focusFlags (self.callPackage ./client {});
+          focus-heremaps = focusFlags (self.callPackage ./heremaps {});
+          focus-test = focusFlags (self.callPackage ./test {});
+          websockets = focusFlags (overrideCabal super.websockets (drv: {
             src = ./websockets;
             buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
             jailbreak = true;
-          });
-          websockets-snap = overrideCabal super.websockets-snap (drv: {
+          }));
+          websockets-snap = focusFlags (overrideCabal super.websockets-snap (drv: {
             src = ./websockets-snap;
             buildDepends = with self; [ snap-core snap-server io-streams ];
-          });
-          snap-stream = dontHaddock (self.callPackage (cabal2nixResult (filterGitSource ./snap-stream)) {});
+          }));
+          snap-stream = focusFlags (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
         };
       }).override { overrides = haskellPackagesOverrides; };
 
@@ -230,7 +241,7 @@ in with nixpkgs.haskell.lib; {
                 hs-source-dirs: .
                 build-depends: ${pkgs.lib.concatStringsSep "," ([ "base" "bytestring" "containers" "time" "transformers" "text" "lens" "aeson" "mtl" "directory" "deepseq" "binary" "async" "vector" "template-haskell" "filepath" "primitive" "ghc-prim" ] ++ (if haskellPackages.ghc.isGhcjs or false then [ "ghcjs-base" "ghcjs-prim" ] else [ "process" "unix"]) ++ builtins.filter (x: x != null) (builtins.map (x: x.pname or null) depends))}
                 other-extensions: TemplateHaskell
-                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}"
+                ghc-options: -threaded -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -fprof-auto -rtsopts -threaded "-with-rtsopts=${rtsOpts}" -fspecialise-aggressively
                 default-language: Haskell2010
                 default-extensions: NoDatatypeContexts
                 if impl(ghcjs)
@@ -313,7 +324,7 @@ in with nixpkgs.haskell.lib; {
               inherit haskellPackages;
               cabalFile = mkCabalFile haskellPackages pname "frontend" buildDepends src "-T";
             };
-            doHaddock = false;
+            doHaddock = withHoogle;
           })) {};
 
       ghcjsApp = pkgs.stdenv.mkDerivation (rec {
@@ -326,11 +337,11 @@ in with nixpkgs.haskell.lib; {
 
           mkdir -p "$out"
           cd "$out"
-          for x in $(ls "$unminified/bin") ; do
+          for x in $(ls "$unminified/bin" | grep '\.jsexe'$) ; do
             mkdir "$x"
             pushd "$x"
             ln -s "$unminified/bin/$x/all.js" all.unminified.js
-            java -Xmx16800m -jar "$closurecompiler/share/java/compiler.jar" --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
+            java -Xmx25200m -jar "$closurecompiler/share/java/"closure-compiler-v*.jar --externs "$ghcjsExterns" -O ADVANCED --create_source_map="all.js.map" --source_map_format=V3 --js_output_file="all.js" all.unminified.js
             echo "//# sourceMappingURL=all.js.map" >> all.js
             popd
           done
@@ -475,7 +486,7 @@ in with nixpkgs.haskell.lib; {
               haskellPackages = backendHaskellPackages;
               cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src "-N10 -I0";
             };
-            doHaddock = false;
+            doHaddock = withHoogle;
           })) {};
         passthru = rec {
           inherit tryReflex;
@@ -504,13 +515,36 @@ in with nixpkgs.haskell.lib; {
               };
               doHaddock = false;
           })) {};
+          ${if builtins.pathExists ../tests/webdriver then "dev-webdriver-tests" else null} =
+            { seleniumHost ? "localhost", seleniumPort ? "4444"}:
+            let selenium-server = nixpkgs.selenium-server-standalone;
+                chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
+                inherit webdriver-tests;
+            in nixpkgs.writeScript "dev-webdriver-tests" ''
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
+                 "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 kill $SELENIUM_PID
+               '';
+
           ${if builtins.pathExists ../tests/webdriver then "run-webdriver-tests" else null} =
             { seleniumHost ? "localhost", seleniumPort ? "4444"}:
             let selenium-server = nixpkgs.selenium-server-standalone;
                 chromium = nixpkgs.chromium;
+                google-chrome = nixpkgs.google-chrome;
                 inherit webdriver-tests;
             in nixpkgs.writeScript "run-webdriver-tests" ''
+                 "${backend}/bin/backend" -p 8000 > /dev/null 2>&1 &
+                 BACKEND_PID=$!
+                 "${selenium-server}/bin/selenium-server" > /dev/null 2>&1 &
+                 SELENIUM_PID=$!
+                 sleep 5
                  "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${chromium}/bin/chromium"
+                 # "${passthru.webdriver-tests}/bin/webdriver-tests" "${seleniumHost}" "${seleniumPort}" "${google-chrome}/bin/google-chrome-stable"
+                 kill $BACKEND_PID
+                 kill $SELENIUM_PID
                '';
           ${if builtins.pathExists ../tests/backend then "backend-tests" else null} =
             backendHaskellPackages.callPackage ({mkDerivation, vector-algorithms, focus-core, focus-client, focus-backend}: mkDerivation (rec {
@@ -541,7 +575,7 @@ in with nixpkgs.haskell.lib; {
                   haskellPackages = backendHaskellPackages;
                   cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src "-N10 -I0";
                 };
-                doHaddock = false;
+                doHaddock = withHoogle;
           })) {};
           frontend = frontend_.unminified;
           frontendMinified = frontend_;

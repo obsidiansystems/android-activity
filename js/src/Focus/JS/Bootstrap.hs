@@ -13,7 +13,6 @@ import Reflex.Dom.Core hiding (button)
 
 import Focus.Account
 import Focus.JS.FontAwesome
-import Web.FontAwesomeType
 import Focus.JS.Widget
 import Focus.Misc
 import Focus.Schema
@@ -29,7 +28,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import Data.Text (Text)
-import Data.String
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.LocalTime.TimeZone.Series
@@ -243,7 +241,7 @@ utcTimeInputMini :: (HasJS x m, DomBuilder t m, PostBuild t m, MonadHold t m, Mo
 utcTimeInputMini tz0 tzWidget t = do
   rec let timeShown = zipDynWith (\tz t' -> showDateTime' tz t') tzD timeD
       (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
-        elClass "span" "input-group-addon" $ faIcon FaClockO def
+        elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
           & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ updated timeShown
@@ -276,7 +274,7 @@ data SortOrder = Ascending
                | Descending
                deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k, IsString FontAwesome) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
+sortList :: forall t m k v a. (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k) => Dynamic t (Map k v) -> Event t (Maybe k) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a)) -> m (Dynamic t (Maybe k))
 sortList items setK toString mkChild = do
   sortOrder :: Dynamic t SortOrder <- divClass "pull-right" $ alphaSortSelector
   query <- searchBox "search"
@@ -291,7 +289,7 @@ sortList items setK toString mkChild = do
       curSel <- holdDyn Nothing $ leftmost [setSel, sel]
   return $ fmap snd <$> curSel
 
-sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k, IsString FontAwesome) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
+sortListWithDeselectButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k) => Text -> Dynamic t (Map k v) -> (v -> Text) -> (Maybe (Int, k) -> Dynamic t v -> Dynamic t Bool -> m (Event t a )) -> m (Dynamic t (Maybe k))
 sortListWithDeselectButton buttonLabel items toString mkChild = do
   b <- button buttonLabel
   let deselect = fmap (const Nothing) b
@@ -306,8 +304,8 @@ substringFilter q s = case q of
 alphaSortSelector :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => m (Dynamic t SortOrder)
 alphaSortSelector = do
   divClass "btn-group" $ do
-    rec asc <- buttonDynAttr attrsA $ faIcon FaSortAlphaAsc def
-        desc <- buttonDynAttr attrsD $ faIcon FaSortAlphaDesc def
+    rec asc <- buttonDynAttr attrsA $ icon "sort-alpha-asc"
+        desc <- buttonDynAttr attrsD $ icon "sort-alpha-desc"
         order <- holdDyn Ascending $ leftmost [fmap (const Ascending) asc, fmap (const Descending) desc]
         let active = "class" =: "btn btn-default active"
             inactive = "class" =: "btn btn-default"
@@ -315,14 +313,14 @@ alphaSortSelector = do
             attrsD = ffor order $ \x -> if x == Descending then active else inactive
     return order
 
-searchBox' :: DomBuilder t m => FontAwesome -> Text -> m (Dynamic t (Maybe Text))
+searchBox' :: DomBuilder t m => Text -> Text -> m (Dynamic t (Maybe Text))
 searchBox' i p = do
   divClass "input-group" $ do
-    elClass "span" "input-group-addon" $ faIcon i def
+    elClass "span" "input-group-addon" $ icon i
     q <- value <$> textInputWithPlaceholder p
     return $ ffor q $ \v -> let x = T.strip v in if x == "" then Nothing else Just x
 
-searchBox :: DomBuilder t m => FontAwesome -> m (Dynamic t (Maybe Text))
+searchBox :: DomBuilder t m => Text -> m (Dynamic t (Maybe Text))
 searchBox i = searchBox' i "Search..."
 
 readonlyInput :: forall t m. DomBuilder t m => Text -> Text -> Text -> Event t Text -> m (InputElement EventResult (DomBuilderSpace m) t)
@@ -356,9 +354,9 @@ labelledInput name content = do
       text $ name
     divClass "col-sm-10" $ return =<< content
 
-buttonWithIcon :: forall t m. DomBuilder t m => FontAwesome -> Text -> Text -> m (Event t ())
+buttonWithIcon :: forall t m. DomBuilder t m => Text -> Text -> Text -> m (Event t ())
 buttonWithIcon i s btnClass = button' btnClass $ do
-  faIcon i def
+  icon i
   text $ " " <> s
 
 stamp :: DomBuilder t m => Text -> Text -> m ()
@@ -385,7 +383,7 @@ tristateButton k l b = do
     buttonContents x = case x of
                             Just True -> do
                               text $ l <> " "
-                              faIcon FaCheck def
+                              icon "check"
                             _ -> text l
 
 maybeBadge :: forall t m a. (DomBuilder t m, PostBuild t m, Show a) => Dynamic t (Maybe a) -> m (Event t ())
@@ -518,7 +516,7 @@ defaultLoginWidget errE = elAttr "form" ("class" =: "form-signin") $ do
       eEmailEnter = keypress Enter emailBox
       ePasswordEnter = keypress Enter passwordBox
       submitE = tagPromptlyDyn credentialsD $ leftmost [eEmailEnter, ePasswordEnter, _link_clicked submitButton]
-      showWarningE = (faIcon FaWarning def  >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
+      showWarningE = (icon "warning" >> divClass "alert alert-warning" (text "Login unsuccessful.")) <$ errE
   _ <- widgetHold blank showWarningE
   return (submitE, _link_clicked signupLink)
 
@@ -622,10 +620,10 @@ styleTagSignin = el "style" $ text
 toggleButton :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Bool -> Text -> Text -> Text -> m (Dynamic t Bool)
 toggleButton b0 k t1 t2 = elAttr "div" ("class" =: "btn-grp" <> "style" =: "overflow: auto") $ do
   rec short <- buttonDynAttr selAttrA $ do
-        _ <- dyn $ fmap (\sel' -> if sel' then faIcon FaCheck def else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if sel' then icon "check" else return ()) sel
         text t1
       long <- buttonDynAttr selAttrB $ do
-        _ <- dyn $ fmap (\sel' -> if not sel' then faIcon FaCheck def else return ()) sel
+        _ <- dyn $ fmap (\sel' -> if not sel' then icon "check" else return ()) sel
         text t2
       sel <- holdDyn b0 $ leftmost [fmap (const True) short, fmap (const False) long]
       let baseAttr :: Text -> Map Text Text
@@ -651,7 +649,7 @@ dayInputMini :: (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m) => Da
 dayInputMini d0 = do
   let showDate = T.pack . formatTime defaultTimeLocale "%b %e, %Y"
   rec (e', attrs) <- elAttr' "div" ("class" =: "input-group pointer") $ do
-        elClass "span" "input-group-addon" $ faIcon FaClockO def
+        elClass "span" "input-group-addon" $ icon "clock-o"
         _ <- inputElement $ def
           & initialAttributes .~ ("class" =: "form-control" <> "readonly" =: "" <> "style" =: "cursor: pointer; background-color: #fff;")
           & inputElementConfig_setValue .~ fmap showDate date
