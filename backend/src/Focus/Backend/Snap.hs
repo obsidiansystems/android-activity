@@ -133,6 +133,9 @@ serveStaticIndex cfg = do
       -- ^ create script element
       return ()
 
+-- | Takes an AppConfig monad and uses it to generate & write Lazy ByteString
+-- to the body of the https response. This one comes with hard coded values
+-- for the logo 
 serveIndex :: MonadSnap m => AppConfig m -> m ()
 serveIndex cfg = do
   -- | Decode, pack, and append asset target to file path, 
