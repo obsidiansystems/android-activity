@@ -176,7 +176,7 @@ in with nixpkgs.haskell.lib; {
              focus-http-th = focusFlags (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
              focus-js = focusFlags (overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
-             });
+             }));
              focus-pivotal = haddockWhenWithHoogle (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
              focus-serve = haddockWhenWithHoogle (self.callCabal2nix "focus-serve" (filterGitSource ./http/serve) {});
              focus-th = haddockWhenWithHoogle (self.callCabal2nix "focus-th" (filterGitSource ./th) {});
