@@ -176,16 +176,18 @@ in with nixpkgs.haskell.lib; {
              focus-http-th = focusFlags (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
              focus-js = focusFlags (overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
                libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
-             }));
-             focus-pivotal = focusFlags (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
-             focus-serve = focusFlags (self.callCabal2nix "focus-serve" (filterGitSource ./http/serve) {});
-             focus-th = focusFlags (self.callCabal2nix "focus-th" (filterGitSource ./th) {});
-             focus-webdriver = focusFlags (self.callCabal2nix "focus-webdriver" (filterGitSource ./webdriver) {});
-             email-parse = focusFlags (self.callCabal2nix "email-parse" (filterGitSource ./email-parse) {});
-             unique-id = focusFlags (self.callCabal2nix "unique-id" (filterGitSource ./unique-id) {});
-             hellosign = focusFlags (self.callCabal2nix "hellosign" (filterGitSource ./hellosign) {});
-             touch = focusFlags (self.callCabal2nix "touch" (filterGitSource ./touch) {});
-             focus-phonepush-worker = focusFlags (self.callCabal2nix "focus-phonepush-worker" (filterGitSource ./phonepush-worker) {});
+             });
+             focus-pivotal = haddockWhenWithHoogle (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
+             focus-serve = haddockWhenWithHoogle (self.callCabal2nix "focus-serve" (filterGitSource ./http/serve) {});
+             focus-th = haddockWhenWithHoogle (self.callCabal2nix "focus-th" (filterGitSource ./th) {});
+             focus-webdriver = haddockWhenWithHoogle (self.callCabal2nix "focus-webdriver" (filterGitSource ./webdriver) {});
+             email-parse = haddockWhenWithHoogle (self.callCabal2nix "email-parse" (filterGitSource ./email-parse) {});
+             unique-id = haddockWhenWithHoogle (self.callCabal2nix "unique-id" (filterGitSource ./unique-id) {});
+             hellosign = haddockWhenWithHoogle (self.callCabal2nix "hellosign" (filterGitSource ./hellosign) {});
+             touch = haddockWhenWithHoogle (self.callCabal2nix "touch" (filterGitSource ./touch) {});
+             focus-phonepush-worker = haddockWhenWithHoogle (self.callCabal2nix "focus-phonepush-worker" (filterGitSource ./phonepush-worker) {});
+             focus-weblayouts = haddockWhenWithHoogle (self.callCabal2nix "focus-weblayout" (filterGitSource ./weblayouts) {});
+             focus-weblayouts-backend = haddockWhenWithHoogle (self.callCabal2nix "focus-weblayouts-backend" (filterGitSource ./weblayouts-backend) {});
            };
 
       extendFrontendHaskellPackages = haskellPackages: (haskellPackages.override {

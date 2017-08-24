@@ -118,36 +118,35 @@ dynIcon = dynIconAttr mempty
 dynIcon2x :: (DomBuilder t m, PostBuild t m) => Dynamic t Text -> m ()
 dynIcon2x = dynIcon2xAttr mempty
 
-{-# DEPRECATED icon "use 'faIcon [className :: FontAwesome] def' instead" #-}
+{-# DEPRECATED icon "is unsafe and has been replaced by faIcon" #-}
 icon :: DomBuilder t m => Text -> m ()
 icon i = elClass "i" ("fa fa-" <> i) $ return ()
 
-{-# DEPRECATED icon1g "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
+{-# DEPRECATED icon1g "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
 icon1g :: DomBuilder t m => Text -> m ()
 icon1g i = icon (i <> " fa-1g")
 
-{-# DEPRECATED icon2x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
+{-# DEPRECATED icon2x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
 icon2x :: DomBuilder t m => Text -> m ()
 icon2x i = icon (i <> " fa-2x")
 
-{-# DEPRECATED icon3x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
+{-# DEPRECATED icon3x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
 icon3x :: DomBuilder t m => Text -> m ()
 icon3x i = icon (i <> " fa-3x")
 
-{-# DEPRECATED icon4x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
+{-# DEPRECATED icon4x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
 icon4x :: DomBuilder t m => Text -> m ()
 icon4x i = icon (i <> " fa-4x")
 
-{-# DEPRECATED icon5x "use faIcon [className :: FontAwesome] [config :: FAConf] instead."  #-}
+{-# DEPRECATED icon5x "is unsafe and has been replaced by faIcon. For additional faIcon configurations, pass an FAConf type as a second arg to faIcon."  #-}
 icon5x :: DomBuilder t m => Text -> m ()
 icon5x i = icon (i <> " fa-5x")
 
--- | Creates a Font Awesome icon using a 'FontAwesome' type and a
--- configuration, 'FAConfig', type
+-- | Type checked faIcon functions
 faIcon :: DomBuilder t m => FontAwesome -> FAConfig -> m ()
 faIcon i conf = elClass "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 
--- | Like 'faIcon' but instead uses elClass'
+-- | faIcon prime functions 
 faIcon' :: DomBuilder t m => FontAwesome -> FAConfig -> m (Element EventResult (DomBuilderSpace m) t, ())
 faIcon' i conf = elClass' "i" ((faPack i) <> (faConfigClass conf)) $ return ()
 

@@ -1,0 +1,58 @@
+Name: focus-weblayouts-backend
+Version: 0.1
+Synopsis: Project Synopsis Here
+Description: Project Description Here
+License: AllRightsReserved
+Author: Author
+Maintainer: maintainer@example.com
+Stability: Experimental
+Category: Web
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  if impl(ghcjs)
+    build-depends: ghcjs-base,
+                   ghcjs-json
+
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    data-default,
+    filepath,
+    focus-core,
+    focus-js,
+    focus-http-th,
+    focus-serve,
+    focus-backend,
+    font-awesome-type,
+    focus-weblayouts,
+    ghcjs-dom,
+    jsaddle,
+    lens,
+    mtl,
+    reflex,
+    reflex-aeson-orphans,
+    reflex-dom-core,
+    resource-pool,
+    semigroups,
+    snap,
+    snap-core,
+    snap-loader-static,
+    snap-server,
+    text,
+    transformers
+
+  exposed-modules:
+    Focus.Weblayouts.Backend.KissBackend
+
+  if os(ios)
+    build-depends: jsaddle-wkwebview
+  else
+    if arch(x86_64)
+      other-extensions: TemplateHaskell
+      cpp-options: -DUSE_TEMPLATE_HASKELL
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fexpose-all-unfoldings

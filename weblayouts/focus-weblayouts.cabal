@@ -1,0 +1,48 @@
+Name: focus-weblayouts
+Version: 0.1
+Synopsis: Project Synopsis Here
+Description: Project Description Here
+License: AllRightsReserved
+Author: Author
+Maintainer: maintainer@example.com
+Stability: Experimental
+Category: Web
+Build-type: Simple
+Cabal-version: >=1.2
+
+library
+  hs-source-dirs: src
+
+  if impl(ghcjs)
+    build-depends: ghcjs-base,
+                   ghcjs-json
+
+  build-depends:
+    base,
+    containers,
+    data-default,
+    file-embed,
+    filepath,
+    focus-core,
+    focus-js,
+    font-awesome-type,
+    ghcjs-dom,
+    jsaddle,
+    lens,
+    mtl,
+    reflex,
+    reflex-dom-core,
+    semigroups,
+    text,
+    transformers
+
+  exposed-modules:
+    Focus.Weblayouts.Kiss
+
+  if os(ios)
+    build-depends: jsaddle-wkwebview
+  else
+    if arch(x86_64)
+      other-extensions: TemplateHaskell
+      cpp-options: -DUSE_TEMPLATE_HASKELL
+  ghc-options: -threaded -Wall -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto -rtsopts -fexpose-all-unfoldings
