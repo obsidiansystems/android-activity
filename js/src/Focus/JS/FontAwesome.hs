@@ -64,7 +64,6 @@ instance Default FAConfig where
 
 -- | This function takes an 'FAConfig' type and generated the necessary "fa"
 -- class names for desired icon behavior
--}
 faConfigClass :: FAConfig -> Text
 faConfigClass c = T.intercalate " " . catMaybes $
   [ Just " fa"
