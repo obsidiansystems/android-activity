@@ -68,3 +68,6 @@
 [submodule "cross-android"]
 	path = cross-android
 	url = git@github.com:obsidiansystems/cross-android.git
+[submodule "gargoyle"]
+	path = gargoyle
+	url = git@github.com:obsidiansystems/gargoyle.git

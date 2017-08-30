@@ -7,4 +7,4 @@ SCHEMA=${2:-$(ghc -e 'putStrLn . read =<< readFile "config/deploymentName"')}
 echo "Database: \"$DB\" Schema: \"$SCHEMA\""
 
 export PGOPTIONS="-c search_path=\"$SCHEMA\",\"\$user\",public"
-nix-shell -p "((import ./. {}).backend.haskellPackages.ghcWithPackages (p: with p; [ focus-backend ]))" --run "ghc -e 'Focus.Backend.DB.Local.psqlLocal \"$DB\"'"
+nix-shell -p "((import ./. {}).backend.haskellPackages.ghcWithPackages (p: with p; [ gargoyle-nix ]))" --run "gargoyle-nix-psql $DB"

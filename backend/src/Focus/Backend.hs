@@ -1,19 +1,20 @@
-module Focus.Backend 
+module Focus.Backend
     ( withFocus
     , withDb
     ) where
 
 import Focus.Backend.DB
-import Focus.Backend.DB.Local
 
 import Data.Pool
 import Database.Groundhog.Postgresql
 import System.IO
 import System.Directory (doesFileExist)
 import qualified Data.ByteString.Char8 as BS
+import Gargoyle
+import Gargoyle.PostgreSQL.Nix
 
 -- | withFocus is utiliized to prevent interleaving, revealing the structure
--- of errors, and decreasing total delay 
+-- of errors, and decreasing total delay
 withFocus :: IO a -> IO a
 withFocus a = do
   hSetBuffering stderr LineBuffering -- Decrease likelihood of output from multiple threads being interleaved
@@ -32,4 +33,6 @@ withDb dbPath a = do
     -- use the file contents as the uri for an existing server
     then BS.readFile dbPath >>= openDb . head . BS.lines >>= a
     -- otherwise assume its a folder for a local database
-    else withLocalPostgres dbPath $ \dbUri -> a =<< openDb dbUri
+    else do
+      g <- postgresNix
+      withGargoyle g dbPath $ \dbUri -> a =<< openDb dbUri

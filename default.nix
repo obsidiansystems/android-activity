@@ -209,22 +209,27 @@ in with nixpkgs.haskell.lib; {
         };
       }).override { overrides = haskellPackagesOverrides; };
       extendBackendHaskellPackages = haskellPackages: (haskellPackages.override {
-        overrides = self: super: sharedOverrides self super // {
-          focus-backend = focusFlags (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
-          focus-client = focusFlags (self.callPackage ./client {});
-          focus-heremaps = focusFlags (self.callPackage ./heremaps {});
-          focus-test = focusFlags (self.callPackage ./test {});
-          websockets = focusFlags (overrideCabal super.websockets (drv: {
-            src = ./websockets;
-            buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
-            jailbreak = true;
-          }));
-          websockets-snap = focusFlags (overrideCabal super.websockets-snap (drv: {
-            src = ./websockets-snap;
-            buildDepends = with self; [ snap-core snap-server io-streams ];
-          }));
-          snap-stream = focusFlags (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
-        };
+        overrides = self: super:
+          let gargoylePkgs = import ./gargoyle self;
+          in sharedOverrides self super // rec {
+            focus-backend = focusFlags (self.callPackage ./backend { inherit (focusSelf) myPostgres; });
+            focus-client = focusFlags (self.callPackage ./client {});
+            focus-heremaps = focusFlags (self.callPackage ./heremaps {});
+            focus-test = focusFlags (self.callPackage ./test {});
+            websockets = focusFlags (overrideCabal super.websockets (drv: {
+              src = ./websockets;
+              buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
+              jailbreak = true;
+            }));
+            websockets-snap = focusFlags (overrideCabal super.websockets-snap (drv: {
+              src = ./websockets-snap;
+              buildDepends = with self; [ snap-core snap-server io-streams ];
+            }));
+            snap-stream = focusFlags (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
+            gargoyle = gargoylePkgs.gargoyle;
+            gargoyle-postgresql = gargoylePkgs.gargoyle-postgresql;
+            gargoyle-nix = self.callPackage ./gargoyle-nix { postgresql = focusSelf.myPostgres; };
+          };
       }).override { overrides = haskellPackagesOverrides; };
 
 

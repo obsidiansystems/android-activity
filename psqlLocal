@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 DB=${1:-"db"}
-nix-shell -p "((import ./. {}).backend.haskellPackages.ghcWithPackages (p: with p; [ focus-backend ]))" --run "ghc -e 'Focus.Backend.DB.Local.psqlLocal \"$DB\"'"
+nix-shell -p "((import ./. {}).backend.haskellPackages.ghcWithPackages (p: with p; [ gargoyle-nix ]))" --run "gargoyle-nix-psql $DB"
