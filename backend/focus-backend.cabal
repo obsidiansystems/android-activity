@@ -78,7 +78,9 @@ library
     io-streams,
     lifted-base,
     http-conduit,
-    svg-builder
+    svg-builder,
+    gargoyle,
+    gargoyle-nix
 
   exposed-modules:
       Focus.Backend
@@ -96,7 +98,6 @@ library
     , Focus.Backend.TH
     , Focus.Backend.Sign
     , Focus.Backend.DB.Temp
-    , Focus.Backend.DB.Local
     , Focus.Backend.DB.Groundhog
     , Focus.Backend.DB.PsqlSimple
     , Focus.Backend.Snap

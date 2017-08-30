@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Focus.Backend.DB.Temp where
 
-import Focus.Backend.DB.Local
-
 import System.IO.Temp
 import Data.ByteString (ByteString)
+import Gargoyle
+import Gargoyle.PostgreSQL.Nix
 
 withTempPostgres :: (ByteString -> IO a) -> IO a
 withTempPostgres a = withSystemTempDirectory "focusTempPostgres" $ \dbDir -> do
-  initLocalPostgres dbDir
-  withLocalPostgres dbDir a
+  g <- postgresNix
+  withGargoyle g dbDir a

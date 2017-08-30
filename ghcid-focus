@@ -6,4 +6,4 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 FOCUS_PACKAGE="$1"
 shift
 
-"$DIR/work-on-focus" "$FOCUS_PACKAGE" --run "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=../../dist-focus-$FOCUS_PACKAGE-ghcid --ghc-option=-Wwarn && ghcid -c'cabal repl --builddir=../../dist-focus-$FOCUS_PACKAGE-ghcid'" "$@"
+"$DIR/work-on-focus" "$FOCUS_PACKAGE" --run "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=../../dist-$FOCUS_PACKAGE-ghcid --ghc-option=-Wwarn && ghcid -c'cabal repl --builddir=../../dist-$FOCUS_PACKAGE-ghcid'" "$@"
