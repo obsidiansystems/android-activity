@@ -54,6 +54,8 @@ import Reflex.Aeson.Orphans ()
 import Reflex.Dom.Core hiding (MonadWidget, webSocket, Request)
 import Reflex.Host.Class
 #ifndef ghcjs_HOST_OS
+import Data.Dependent.Map (DMap)
+import qualified Data.Dependent.Map as DMap
 import GHCJS.DOM.Types (MonadJSM(..))
 #else
 import GHCJS.DOM.Types (MonadJSM)
@@ -260,7 +262,24 @@ fromNotifications vs ePatch = do
 
 data Decoder f = forall a. FromJSON a => Decoder (f a)
 
-identifyTags :: forall t v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (RequesterData v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (RequesterData Identity))
+-- TODO this ifdef is a temporary workaround necessitated by the fact that
+-- the latest implementation of reflex (fast-weak-partial-requester) does
+-- not work on mobile.
+#ifdef ghcjs_HOST_OS
+-- This version comes from d816ed243ebfbfe910b208d4983d6eac1a6dd4dc which is compatible
+-- with the fast-weak-partial-requester branch of reflex (where 'RequesterData' was added)
+identifyTags
+  :: forall t v m.
+     ( MonadFix m
+     , MonadHold t m
+     , Reflex t
+     , Request v
+     )
+  => Event t (RequesterData v)
+  -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+  -> m ( Event t [(Data.Aeson.Value, Data.Aeson.Value)]
+       , Event t (RequesterData Identity)
+       )
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
       waitingFor :: Incremental t (PatchMap Int (Decoder RequesterDataKey)) <- holdIncremental mempty $ leftmost
@@ -291,6 +310,53 @@ identifyTags send recv = do
                         in (singletonRequesterData k $ Identity v, PatchMap $ Map.singleton n Nothing)
                       Nothing -> Nothing
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
+#else
+-- This version comes from fb6a18b5aeaa2c5267e35efa621f96349c3995a8 which is compatible
+-- with the aa-backport-requester branch of reflex (which is the develop branch plus
+-- a patch to the requester interface)
+identifyTags
+  :: forall t k v m.
+     ( MonadFix m
+     , MonadHold t m
+     , Reflex t
+     , Request v
+     )
+  => Event t (DMap k v)
+  -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+  -> m ( Event t [(Data.Aeson.Value, Data.Aeson.Value)]
+       , Event t (DMap k Identity)
+       )
+identifyTags send recv = do
+  rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
+      waitingFor :: Incremental t (PatchMap Int (Decoder k)) <- holdIncremental mempty $ leftmost
+        [ fmap (\(_, b, _) -> b) send'
+        , fmap snd recv'
+        ]
+      let send' = flip pushAlways send $ \dm -> do
+            oldNextId <- sample nextId
+            let (result, newNextId) = flip runState oldNextId $ forM (DMap.toList dm) $ \(k :=> v) -> do
+                  n <- get
+                  put $ succ n
+                  return (n, k :=> v)
+                patchWaitingFor = PatchMap $ Map.fromList $ ffor result $ \(n, k :=> v) -> case requestResponseFromJSON v of
+                  Dict -> (n, Just (Decoder k))
+                toSend = ffor result $ \(n, _ :=> v) -> (toJSON n, requestToJSON v)
+            return (newNextId, patchWaitingFor, toSend)
+      let recv' = flip push recv $ \(jsonN, jsonV') -> do
+            case jsonV' of
+              Left _ -> return Nothing
+              Right jsonV -> do
+                wf <- sample $ currentIncremental waitingFor
+                case parseMaybe parseJSON jsonN of
+                  Nothing -> return Nothing
+                  Just n ->
+                    return $ case Map.lookup n wf of
+                      Just (Decoder k) -> Just $
+                        let Just v = parseMaybe parseJSON jsonV
+                        in (DMap.singleton k $ Identity v, PatchMap $ Map.singleton n Nothing)
+                      Nothing -> Nothing
+  return (fmap (\(_, _, c) -> c) send', fst <$> recv')
+#endif
 
 data AppWebSocket t v = AppWebSocket
   { _appWebSocket_notification :: Event t v
