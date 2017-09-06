@@ -251,7 +251,7 @@ in with nixpkgs.haskell.lib; {
                   cpp-options: -DUSE_TEMPLATE_HASKELL
                 if os(ios)
                   if arch(aarch64)
-                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.2.sdk
+                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS${iosSdkVersion}.sdk
                   else
                     ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator10.0.sdk
             '';
