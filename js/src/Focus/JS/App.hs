@@ -265,7 +265,7 @@ data Decoder f = forall a. FromJSON a => Decoder (f a)
 -- TODO this ifdef is a temporary workaround necessitated by the fact that
 -- the latest implementation of reflex (fast-weak-partial-requester) does
 -- not work on mobile.
-#if !defined(MIN_VERSION_jsaddle_wkwebview) && !defined(MIN_VERSION_jsaddle_clib)
+#if !defined(MOBILE)
 -- This version comes from d816ed243ebfbfe910b208d4983d6eac1a6dd4dc which is compatible
 -- with the fast-weak-partial-requester branch of reflex (where 'RequesterData' was added)
 -- WARNING: Currently not compatible with mobile apps

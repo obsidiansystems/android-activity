@@ -87,6 +87,8 @@ library
     Focus.JS.Widget
     Focus.JS.Window
 
+  if os(ios) || arch(aarch64) || arch(arm)
+    cpp-options: -DMOBILE
   if os(ios)
     build-depends: jsaddle-wkwebview
   else

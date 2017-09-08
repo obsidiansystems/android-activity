@@ -247,8 +247,10 @@ in with nixpkgs.haskell.lib; {
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
-                if !os(ios) && !arch(aarch64)
+                if !os(ios) && !arch(aarch64) && !arch(arm)
                   cpp-options: -DUSE_TEMPLATE_HASKELL
+                if os(ios) || arch(aarch64) || arch(arm)
+                  cpp-options: -DMOBILE
                 if os(ios)
                   if arch(aarch64)
                     ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS${iosSdkVersion}.sdk
@@ -374,6 +376,7 @@ in with nixpkgs.haskell.lib; {
             c-sources: cbits/focus.c
             main-is: ${mobileExecutable}
             ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
+            cpp-options: -DMOBILE
             default-extensions: NoDatatypeContexts
           EOF
         '';
