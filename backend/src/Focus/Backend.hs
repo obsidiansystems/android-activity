@@ -15,7 +15,9 @@ withFocus a = do
   putStrLn "\a" -- Ring the bell; this is mostly helpful in development; probably should be moved to a script in focus instead of the actual server start
   a
 
- --TODO: Support a remote as well as local databases
+-- | Connects to a database using information at the given filepath
+-- The given filepath can be either a folder (for a local db)
+-- or a file with a database url
 withDb :: String -> (Pool Postgresql -> IO a) -> IO a
 withDb dbPath a = do
   dbExists <- doesFileExist dbPath
