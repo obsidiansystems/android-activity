@@ -21,8 +21,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType(..), getPatchesForTokens
-                            , getViewsForTokens, handleListen, handleRequests, insertAndNotify
-                            , insertByAllAndNotify, insertByAllAndNotifyWithBody, listenDB
+                            , getViewsForTokens, handleListen, handleRequests
+                            , insertAndNotify , insertAndNotify_, insertByAllAndNotify, insertByAllAndNotifyWithBody
+                            , listenDB
                             , NotifyMessage (..)
                             , makeViewListener, notifyEntities, notifyEntityId, notifyEntityWithBody
                             , notifyEntityWithBody', getPatchesFor, updateAndNotify
@@ -134,6 +135,9 @@ insertAndNotify t = do
   tid <- liftM toId $ insert t
   notifyEntityId NotificationType_Insert tid
   return tid
+
+insertAndNotify_ :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m ()
+insertAndNotify_ = void . insertAndNotify
 
 insertByAllAndNotify :: (PersistBackend m, DefaultKey a ~ AutoKey a, DefaultKeyId a, PersistEntity a, ToJSON (IdData a)) => a -> m (Maybe (Id a))
 insertByAllAndNotify t = do
