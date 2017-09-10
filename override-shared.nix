@@ -413,8 +413,8 @@ self: super: {
       src = nixpkgs.fetchFromGitHub {
         owner = "obsidiansystems";
         repo = "haskell-phone-push";
-        rev = "b9320ce4210de11614c260a05172d1b5f03213cf";
-        sha256 = "0mahkyqrwa66y268sicp2ljn47h9ns5xn0iz7pn2k98grb3mr3r8";
+        rev = "edc4e11e55cd250614e88b1b5eb69a97b3422ea0";
+        sha256 = "06q8jn7ijm6i8gy3qv1191vg3g0c2zhp3kfahhxgwq9l7v8hc7qf";
       };
     })) self.casing) self.data-default;
     MailchimpSimple = overrideCabal super.MailchimpSimple (drv: {
