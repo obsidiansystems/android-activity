@@ -22,6 +22,7 @@
 
 module Focus.Backend.Listen ( ViewListener (..), MonadListenDb, NotificationType(..), getPatchesForTokens
                             , getViewsForTokens, handleListen, handleRequests
+                            , websocketHandler, WebsocketHandlerConfig (..)
                             , insertAndNotify , insertAndNotify_, insertByAllAndNotify, insertByAllAndNotifyWithBody
                             , listenDB
                             , NotifyMessage (..)
@@ -268,6 +269,19 @@ ensureSchemaViewListenerExists schema connections = atomically $ do
       return newSchemaConn
     Just schemaConn -> return schemaConn
 
+data WebsocketHandlerConfig vs vp state rq rsp m = WebsocketHandlerConfig
+  { _websocketHandlerConfig_schema :: SchemaName
+  , _websocketHandlerConfig_closeHook :: vs -> state -> m ()
+  , _websocketHandlerConfig_openHook :: (T.Text -> IO ()) -> IO ()
+  , _websocketHandlerConfig_run :: forall x. m x -> IO x
+  , _websocketHandlerConfig_viewListener :: ViewListener vs vp state
+  , _websocketHandlerConfig_initialSelectors :: vs
+  , _websocketHandlerConfig_initialStates :: state
+  , _websocketHandlerConfig_getViews :: vs -> vs -> StateT state m vp
+  , _websocketHandlerConfig_handleRequest :: state -> rq -> IO rsp
+  }
+
+{-# DEPRECATED handleListen "Use websocketHandler instead" #-}
 handleListen :: forall m m' rsp rq vs vp state.
                 ( MonadSnap m, ToJSON rsp, FromJSON rq, ToJSON rq
                 , FromJSON vs, ToJSON vs, ToJSON vp, Monoid vs
@@ -282,7 +296,15 @@ handleListen :: forall m m' rsp rq vs vp state.
              -> (vs -> vs -> StateT state m' vp) -- getView
              -> (state -> rq -> IO rsp) -- processRequest
              -> m ()
-handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewListener vs0 state0 getView processRequest = runWebSocketsSnap $ \pc -> do
+handleListen schema connectionCloseHook connectionOpenHook runGroundhog viewListener vs0 state0 getView processRequest = websocketHandler $ WebsocketHandlerConfig schema connectionCloseHook connectionOpenHook runGroundhog viewListener vs0 state0 getView processRequest 
+
+websocketHandler
+  :: forall m m' rsp rq vs vp state.
+     ( MonadSnap m, ToJSON rsp, FromJSON rq, ToJSON rq
+     , FromJSON vs, ToJSON vs, ToJSON vp, Monoid vs)
+  => WebsocketHandlerConfig vs vp state rq rsp m'
+  -> m ()
+websocketHandler (WebsocketHandlerConfig schema connectionCloseHook connectionOpenHook runGroundhog viewListener vs0 state0 getView processRequest) = runWebSocketsSnap $ \pc -> do
   connections <- ensureSchemaViewListenerExists schema $ _viewListener_connections viewListener
   conn <- acceptRequest pc
   let send' = sendTextData conn . encodeR . Right . WebSocketData_Listen

@@ -1,4 +1,5 @@
-#!/usr/bin/env runhaskell
+#! /usr/bin/env nix-shell
+#! nix-shell "./script-env/ob-init.nix" -i "runghc"
 --TODO: Don't depend on the user's environment - everything should be based on nixpkgs via reflex-platform
 {-|
  Description: This script prompts user for the project name, and
@@ -56,7 +57,7 @@ main = do
 --TODO: Consider using fileEmbed to generate default.nix in initializing folder
 nixExpr :: Text -- ^ The name of the project; this must be a valid Cabal package name
         -> Text
-nixExpr projectName = Text.unlines 
+nixExpr projectName = Text.unlines
   [ "{}: (import ./focus {}).mkDerivation {"
   , "  name = \"" <> projectName <> "\";"
   , "  version = \"0.1\";"
@@ -83,26 +84,26 @@ nixExpr projectName = Text.unlines
   , "     snap-server"
   , "  ];"
   , "}"
-  ] 
- 
+  ]
+
 
 frontSrc :: Text
-frontSrc = Text.unlines 
+frontSrc = Text.unlines
   [ "{-# LANGUAGE OverloadedStrings #-}"
   , ""
   , "import Reflex.Dom"
   , ""
   , "main = mainWidget $ text \"Hello, new project!\""
-  ] 
+  ]
 
 backSrc :: Text
-backSrc = Text.unlines 
+backSrc = Text.unlines
   [ "{-# LANGUAGE OverloadedStrings #-}"
   , ""
   , "import Data.Default"
   , "import Focus.Backend"
   , "import Focus.Backend.Snap"
-  , "import Snap" 
+  , "import Snap"
   , ""
   , "main :: IO ()"
   , "main = withFocus . quickHttpServe $ rootHandler"
@@ -110,13 +111,13 @@ backSrc = Text.unlines
   , "rootHandler :: Snap ()"
   , "rootHandler = route [(\"\", serveApp \"\" $ def)]"
   ]
- 
+
 
 mkdirs :: [FilePath] -> IO ()
 mkdirs = mapM_ $ createDirectoryIfMissing True
 
 createFileIfMissing :: FilePath -> Text -> IO ()
-createFileIfMissing aFile content = 
+createFileIfMissing aFile content =
   doesFileExist aFile >>= \case
     True -> putStrLn ("Skipping " ++ show aFile ++ "(already exist)")
     False -> Text.writeFile aFile content

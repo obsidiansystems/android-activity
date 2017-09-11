@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+TAGS="frontend common backend focus/backend focus/client focus/core focus/http focus/js focus/email-parse focus/unique-id focus/touch focus/datastructures focus/phonepush-worker focus/webdriver"
+
+echo "Generating tags for ${TAGS}..."
+nix-shell -p haskellPackages.hasktags --command "hasktags -b ${TAGS}"
+nix-shell -p "haskellPackages.ghcWithPackages (pkgs: with pkgs; [text])" --command "ghc -e main focus/simplify-tags/simplify-tags.hs"
+echo "Done!"

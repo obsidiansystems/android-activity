@@ -89,15 +89,25 @@ openDb dbUri = do
       closePostgresql (Postgresql p) = close p
   createPool openPostgresql closePostgresql 1 5 20
 
+-- | Runs a database action using a given pool of database connections
+-- The 'f' parameter can be used to represent additional information about
+-- how/where to run the database action (e.g., in a particular schema).
+-- See instances below.
 class RunDb f where
-  runDb :: (MonadIO m, MonadBaseControl IO m, ConnectionManager cm conn, PostgresRaw (DbPersist conn (NoLoggingT m)), PersistBackend (DbPersist conn (NoLoggingT m)))
+  runDb :: ( MonadIO m
+           , MonadBaseControl IO m
+           , ConnectionManager cm conn
+           , PostgresRaw (DbPersist conn (NoLoggingT m))
+           , PersistBackend (DbPersist conn (NoLoggingT m)))
         => f (Pool cm)
         -> DbPersist conn (NoLoggingT m) b
         -> m b
 
+-- | Runs a database action in the public schema
 instance RunDb Identity where
   runDb (Identity db) = withResource db . runDbConn . withSchema (SchemaName "public")
 
+-- | Runs a database action in a specific schema
 instance RunDb WithSchema where
   runDb (WithSchema schema db) = withResource db . runDbConn . withSchema schema
 
