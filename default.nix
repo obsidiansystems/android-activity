@@ -588,7 +588,7 @@ in with nixpkgs.haskell.lib; {
           frontendMinified = frontend_;
           inherit staticAssets;
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
-              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp th-lift-instances ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
           mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc, apsEnv}: nixpkgs.runCommand "${exeName}-app" (rec {
