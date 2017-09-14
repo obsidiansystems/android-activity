@@ -30,7 +30,7 @@ singletonQuery k = QueryMorphism { _queryMorphism_mapQuery = AppendMap.singleton
                                  , _queryMorphism_mapQueryResult = AppendMap.findWithDefault mempty k
                                  }
 
-class ( ToJSON (ViewSelector app SelectedCount), FromJSON (ViewSelector app SelectedCount)
+class ( ToJSON (ViewSelector app ()), FromJSON (ViewSelector app ())
       , ToJSON (View app), FromJSON (View app)
       , Monoid (ViewSelector app SelectedCount), Semigroup (ViewSelector app SelectedCount)
       , Query (ViewSelector app SelectedCount), QueryResult (ViewSelector app SelectedCount) ~ View app
