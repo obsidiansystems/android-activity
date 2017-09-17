@@ -4,6 +4,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
@@ -15,6 +18,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , liftWithConn
                                    , PostgresLargeObject (..)
                                    , withStreamedLargeObject
+                                   , sqlv
                                    ) where
 
 import Control.Exception.Lifted
@@ -28,6 +32,7 @@ import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Builder
+import Data.Char (isSpace)
 import Data.Int
 import Data.IORef
 import Data.Semigroup
@@ -43,6 +48,8 @@ import Database.PostgreSQL.Simple.SqlQQ
 import qualified Database.PostgreSQL.Simple as Sql
 import Database.PostgreSQL.Simple.LargeObjects (Oid(..), LoFd)
 import qualified Database.PostgreSQL.Simple.LargeObjects as Sql
+import Language.Haskell.TH
+import Language.Haskell.TH.Quote
 import System.IO
 import System.IO.Streams (OutputStream, makeOutputStream)
 import qualified System.IO.Streams as Streams
@@ -327,3 +334,62 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
     fromRow = (,,,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
                                <*> field <*> field <*> field <*> field <*> field
                                <*> field <*> field <*> field <*> field <*> field
+
+-- | This quasiquoter takes a SQL query with named arguments in the form "?var" and generates a pair
+-- consisting of the Query string itself and a tuple of variables in corresponding order.
+--
+-- For example: uncurry query [sqlv| SELECT * FROM 'Book' b WHERE b.title = ?title AND b.year = ?year |]
+--
+-- will be equivalent to query [sql| SELECT * FROM 'Book' b WHERE b.title = ? AND b.year = ? |] (title,year)
+sqlv :: QuasiQuoter
+sqlv = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.sqlv:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.sqlv:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = sqlvExp
+    , quoteDec  = error "Focus.Backend.DB.sqlv:\
+                        \ quasiquoter used in declaration context"
+    }
+
+sqlvExp :: String -> Q Exp
+sqlvExp s =
+  let (s',vs) = extractVars s
+  in tupE [appE [| fromString :: String -> Query |] . stringE . minimizeSpace $ s', tupE (map varE vs)]
+
+extractVars :: String -> (String, [Name])
+extractVars s = extractVars' s
+  where 
+    extractVars' [] = ([],[])
+    extractVars' ('?':s') =
+      let (var,rest) = break isSpace s'
+          (s'',vars) = extractVars' rest
+      in ('?':s'', mkName var : vars)
+    extractVars' s' =
+      let (pre,post) = break (=='?') s'
+          (s'',vars) = extractVars' post
+      in (pre ++ s'', vars)
+
+minimizeSpace :: String -> String
+minimizeSpace = drop 1 . reduceSpace
+  where
+    needsReduced []          = False
+    needsReduced ('-':'-':_) = True
+    needsReduced (x:_)       = isSpace x
+
+    reduceSpace xs =
+        case dropWhile isSpace xs of
+          [] -> []
+          ('-':'-':ys) -> reduceSpace (dropWhile (/= '\n') ys)
+          ys -> ' ' : insql ys
+
+    insql ('\'':xs)            = '\'' : instring xs
+    insql xs | needsReduced xs = reduceSpace xs
+    insql (x:xs)               = x : insql xs
+    insql []                   = []
+
+    instring ('\'':'\'':xs) = '\'':'\'': instring xs
+    instring ('\'':xs)      = '\'': insql xs
+    instring (x:xs)         = x : instring xs
+    instring []             = error "Focus.Backend.DB.PsqlSimple.sqlv:\
+                                    \ string literal not terminated"
