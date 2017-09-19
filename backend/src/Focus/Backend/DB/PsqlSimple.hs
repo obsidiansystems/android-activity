@@ -342,7 +342,7 @@ queryQ = QuasiQuoter
                         \ quasiquoter used in pattern context"
     , quoteType = error "Focus.Backend.DB.queryQ:\
                         \ quasiquoter used in type context"
-    , quoteExp  = \s -> appE [| uncurry query |] (sqlvExp s)
+    , quoteExp  = \s -> appE [| uncurry query |] (sqlQExp s)
     , quoteDec  = error "Focus.Backend.DB.queryQ:\
                         \ quasiquoter used in declaration context"
     }
@@ -354,7 +354,7 @@ executeQ = QuasiQuoter
                         \ quasiquoter used in pattern context"
     , quoteType = error "Focus.Backend.DB.queryQ:\
                         \ quasiquoter used in type context"
-    , quoteExp  = \s -> appE [| uncurry execute |] (sqlvExp s)
+    , quoteExp  = \s -> appE [| uncurry execute |] (sqlQExp s)
     , quoteDec  = error "Focus.Backend.DB.queryQ:\
                         \ quasiquoter used in declaration context"
     }
@@ -372,7 +372,7 @@ sqlQ = QuasiQuoter
                         \ quasiquoter used in pattern context"
     , quoteType = error "Focus.Backend.DB.sqlQ:\
                         \ quasiquoter used in type context"
-    , quoteExp  = sqlvExp
+    , quoteExp  = sqlQExp
     , quoteDec  = error "Focus.Backend.DB.sqlQ:\
                         \ quasiquoter used in declaration context"
     }
