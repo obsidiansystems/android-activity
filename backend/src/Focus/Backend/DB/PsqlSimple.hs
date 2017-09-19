@@ -368,19 +368,19 @@ executeQ = QuasiQuoter
 -- will be equivalent to query [sql| SELECT * FROM 'Book' b WHERE b.title = ? AND b.author = ? |] (title,author)
 sqlQ :: QuasiQuoter
 sqlQ = QuasiQuoter
-    { quotePat  = error "Focus.Backend.DB.sqlv:\
+    { quotePat  = error "Focus.Backend.DB.sqlQ:\
                         \ quasiquoter used in pattern context"
-    , quoteType = error "Focus.Backend.DB.sqlv:\
+    , quoteType = error "Focus.Backend.DB.sqlQ:\
                         \ quasiquoter used in type context"
     , quoteExp  = sqlvExp
-    , quoteDec  = error "Focus.Backend.DB.sqlv:\
+    , quoteDec  = error "Focus.Backend.DB.sqlQ:\
                         \ quasiquoter used in declaration context"
     }
 
-sqlvExp :: String -> Q Exp
-sqlvExp s =
+sqlQExp :: String -> Q Exp
+sqlQExp s =
   let (s',vs) = extractVars s
-  in tupE [appE [| fromString :: String -> Query |] . stringE . minimizeSpace $ s', tupE (map varE vs)]
+  in tupE [quoteExp sql $ s', tupE (map varE vs)]
 
 extractVars :: String -> (String, [Name])
 extractVars s = extractVars' s
@@ -394,27 +394,3 @@ extractVars s = extractVars' s
       let (pre,post) = break (=='?') s'
           (s'',vars) = extractVars' post
       in (pre ++ s'', vars)
-
-minimizeSpace :: String -> String
-minimizeSpace = drop 1 . reduceSpace
-  where
-    needsReduced []          = False
-    needsReduced ('-':'-':_) = True
-    needsReduced (x:_)       = isSpace x
-
-    reduceSpace xs =
-        case dropWhile isSpace xs of
-          [] -> []
-          ('-':'-':ys) -> reduceSpace (dropWhile (/= '\n') ys)
-          ys -> ' ' : insql ys
-
-    insql ('\'':xs)            = '\'' : instring xs
-    insql xs | needsReduced xs = reduceSpace xs
-    insql (x:xs)               = x : insql xs
-    insql []                   = []
-
-    instring ('\'':'\'':xs) = '\'':'\'': instring xs
-    instring ('\'':xs)      = '\'': insql xs
-    instring (x:xs)         = x : instring xs
-    instring []             = error "Focus.Backend.DB.PsqlSimple.sqlv:\
-                                    \ string literal not terminated"
