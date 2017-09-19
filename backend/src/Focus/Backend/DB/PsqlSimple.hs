@@ -1,11 +1,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -18,7 +18,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , liftWithConn
                                    , PostgresLargeObject (..)
                                    , withStreamedLargeObject
-                                   , sqlv
+                                   , queryQ, executeQ, sqlQ
                                    ) where
 
 import Control.Exception.Lifted
@@ -335,14 +335,39 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
                                <*> field <*> field <*> field <*> field <*> field
                                <*> field <*> field <*> field <*> field <*> field
 
+-- | This quasiquoter is the obvious combination of 'sqlQ' and 'query'.
+queryQ :: QuasiQuoter
+queryQ = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = \s -> appE [| uncurry query |] (sqlvExp s)
+    , quoteDec  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in declaration context"
+    }
+
+-- | This quasiquoter is the obvious combination of 'sqlQ' and 'execute'.
+executeQ :: QuasiQuoter
+executeQ = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = \s -> appE [| uncurry execute |] (sqlvExp s)
+    , quoteDec  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in declaration context"
+    }
+
+
 -- | This quasiquoter takes a SQL query with named arguments in the form "?var" and generates a pair
 -- consisting of the Query string itself and a tuple of variables in corresponding order.
 --
--- For example: uncurry query [sqlv| SELECT * FROM 'Book' b WHERE b.title = ?title AND b.year = ?year |]
+-- For example: uncurry query [sqlv| SELECT * FROM 'Book' b WHERE b.title = ?title AND b.author = ?author |]
 --
--- will be equivalent to query [sql| SELECT * FROM 'Book' b WHERE b.title = ? AND b.year = ? |] (title,year)
-sqlv :: QuasiQuoter
-sqlv = QuasiQuoter
+-- will be equivalent to query [sql| SELECT * FROM 'Book' b WHERE b.title = ? AND b.author = ? |] (title,author)
+sqlQ :: QuasiQuoter
+sqlQ = QuasiQuoter
     { quotePat  = error "Focus.Backend.DB.sqlv:\
                         \ quasiquoter used in pattern context"
     , quoteType = error "Focus.Backend.DB.sqlv:\
