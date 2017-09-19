@@ -350,12 +350,12 @@ queryQ = QuasiQuoter
 -- | This quasiquoter is the obvious combination of 'sqlQ' and 'execute'.
 executeQ :: QuasiQuoter
 executeQ = QuasiQuoter
-    { quotePat  = error "Focus.Backend.DB.queryQ:\
+    { quotePat  = error "Focus.Backend.DB.executeQ:\
                         \ quasiquoter used in pattern context"
-    , quoteType = error "Focus.Backend.DB.queryQ:\
+    , quoteType = error "Focus.Backend.DB.executeQ:\
                         \ quasiquoter used in type context"
     , quoteExp  = \s -> appE [| uncurry execute |] (sqlQExp s)
-    , quoteDec  = error "Focus.Backend.DB.queryQ:\
+    , quoteDec  = error "Focus.Backend.DB.executeQ:\
                         \ quasiquoter used in declaration context"
     }
 
