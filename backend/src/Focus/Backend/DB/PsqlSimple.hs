@@ -387,7 +387,7 @@ extractVars s = extractVars' s
   where 
     extractVars' [] = ([],[])
     extractVars' ('?':s') =
-      let (var,rest) = break isSpace s'
+      let [(var,rest)] = lex s'
           (s'',vars) = extractVars' rest
       in ('?':s'', mkName var : vars)
     extractVars' s' =
