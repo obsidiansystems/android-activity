@@ -1,9 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
@@ -15,6 +18,7 @@ module Focus.Backend.DB.PsqlSimple ( PostgresRaw (..)
                                    , liftWithConn
                                    , PostgresLargeObject (..)
                                    , withStreamedLargeObject
+                                   , queryQ, executeQ, sqlQ
                                    ) where
 
 import Control.Exception.Lifted
@@ -28,6 +32,7 @@ import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Builder
+import Data.Char (isSpace)
 import Data.Int
 import Data.IORef
 import Data.Semigroup
@@ -43,6 +48,8 @@ import Database.PostgreSQL.Simple.SqlQQ
 import qualified Database.PostgreSQL.Simple as Sql
 import Database.PostgreSQL.Simple.LargeObjects (Oid(..), LoFd)
 import qualified Database.PostgreSQL.Simple.LargeObjects as Sql
+import Language.Haskell.TH
+import Language.Haskell.TH.Quote
 import System.IO
 import System.IO.Streams (OutputStream, makeOutputStream)
 import qualified System.IO.Streams as Streams
@@ -327,3 +334,63 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
     fromRow = (,,,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
                                <*> field <*> field <*> field <*> field <*> field
                                <*> field <*> field <*> field <*> field <*> field
+
+-- | This quasiquoter is the obvious combination of 'sqlQ' and 'query'.
+queryQ :: QuasiQuoter
+queryQ = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = \s -> appE [| uncurry query |] (sqlQExp s)
+    , quoteDec  = error "Focus.Backend.DB.queryQ:\
+                        \ quasiquoter used in declaration context"
+    }
+
+-- | This quasiquoter is the obvious combination of 'sqlQ' and 'execute'.
+executeQ :: QuasiQuoter
+executeQ = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.executeQ:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.executeQ:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = \s -> appE [| uncurry execute |] (sqlQExp s)
+    , quoteDec  = error "Focus.Backend.DB.executeQ:\
+                        \ quasiquoter used in declaration context"
+    }
+
+
+-- | This quasiquoter takes a SQL query with named arguments in the form "?var" and generates a pair
+-- consisting of the Query string itself and a tuple of variables in corresponding order.
+--
+-- For example: uncurry query [sqlv| SELECT * FROM 'Book' b WHERE b.title = ?title AND b.author = ?author |]
+--
+-- will be equivalent to query [sql| SELECT * FROM 'Book' b WHERE b.title = ? AND b.author = ? |] (title,author)
+sqlQ :: QuasiQuoter
+sqlQ = QuasiQuoter
+    { quotePat  = error "Focus.Backend.DB.sqlQ:\
+                        \ quasiquoter used in pattern context"
+    , quoteType = error "Focus.Backend.DB.sqlQ:\
+                        \ quasiquoter used in type context"
+    , quoteExp  = sqlQExp
+    , quoteDec  = error "Focus.Backend.DB.sqlQ:\
+                        \ quasiquoter used in declaration context"
+    }
+
+sqlQExp :: String -> Q Exp
+sqlQExp s =
+  let (s',vs) = extractVars s
+  in tupE [quoteExp sql $ s', tupE (map varE vs)]
+
+extractVars :: String -> (String, [Name])
+extractVars s = extractVars' s
+  where 
+    extractVars' [] = ([],[])
+    extractVars' ('?':s') =
+      let [(var,rest)] = lex s'
+          (s'',vars) = extractVars' rest
+      in ('?':s'', mkName var : vars)
+    extractVars' s' =
+      let (pre,post) = break (=='?') s'
+          (s'',vars) = extractVars' post
+      in (pre ++ s'', vars)
