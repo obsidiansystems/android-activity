@@ -25,7 +25,7 @@ class Semigroup (Patch v) => Patchable v where
   type instance Patch v = First v
   -- patch should be a left {semigroup, monoid} action if the Patch type is one
   patch :: Patch v -> v -> v
-  default patch :: First v -> v -> v
+  default patch :: Patch v ~ First v => Patch v -> v -> v
   patch (First v) _ = v
 
 instance Patchable () where
