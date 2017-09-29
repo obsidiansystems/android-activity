@@ -128,11 +128,7 @@ in with nixpkgs.haskell.lib; {
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
 
       frontendHaskellPackages = extendFrontendHaskellPackages focusSelf.frontendHaskellPackagesBase;
-      frontendGhcHaskellPackages = (extendFrontendHaskellPackages tryReflex.ghcWarp).override {
-        overrides = self: super: let new = sharedOverrides self super; in new // {
-          focus-js = appendConfigureFlag new.focus-js "--ghc-option=-DMOBILE";
-        };
-      };
+      frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
       backendHaskellPackages = extendBackendHaskellPackages focusSelf.backendHaskellPackagesBase;
       androidPackages = lib.mapAttrs (abiVersion: { nixpkgsAndroid, androidHaskellPackagesBase }: {
         inherit nixpkgsAndroid;
