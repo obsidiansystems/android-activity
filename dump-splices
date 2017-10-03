@@ -4,7 +4,7 @@ set -eu
 FOCUS_PACKAGE="$1"
 shift
 
-nix-shell -E 'let this = import ./. {}; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepends this.backend.haskellPackages.focus-'"$FOCUS_PACKAGE"' [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.ghcid this.backend.haskellPackages.cabal-install ]).env' --command "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=dist-dumpsplices --ghc-option=-ddump-splices --ghc-option=-DDUMPING_SPLICES --ghc-option=-w && cabal build --builddir=dist-dumpsplices" "$@" | sed -e 's/^    //' -e '/Splicing [a-z]*$/,/^  ======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}[^ ]\)/\1\n\2/;P;D}'
+nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepends this.backend.haskellPackages.focus-'"$FOCUS_PACKAGE"' [ this.backend.haskellPackages.ghcid this.backend.haskellPackages.ghcid this.backend.haskellPackages.cabal-install ]).env' --command "cd \"focus/$FOCUS_PACKAGE\" && cabal configure --builddir=dist-dumpsplices --ghc-option=-ddump-splices --ghc-option=-DDUMPING_SPLICES --ghc-option=-w && cabal build --builddir=dist-dumpsplices" "$@" | sed -e 's/^    //' -e '/Splicing [a-z]*$/,/^  ======>$/ s/^/-- /' -e 's/\b\(case .*\) {$/\1/' -e '/ })*$/{N;s/ }\()*\)\n\( \{0,2\}[^ ]\)/\1\n\2/;P;D}'
 # The above sed command does 4 things:
 #   * Unindent things
 #   * Comment out the garbage between splices
