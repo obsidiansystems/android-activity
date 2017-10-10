@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 if [ -z "$1" -o -z "$2" -o -z "$3" -o -z "$4" ]; then
   echo "Usage: $0 [APS_ENV] [APP_NAME] [BUNDLE_IDENTIFIER] [BUNDLE_VERSION_STRING] [BUNDLE_VERSION] [ROUTE_CONFIG]" >&2
   exit 1
@@ -16,7 +17,6 @@ BUNDLE_VERSION=$1
 shift
 ROUTE_CONFIG=$1
 shift
-set -euo pipefail
 
 echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
 
