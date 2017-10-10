@@ -484,7 +484,7 @@ in with nixpkgs.haskell.lib; {
             ] ++ backendDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ frontendDepends backendHaskellPackages;
             buildTools = [] ++ backendTools pkgs;
             isExecutable = true;
-            configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
+            configureFlags = [ "--ghc-option=-lgcc_s" "--ghc-option=-DBACKEND" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
               haskellPackages = backendHaskellPackages;
               cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src "-N10 -I0";
@@ -573,7 +573,7 @@ in with nixpkgs.haskell.lib; {
                 ] ++ backendTestDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
                 buildTools = [] ++ backendTestTools pkgs;
                 isExecutable = true;
-                configureFlags = [ "--ghc-option=-lgcc_s" ];
+                configureFlags = [ "--ghc-option=-lgcc_s" "--ghc-option=-DBACKEND" ];
                 passthru = {
                   haskellPackages = backendHaskellPackages;
                   cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src "-N10 -I0";
