@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if [ -z "$1" -o -z "$2" -o -z "$3" -o -z "$4" ]; then
-  echo "Usage: $0 [APS_ENV] [APP_NAME] [BUNDLE_IDENTIFIER] [BUNDLE_VERSION_STRING] [BUNDLE_VERSION] [ROUTE_CONFIG]" >&2
+  echo "Usage: $0 [APS_ENV] [APP_NAME] [BUNDLE_IDENTIFIER] [BUNDLE_VERSION_STRING] [BUNDLE_VERSION] [ROUTE_CONFIG] [EXTRA_INFO_PLIST]" >&2
   exit 1
 fi
 
@@ -16,6 +16,8 @@ shift
 BUNDLE_VERSION=$1
 shift
 ROUTE_CONFIG=$1
+shift
+EXTRA_INFO_PLIST=$1
 shift
 
 echo -ne '\033]0;FRONTEND-IOS-AARCH64\007'
@@ -54,7 +56,7 @@ if [ ! -e $BUILDDIR/bin ]; then
   ln -s $BUILDDIR/build/mobile $BUILDDIR/bin
 fi
 
-$(nix-build --no-out-link -E "
+echo $(nix-build --no-out-link -E "
   let this = import ./. {};
   in this.mkIosApp {
     bundleName = \"$APP_NAME\";
@@ -73,4 +75,5 @@ $(nix-build --no-out-link -E "
       cp \$configRoute \$out/config/route
     '';
     apsEnv = \"$APS_ENV\";
+    extraInfoPlistContent = \"$EXTRA_INFO_PLIST\";
   }")/bin/deploy "$@"
