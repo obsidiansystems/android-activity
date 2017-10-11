@@ -15,48 +15,19 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Control
 import Control.Monad.Reader
 import Data.Aeson
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
 import Data.Typeable
 import Database.Groundhog
 import qualified Web.ClientSession as CS
 
--- Web.ClientSession just uses "normal" base-64 encoding, which includes
--- the characters '+' and '/'.  Which makes them not suitable for using
--- as part of a URL.  There is a URL safe base-64 encoding which instead
--- uses the characters '-' and '_' (respectively). So after the fact we
--- "fix" this.  We could decode the URL-unsafe version and re-encode it
--- as URL-safe, or we could just map the characters.  Guess which is more
--- efficient.
-
-convertBase64ToURLSafe :: BS8.ByteString -> BS8.ByteString
-convertBase64ToURLSafe = BS8.map go
-    where
-        go :: Char -> Char
-        go '+' = '-'
-        go '/' = '_'
-        go '-' = error "convertBase64ToURLSafe: say a '-'!"
-        go '_' = error "convertBase64ToURLSafe: say a '_'!"
-        go x   = x  -- everything else is unchanged
-
-convertBase64ToURLUnsafe :: BS8.ByteString -> BS8.ByteString
-convertBase64ToURLUnsafe = BS8.map go
-    where
-        go :: Char -> Char
-        go '-' = '+'
-        go '_' = '/'
-        go '+' = error "convertBase64ToURLUnsafe: say a '+'!"
-        go '/' = error "convertBase64ToURLUnsafe: say a '/'!"
-        go x   = x  -- everything else is unchanged
-
 signWithKey :: (Typeable b, ToJSON b, MonadIO m) => CS.Key -> b -> m (Signed a)
 signWithKey k (v :: b) = do
-  liftIO $ liftM (Signed . decodeUtf8 . convertBase64ToURLSafe) $ CS.encryptIO k $ LBS.toStrict $ encode (show $ typeOf (undefined :: b), v)
+  liftIO $ liftM (Signed . decodeUtf8) $ CS.encryptIO k $ LBS.toStrict $ encode (show $ typeOf (undefined :: b), v)
 
 readSignedWithKey :: (Typeable a, FromJSON a) => CS.Key -> Signed a -> Maybe a
 readSignedWithKey k s = do
-    tvJson <- CS.decrypt k $ convertBase64ToURLUnsafe $ encodeUtf8 $ unSigned s
+    tvJson <- CS.decrypt k $ encodeUtf8 $ unSigned s
     (t, v :: b) <- decodeValue' $ LBS.fromStrict tvJson
     guard $ t == show (typeOf (undefined :: b))
     return v
