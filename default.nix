@@ -111,6 +111,7 @@ in with nixpkgs.haskell.lib; {
     , overrideServerConfig ? (args: outputs: x: x)
     , mobileExecutable ? "mobile.hs"
     , androidConfig ? {}
+    , iosConfig ? {} # For arguments, see reflex-platform/ios/default.nix
     }:
     let
       # Break recursion
@@ -586,7 +587,8 @@ in with nixpkgs.haskell.lib; {
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp th-lift-instances ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = tryReflex.ios.buildApp;
+          mkIosApp = args:
+            tryReflex.ios.buildApp (iosConfig // args);
           mkMacApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
