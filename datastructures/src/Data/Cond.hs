@@ -10,7 +10,6 @@ import GHC.Generics
 data Cond a = Cond_False
             | Cond_True
             | Cond_Atom a
-            | Cond_Not (Cond a)
             | Cond_Or [Cond a]
             | Cond_And [Cond a]
   deriving (Eq, Ord, Read, Show, Generic, Functor, Traversable, Foldable)
@@ -28,15 +27,14 @@ condAnd [] = Cond_True
 condAnd [x] = Cond_Atom x
 condAnd xs = Cond_And (map Cond_Atom xs)
 
-foldCond :: b -> b -> (a -> b) -> (b -> b) -> ([b] -> b) -> ([b] -> b) -> Cond a -> b
-foldCond false true atom notF orF andF = f
+foldCond :: b -> b -> (a -> b) -> ([b] -> b) -> ([b] -> b) -> Cond a -> b
+foldCond false true atom orF andF = f
   where
     f Cond_False = false
     f Cond_True = true
     f (Cond_Atom x) = atom x
-    f (Cond_Not x) = notF (f x)
     f (Cond_Or xs) = orF (map f xs)
     f (Cond_And xs) = andF (map f xs)
 
 evalCond :: Cond Bool -> Bool
-evalCond = foldCond False True id not or and
+evalCond = foldCond False True id or and
