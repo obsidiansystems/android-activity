@@ -4,10 +4,6 @@
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
-, mobileExecutable ? "mobile.hs"
-, androidConfig ? {}
-, googleServicesJson ? null
-, host ? null
 , withHoogle ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
@@ -27,7 +23,7 @@ let tryReflex' = import ./reflex-platform {
       # AndroidManifest.xml content for additional permissions.
       permissions = "";
       icon = "@drawable/ic_launcher";
-      googleServicesJson = ../config/google-services.json;
+      googleServicesJson = null;
       includeFirebaseService = true;
       services = ''
         <service android:name=".LocalFirebaseInstanceIDService">
@@ -47,7 +43,6 @@ let tryReflex' = import ./reflex-platform {
         compile 'com.firebase:firebase-jobdispatcher:0.5.2'
       '';
     };
-    effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
     mkAndroidIntentFilter = x: # x :: ["scheme:" "host" ":port" "subdomain_pattern"], see 'androidConfig.deepLinkUris'
       let protocol = lib.strings.removeSuffix ":" (builtins.elemAt x 0);
           host = builtins.elemAt x 1;
@@ -114,6 +109,8 @@ in with nixpkgs.haskell.lib; {
     , fixupStaticForBackend ? (x: x)
     , staticSrc ? fixupStatic (filterGitSource ../static)
     , overrideServerConfig ? (args: outputs: x: x)
+    , mobileExecutable ? "mobile.hs"
+    , androidConfig ? {}
     }:
     let
       # Break recursion
@@ -126,6 +123,8 @@ in with nixpkgs.haskell.lib; {
       marketingSrc = filterGitSource ../marketing;
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
+
+      effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
 
       frontendHaskellPackages = extendFrontendHaskellPackages focusSelf.frontendHaskellPackagesBase;
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
