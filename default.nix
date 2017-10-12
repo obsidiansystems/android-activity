@@ -4,10 +4,6 @@
 , enableTraceReflexEvents ? false
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
-, mobileExecutable ? "mobile.hs"
-, androidConfig ? {}
-, googleServicesJson ? null
-, host ? null
 , withHoogle ? false
 }:
 assert runWithHeapProfiling -> enableProfiling;
@@ -27,7 +23,7 @@ let tryReflex' = import ./reflex-platform {
       # AndroidManifest.xml content for additional permissions.
       permissions = "";
       icon = "@drawable/ic_launcher";
-      googleServicesJson = ../config/google-services.json;
+      googleServicesJson = null;
       includeFirebaseService = true;
       services = ''
         <service android:name=".LocalFirebaseInstanceIDService">
@@ -47,7 +43,6 @@ let tryReflex' = import ./reflex-platform {
         compile 'com.firebase:firebase-jobdispatcher:0.5.2'
       '';
     };
-    effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
     mkAndroidIntentFilter = x: # x :: ["scheme:" "host" ":port" "subdomain_pattern"], see 'androidConfig.deepLinkUris'
       let protocol = lib.strings.removeSuffix ":" (builtins.elemAt x 0);
           host = builtins.elemAt x 1;
@@ -114,6 +109,9 @@ in with nixpkgs.haskell.lib; {
     , fixupStaticForBackend ? (x: x)
     , staticSrc ? fixupStatic (filterGitSource ../static)
     , overrideServerConfig ? (args: outputs: x: x)
+    , mobileExecutable ? "mobile.hs"
+    , androidConfig ? {}
+    , iosConfig ? {} # For arguments, see reflex-platform/ios/default.nix
     }:
     let
       # Break recursion
@@ -126,6 +124,8 @@ in with nixpkgs.haskell.lib; {
       marketingSrc = filterGitSource ../marketing;
       backendTestsSrc = filterGitSource ../tests/backend;
       webDriverTestsSrc = filterGitSource ../tests/webdriver;
+
+      effectiveAndroidConfig = defaultAndroidConfig // androidConfig;
 
       frontendHaskellPackages = extendFrontendHaskellPackages focusSelf.frontendHaskellPackagesBase;
       frontendGhcHaskellPackages = extendFrontendHaskellPackages tryReflex.ghc;
@@ -254,11 +254,13 @@ in with nixpkgs.haskell.lib; {
                 if impl(ghcjs)
                   cpp-options: -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=6 -DGHCJS_SCHED_QUANTUM=5
                   ghcjs-options: -dedupe
-                if !os(ios) && !arch(aarch64)
+                if !os(ios) && !arch(aarch64) && !arch(arm)
                   cpp-options: -DUSE_TEMPLATE_HASKELL
+                if os(ios) || arch(aarch64) || arch(arm)
+                  cpp-options: -DMOBILE
                 if os(ios)
                   if arch(aarch64)
-                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.2.sdk
+                    ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS${iosSdkVersion}.sdk
                   else
                     ld-options: -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator10.0.sdk
             '';
@@ -381,6 +383,7 @@ in with nixpkgs.haskell.lib; {
             c-sources: cbits/focus.c
             main-is: ${mobileExecutable}
             ghc-options: -shared -fPIC -threaded -no-hs-main -Wall -fwarn-tabs -fno-warn-unused-do-bind -funbox-strict-fields -O2 -fprof-auto -lHSrts_thr -lCffi -lm -llog
+            cpp-options: -DMOBILE
             default-extensions: NoDatatypeContexts
           EOF
         '';
@@ -488,7 +491,7 @@ in with nixpkgs.haskell.lib; {
             ] ++ backendDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ frontendDepends backendHaskellPackages;
             buildTools = [] ++ backendTools pkgs;
             isExecutable = true;
-            configureFlags = [ "--ghc-option=-lgcc_s" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
+            configureFlags = [ "--ghc-option=-lgcc_s" "--ghc-option=-DBACKEND" ] ++ (if enableProfiling then [ "--enable-executable-profiling" ] else [ ]);
             passthru = {
               haskellPackages = backendHaskellPackages;
               cabalFile = mkCabalFile backendHaskellPackages pname "backend" buildDepends src "-N10 -I0";
@@ -577,7 +580,7 @@ in with nixpkgs.haskell.lib; {
                 ] ++ backendTestDepends backendHaskellPackages ++ commonDepends backendHaskellPackages ++ backendDepends backendHaskellPackages;
                 buildTools = [] ++ backendTestTools pkgs;
                 isExecutable = true;
-                configureFlags = [ "--ghc-option=-lgcc_s" ];
+                configureFlags = [ "--ghc-option=-lgcc_s" "--ghc-option=-DBACKEND" ];
                 passthru = {
                   haskellPackages = backendHaskellPackages;
                   cabalFile = mkCabalFile backendHaskellPackages pname "backend-tests" buildDepends src "-N10 -I0";
@@ -588,332 +591,11 @@ in with nixpkgs.haskell.lib; {
           frontendMinified = frontend_;
           inherit staticAssets;
           frontendGhc = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
-              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp ]);
+              (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-warp th-lift-instances ]);
           frontendGhcWKWebView = mkFrontend frontendSrc commonSrc frontendGhcHaskellPackages staticSrc
               (with frontendGhcHaskellPackages; [ websockets wai warp wai-app-static jsaddle jsaddle-wkwebview ]);
-          mkIosApp = { bundleName, bundleIdentifier, bundleVersionString, bundleVersion, exeName, exePath, staticSrc, apsEnv}: nixpkgs.runCommand "${exeName}-app" (rec {
-            inherit exePath;
-            infoPlist = builtins.toFile "Info.plist" ''
-              <?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-                <key>CFBundleDevelopmentRegion</key>
-                <string>en</string>
-                <key>CFBundleExecutable</key>
-                <string>${exeName}</string>
-                <key>CFBundleIdentifier</key>
-                <string>${bundleIdentifier}</string>
-                <key>CFBundleInfoDictionaryVersion</key>
-                <string>6.0</string>
-                <key>CFBundleName</key>
-                <string>${bundleName}</string>
-                <key>CFBundlePackageType</key>
-                <string>APPL</string>
-                <key>CFBundleShortVersionString</key>
-                <string>${bundleVersionString}</string>
-                <key>CFBundleVersion</key>
-                <string>${bundleVersion}</string>
-                <key>CFBundleSupportedPlatforms</key>
-                <array>
-                  <string>iPhoneOS</string>
-                </array>
-                <key>LSRequiresIPhoneOS</key>
-                <true/>
-                <key>NSPhotoLibraryUsageDescription</key>
-                <string>Allow access to photo library.</string>
-                <key>NSCameraUsageDescription</key>
-                <string>Allow access to camera.</string>
-                <key>UILaunchStoryboardName</key>
-                <string>LaunchScreen</string>
-                <key>UIRequiredDeviceCapabilities</key>
-                <array>
-                  <string>arm64</string>
-                </array>
-                <key>UIDeviceFamily</key>
-                <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
-                </array>
-                <key>UISupportedInterfaceOrientations</key>
-                <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-                </array>
-                <key>UISupportedInterfaceOrientations~ipad</key>
-                <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-                </array>
-                <key>CFBundleIcons~ipad</key>
-                <dict>
-                  <key>CFBundlePrimaryIcon</key>
-                  <dict>
-                    <key>CFBundleIconFiles</key>
-                    <array>
-                      <string>Wrinkl iOS 60</string>
-                      <string>Wrinkl iOS 76</string>
-                      <string>Wrinkl iOS 83.5</string>
-                    </array>
-                  </dict>
-                </dict>
-                <key>CFBundleIcons</key>
-                <dict>
-                  <key>CFBundlePrimaryIcon</key>
-                  <dict>
-                    <key>CFBundleIconFiles</key>
-                    <array>
-                      <string>Wrinkl iOS 60</string>
-                    </array>
-                  </dict>
-                </dict>
-                <key>DTSDKName</key>
-                <string>iphoneos10.2</string>
-                <key>DTXcode</key>
-                <string>0821</string>
-                <key>DTSDKBuild</key>
-                <string>14C89</string>
-                <key>BuildMachineOSBuild</key>
-                <string>16D32</string>
-                <key>DTPlatformName</key>
-                <string>iphoneos</string>
-                <key>DTCompiler</key>
-                <string>com.apple.compilers.llvm.clang.1_0</string>
-                <key>MinimumOSVersion</key>
-                <string>10.2</string>
-                <key>DTXcodeBuild</key>
-                <string>8C1002</string>
-                <key>DTPlatformVersion</key>
-                <string>10.2</string>
-                <key>DTPlatformBuild</key>
-                <string>14C89</string>
-              </dict>
-              </plist>
-            '';
-            resourceRulesPlist = builtins.toFile "ResourceRules.plist" ''
-              <?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-                <key>rules</key>
-                <dict>
-                  <key>.*</key>
-                  <true/>
-                  <key>Info.plist</key>
-                  <dict>
-                    <key>omit</key>
-                    <true/>
-                    <key>weight</key>
-                    <real>10</real>
-                  </dict>
-                  <key>ResourceRules.plist</key>
-                  <dict>
-                    <key>omit</key>
-                    <true/>
-                    <key>weight</key>
-                    <real>100</real>
-                  </dict>
-                </dict>
-              </dict>
-              </plist>
-            '';
-            indexHtml = builtins.toFile "index.html" ''
-              <html>
-                <head>
-                </head>
-                <body>
-                </body>
-              </html>
-            '';
-            xcent = builtins.toFile "xcent" (''
-              <?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-                <key>application-identifier</key>
-                <string><team-id/>.${bundleIdentifier}</string>
-                <key>com.apple.developer.team-identifier</key>
-                <string><team-id/></string>
-                <key>get-task-allow</key>
-                <true/>
-                <key>keychain-access-groups</key>
-                <array>
-                  <string><team-id/>.${bundleIdentifier}</string>
-                </array>
-                <key>aps-environment</key>
-                <string>${apsEnv}</string>
-            ''
-            + (if host == null then "" else ''
-                <key>com.apple.developer.associated-domains</key>
-                <array>
-                  <string>applinks:${host}</string>
-                  <string>applinks:*.${host}</string>
-                </array>
-            '')
-            + ''
-              </dict>
-              </plist>
-            '');
-            deployScript = builtins.toFile "deploy" ''
-              #!/usr/bin/env bash
-              set -eo pipefail
-
-              if [ -z "$1" -o -z "$2" ]; then
-                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE]" >&2
-                exit 1
-              fi
-
-              TEAM_ID=$1
-              shift
-              CONFIG_ROUTE=$1
-              shift
-
-              set -euo pipefail
-
-              function cleanup {
-                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
-                  echo "Cleaning up tmpdir" >&2
-                  chmod -R +w $tmpdir
-                  rm -fR $tmpdir
-                fi
-              }
-
-              trap cleanup EXIT
-
-              tmpdir=$(mktemp -d)
-              # Find the signer given the OU
-              signer=$(security find-certificate -c "iPhone Developer" -a \
-                | grep '^    "alis"<blob>="' \
-                | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
-                | while read c; do security find-certificate -c "$c" -p \
-                | openssl x509 -subject -noout; done \
-                | grep "OU=$TEAM_ID/" \
-                | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
-                | head -n 1)
-
-              if [ -z "$signer" ]; then
-                echo "Error: No iPhone Developer certificate found for team id $TEAM_ID" >&2
-                exit 1
-              fi
-
-              mkdir -p $tmpdir
-              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
-              chmod +w "$tmpdir/${exeName}.app"
-              mkdir -p "$tmpdir/${exeName}.app/config"
-              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
-              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
-              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
-
-              "$(nix-build --no-out-link -A nixpkgs.nodePackages.ios-deploy)/bin/ios-deploy" -W -b "$tmpdir/${exeName}.app" "$@"
-            '';
-            packageScript = builtins.toFile "package" ''
-              #!/usr/bin/env bash
-              set -eo pipefail
-
-              if [ -z "$1" -o -z "$2" ]; then
-                echo "Usage: $0 [TEAM_ID] [CONFIG_ROUTE] [IPA_DESTINATION] [EMBEDDED_PROVISIONING_PROFILE]" >&2
-                exit 1
-              fi
-
-              TEAM_ID=$1
-              shift
-              CONFIG_ROUTE=$1
-              shift
-              IPA_DESTINATION=$1
-              shift
-              EMBEDDED_PROVISIONING_PROFILE=$1
-              shift
-
-              set -euo pipefail
-
-              function cleanup {
-                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
-                  echo "Cleaning up tmpdir" >&2
-                  chmod -R +w $tmpdir
-                  rm -fR $tmpdir
-                fi
-              }
-
-              trap cleanup EXIT
-
-              tmpdir=$(mktemp -d)
-              # Find the signer given the OU
-              signer=$(security find-certificate -c "iPhone Distribution" -a \
-                | grep '^    "alis"<blob>="' \
-                | sed 's|    "alis"<blob>="\(.*\)"$|\1|' \
-                | while read c; do security find-certificate -c "$c" -p \
-                | openssl x509 -subject -noout; done \
-                | grep "OU=$TEAM_ID/" \
-                | sed 's|subject= /UID=[^/]*/CN=\([^/]*\).*|\1|' \
-                | head -n 1)
-
-              if [ -z "$signer" ]; then
-                echo "Error: No iPhone Distribution certificate found for team id $TEAM_ID" >&2
-                exit 1
-              fi
-
-              mkdir -p $tmpdir
-              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
-              chmod +w "$tmpdir/${exeName}.app"
-              chmod +rw "$tmpdir/${exeName}.app/${exeName}"
-              strip "$tmpdir/${exeName}.app/${exeName}"
-              mkdir -p "$tmpdir/${exeName}.app/config"
-              cp "$CONFIG_ROUTE" "$tmpdir/${exeName}.app/config/route"
-              sed "s|<team-id/>|$TEAM_ID|" < "${xcent}" > $tmpdir/xcent
-              /usr/bin/codesign --force --sign "$signer" --entitlements $tmpdir/xcent --timestamp=none "$tmpdir/${exeName}.app"
-
-              /usr/bin/xcrun -sdk iphoneos ${./PackageApplication} -v "$tmpdir/${exeName}.app" -o "$IPA_DESTINATION" --sign "$signer" --embed "$EMBEDDED_PROVISIONING_PROFILE"
-              /Applications/Xcode.app/Contents/Applications/Application\ Loader.app/Contents/Frameworks/ITunesSoftwareService.framework/Versions/A/Support/altool --validate-app -f "$IPA_DESTINATION" -t ios "$@"
-            '';
-            runInSim = builtins.toFile "run-in-sim" ''
-              #!/usr/bin/env bash
-
-              if [ -z "$1" ]; then
-                echo "Usage: $0 [CONFIG_ROUTE]" >&2
-                exit 1
-              fi
-
-              set -euo pipefail
-
-              function cleanup {
-                if [ -n "$tmpdir" -a -d "$tmpdir" ]; then
-                  echo "Cleaning up tmpdir" >&2
-                  chmod -R +w $tmpdir
-                  rm -fR $tmpdir
-                fi
-              }
-
-              trap cleanup EXIT
-
-              tmpdir=$(mktemp -d)
-
-              mkdir -p $tmpdir
-              cp -LR "$(dirname $0)/../${exeName}.app" $tmpdir
-              chmod +w "$tmpdir/${exeName}.app"
-              mkdir -p "$tmpdir/${exeName}.app/config"
-              cp "$1" "$tmpdir/${exeName}.app/config/route"
-              focus/reflex-platform/run-in-ios-sim "$tmpdir/${exeName}.app"
-            '';
-          }) ''
-            set -x
-            mkdir -p "$out/${exeName}.app"
-            ln -s "$infoPlist" "$out/${exeName}.app/Info.plist"
-            ln -s "$resourceRulesPlist" "$out/${exeName}.app/ResourceRules.plist"
-            ln -s "$indexHtml" "$out/${exeName}.app/index.html"
-            mkdir -p "$out/bin"
-            cp --no-preserve=mode "$deployScript" "$out/bin/deploy"
-            chmod +x "$out/bin/deploy"
-            cp --no-preserve=mode "$packageScript" "$out/bin/package"
-            chmod +x "$out/bin/package"
-            cp --no-preserve=mode "$runInSim" "$out/bin/run-in-sim"
-            chmod +x "$out/bin/run-in-sim"
-            ln -s "$exePath/${exeName}" "$out/${exeName}.app/"
-            cp -RL "${staticSrc}"/* "$out/${exeName}.app/"
-            cp -RL "${staticSrc}"/assets/Wrinkl\ iOS\ *.png "$out/${exeName}.app/"
-          '';
+          mkIosApp = args:
+            tryReflex.ios.buildApp (iosConfig // args);
           mkMacApp = bundleName: bundleIdentifier: exeName: exePath: staticSrc: nixpkgs.runCommand "${exeName}-app" (rec {
             inherit exePath;
             infoPlist = builtins.toFile "Info.plist" ''
@@ -1004,8 +686,8 @@ in with nixpkgs.haskell.lib; {
                                                bundleIdentifier = "mobile";
                                                bundleVersionString = "1.0";
                                                bundleVersion = "1";
-                                               exeName = "mobile";
-                                               exePath = (frontendIosSimulator+"/bin");
+                                               executableName = "mobile";
+                                               package = p: frontendIosSimulator;
                                                staticSrc = staticSrc;
                                                apsEnv = "development";
                                              };
@@ -1015,8 +697,8 @@ in with nixpkgs.haskell.lib; {
                                              bundleIdentifier = "mobile";
                                              bundleVersionString = "1.0";
                                              bundleVersion = "1";
-                                             exeName = "mobile";
-                                             exePath = (frontendIosAArch64+"/bin");
+                                             executableName = "mobile";
+                                             package = p: frontendIosAArch64;
                                              staticSrc = staticSrc;
                                              apsEnv = "development";
                                            };

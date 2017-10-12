@@ -21,11 +21,10 @@ withFocus a = do
   putStrLn "\a" -- Ring the bell; this is mostly helpful in development; probably should be moved to a script in focus instead of the actual server start
   a
 
- --TODO: Support a remote as well as local databases
- -- | withDb takes a String, which represents the path to a database, and a
- -- function that returns database connection information as arguements in
- -- order to open and start the database. Otherwise, it will create the
- -- database for you if it doesn't exist.
+-- | Connects to a database using information at the given filepath The given
+-- filepath can be either a folder (for a local db) or a file with a database
+-- url.  If nothing exists at that path, a folder with a postgres database
+-- inside will be created.
 withDb :: String -> (Pool Postgresql -> IO a) -> IO a
 withDb dbPath a = do
   dbExists <- doesFileExist dbPath

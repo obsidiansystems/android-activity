@@ -22,6 +22,7 @@ withoutSchema (WithSchema _ a) = a
 instance (FromJSON a) => FromJSON (WithSchema a)
 instance (ToJSON a) => ToJSON (WithSchema a)
 
+-- | Class for types that have a database ID column
 class HasId a where
   type IdData a :: *
   type IdData a = Int64

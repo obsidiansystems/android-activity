@@ -129,7 +129,7 @@ instance HasIndex q f => HasIndex q (WithIndex p f) where
 
 class HasValues w f | w -> f where
   values :: w a -> f a
-  default values :: w a -> w a
+  default values :: w ~ f => w a -> f a
   values = id
 
 instance HasValues f f' => HasValues (WithIndex p f) f' where

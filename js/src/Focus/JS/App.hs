@@ -223,26 +223,24 @@ runFocusWidget :: forall t m a x f app.
                -> m a
 runFocusWidget = runFocusWidget' (Right "/listen")
 
-runFocusWidget' :: forall t m a x f app.
-                 ( MonadWidget' t m
-                 , HasJSContext m
-                 , HasJS x m
-                 , MonadJSM m
-                 , MonadJSM (Performable m)
-                 , HasFocus f app
-                 , Eq (ViewSelector app SelectedCount)
-                 )
-                => Either WebSocketUrl Text
-                -> Signed (AuthToken f)
-                -> FocusWidget f app t m a
-                -> m a
+runFocusWidget'
+   :: forall app f m t b x.
+      ( HasFocus f app
+      , Eq (ViewSelector app SelectedCount)
+      , HasJS x m, HasJSContext m, PerformEvent t m
+      , TriggerEvent t m
+      , PostBuild t m, MonadHold t m, MonadJSM (Performable m), MonadJSM m
+      , MonadFix m
+      )
+   => Either WebSocketUrl Text
+   -> Signed (AuthToken f)
+   -> FocusWidget f app t m b
+   -> m b
 runFocusWidget' murl token child = do
-  pb <- getPostBuild
-  rec (notification, response) <- openWebSocket murl request' updatedVS
+  rec (notification, response) <- openWebSocket murl request' $ (fmap (fmap (\_ -> ()))) <$> nubbedVs
       (request', response') <- identifyTags request response
       ((a, vs), request) <- flip runRequesterT response' $ runQueryT (withQueryT (singletonQuery token) (unFocusWidget child)) e
       nubbedVs <- holdUniqDyn $ incrementalToDynamic vs
-      let updatedVS = leftmost [updated nubbedVs, tag (current nubbedVs) pb]
       e :: Dynamic t (AppendMap (Signed (AuthToken f)) (QueryResult (ViewSelector app SelectedCount))) <- fromNotifications nubbedVs notification
   return a
 
@@ -260,7 +258,18 @@ fromNotifications vs ePatch = do
 
 data Decoder f = forall a. FromJSON a => Decoder (f a)
 
-identifyTags :: forall t v m. (MonadFix m, MonadHold t m, Reflex t, Request v) => Event t (RequesterData v) -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value) -> m (Event t [(Data.Aeson.Value, Data.Aeson.Value)], Event t (RequesterData Identity))
+identifyTags
+  :: forall t v m.
+     ( MonadFix m
+     , MonadHold t m
+     , Reflex t
+     , Request v
+     )
+  => Event t (RequesterData v)
+  -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
+  -> m ( Event t [(Data.Aeson.Value, Data.Aeson.Value)]
+       , Event t (RequesterData Identity)
+       )
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
       waitingFor :: Incremental t (PatchMap Int (Decoder RequesterDataKey)) <- holdIncremental mempty $ leftmost
@@ -355,15 +364,13 @@ openWebSocket :: forall t x m vs v.
                  , MonadHold t m
                  , FromJSON v
                  , ToJSON vs
-                 , Monoid vs
                  )
               => Either WebSocketUrl Text -- ^ Either a complete URL or just a path (the websocket code will try to infer the protocol and hostname)
               -> Event t [(Data.Aeson.Value, Data.Aeson.Value)] -- ^ Outbound requests
-              -> Event t vs -- ^ Authenticated listen requests (e.g., ViewSelector updates)
+              -> Dynamic t vs -- ^ current ViewSelector
               -> m ( Event t v
                    , Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
                    )
-openWebSocket murl request updatedVs = do
-  vs <- holdDyn mempty updatedVs
+openWebSocket murl request vs = do
   aws <- openWebSocket' murl request vs
   return (_appWebSocket_notification aws, _appWebSocket_response aws)

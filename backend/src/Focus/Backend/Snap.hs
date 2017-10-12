@@ -15,9 +15,16 @@ module Focus.Backend.Snap
     , serveApp
     , serveStaticIndex
     , serveIndex
-    , appConfig_initialHead
+    , appConfig_logo
+    , appConfig_extraHeadMarkup
+    , appConfig_initialStyles
     , appConfig_initialBody
-    )where
+    , appConfig_initialHead
+    , appConfig_serveJsexe
+    , appConfig_jsexe
+    , frontendJsPath
+    , frontendJsAssetsPath
+    ) where
 
 import Focus.HTTP.Serve
 

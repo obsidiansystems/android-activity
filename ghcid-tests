@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-nix-shell -E 'let this = import ./. {}; lib = import "${this.nixpkgs.path}/pkgs/development/haskell-modules/lib.nix" { pkgs = this.nixpkgs; }; in (lib.addBuildDepend this.tests this.tests.haskellPackages.ghcid).env' --command "ghcid -c'ghci -Wall -icommon/src -itests/src -ibackend/src Main -hide-package cryptonite'" "$@"
+nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.tests this.tests.haskellPackages.ghcid).env' --command "ghcid -c'ghci -Wall -icommon/src -itests/src -ibackend/src Main -hide-package cryptonite'" "$@"
 

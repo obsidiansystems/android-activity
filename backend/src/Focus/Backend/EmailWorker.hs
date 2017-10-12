@@ -94,15 +94,21 @@ clearMailQueue db emailEnv = do
     Nothing -> return ()
     Just (qid, QueuedEmail oid (Json to) (Json from) expiry _) -> do
       runDb db $ do
+        now <- getTime
         notExpired <- case expiry of
           Nothing -> return True
           Just expiry' -> do
-            now <- getTime
             return $ now < expiry'
         when notExpired $ do
           withStreamedLargeObject oid $ \payload ->
             sendQueuedEmail emailEnv from to (LBS.toStrict payload)
-          liftIO $ putStrLn $ "Sending email to: " ++ show to
+          liftIO $ putStrLn $ mconcat
+            [ "["
+            , show now
+            , "] "
+            , "Sending email to: "
+            , show to
+            ]
       runDb db $ do
         _ <- execute [sql| DELETE FROM "QueuedEmail" q WHERE q.id = ? |] (Only qid)
         deleteLargeObject oid
