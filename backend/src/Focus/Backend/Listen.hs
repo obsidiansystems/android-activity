@@ -479,17 +479,19 @@ notifyChannel = "updates"
 listenDB :: FromJSON a => (forall x. (PG.Connection -> IO x) -> IO x) -> IO (TChan a, IO ())
 listenDB withConn' = do
   nChan <- newBroadcastTChanIO
-  daemonThread <- forkIO $ withConn' $ \conn -> do
-    let cmd = "LISTEN " <> notifyChannel
-    _ <- execute_ conn $ fromString cmd
-    forever $ do
-      PG.Notification _ channel message <- PG.getNotification conn
-      case channel of
-        _ | channel == encodeUtf8 (T.pack notifyChannel) -> do
-          case decodeValue' $ LBS.fromStrict message of
-            Just a -> atomically $ writeTChan nChan a
-            _ -> putStrLn $ "listenDB: Could not parse message on updates channel: " <> show message
-        _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel
+  daemonThread <- forkIO . forever $ do
+    withConn' $ \conn -> do
+      let cmd = "LISTEN " <> notifyChannel
+      _ <- execute_ conn $ fromString cmd
+      forever $ do
+        PG.Notification _ channel message <- PG.getNotification conn
+        case channel of
+          _ | channel == encodeUtf8 (T.pack notifyChannel) -> do
+            case decodeValue' $ LBS.fromStrict message of
+              Just a -> atomically $ writeTChan nChan a
+              _ -> putStrLn $ "listenDB: Could not parse message on updates channel: " <> show message
+          _ -> putStrLn $ "listenDB: Received a message on unexpected channel: " <> show channel
+    threadDelay (10^6) -- delay between attempts to reconnect to the database server when a connection is lost.
   return (nChan, killThread daemonThread)
 
 handleRequests :: forall h m pub priv f cred. (Monad m)
