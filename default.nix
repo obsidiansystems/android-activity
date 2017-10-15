@@ -791,7 +791,10 @@ in with nixpkgs.haskell.lib; {
                            , ssl ? false
                            , adminEmail ? "ops@obsidian.systems"
                            , extraRootKey ? null
-                           , hasWwwSubdomain ? countCharsWhere (c: c == ".") hostName == 1 # We assume that domains of the form "abc.xyz" will also have a www subdomain, but domains with more components will not
+                           , sslSubdomains ?
+                             if (countCharsWhere (c: c == ".") hostName == 1)
+                             then ["www"] # We assume that domains of the form "abc.xyz" will also have a www subdomain, but domains with more components will not
+                             else []
                            }:
             let acmeWebRoot = "/srv/acme/";
                 nginxService = {locations}:
@@ -902,9 +905,7 @@ in with nixpkgs.haskell.lib; {
                     postRun = ''
                       systemctl reload-or-restart nginx.service
                     '';
-                    extraDomains = if hasWwwSubdomain then {
-                      "www.${hostName}" = null;
-                    } else {};
+                    extraDomains = builtins.listToAttrs (map (subdomain: { name = "${subdomain}.${hostName}"; value = null; }) sslSubdomains);
                   };
                 });
                 nixos = import "${nixpkgs.path}/nixos";
