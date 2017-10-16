@@ -35,6 +35,8 @@ library
     mime-mail,
     pwstore-fast,
     smtp-mail,
+    HaskellNet,
+    HaskellNet-SSL,
     snap,
     snap-core,
     stm,
