@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --command "ghcid -c'ghci -O0 -Wall -XNoNondecreasingIndentation -icommon/src -ifrontend/src -DUSE_TEMPLATE_HASKELL -DUSE_WARP frontend/src-bin/mobile.hs'" "$@"
+nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --command "ghcid -c'ghci -O0 -Wall -XNoNondecreasingIndentation -icommon/src -ifrontend/src -DUSE_TEMPLATE_HASKELL -DUSE_WARP Main'" "$@"
