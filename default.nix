@@ -217,12 +217,12 @@ in with nixpkgs.haskell.lib; {
             focus-heremaps = focusFlags (self.callPackage ./heremaps {});
             focus-test = focusFlags (self.callPackage ./test {});
             websockets = focusFlags (overrideCabal super.websockets (drv: {
-              src = ./websockets;
+              src = filterGitSource ./websockets;
               buildDepends = with self; [ pipes pipes-bytestring pipes-parse pipes-attoparsec pipes-network ];
               jailbreak = true;
             }));
             websockets-snap = focusFlags (overrideCabal super.websockets-snap (drv: {
-              src = ./websockets-snap;
+              src = filterGitSource ./websockets-snap;
               buildDepends = with self; [ snap-core snap-server io-streams ];
             }));
             snap-stream = focusFlags (self.callCabal2nix "snap-stream" (filterGitSource ./snap-stream) {});
