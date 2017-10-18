@@ -19,12 +19,12 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe
 import Data.Pool
-import qualified Data.Text.Encoding as T
+import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Database.Groundhog.Postgresql hiding (Cond)
 import Database.Groundhog.TH
 import qualified Network.Mail.Mime as Mail
-import Network.Mail.SMTP
+import qualified Network.HaskellNet.SMTP as SMTP
 
 import Focus.Aeson.Orphans ()
 import qualified Focus.AppendMap as Map
@@ -115,13 +115,10 @@ clearMailQueue db emailEnv = do
       clearMailQueue db emailEnv
 
 sendQueuedEmail :: EmailEnv -> Mail.Address -> [Mail.Address] -> ByteString -> IO ()
-sendQueuedEmail (host, port, user, pass) sender recipients payload = do
-  let from = T.encodeUtf8 . Mail.addressEmail $ sender
-      to = map (T.encodeUtf8 . Mail.addressEmail) recipients
-  conn <- connectSMTP' host port
-  _ <- sendCommand conn (AUTH LOGIN user pass)
-  sendRenderedMail from to payload conn
-  closeSMTP conn
+sendQueuedEmail env sender recipients payload = do
+  let from = T.unpack . Mail.addressEmail $ sender
+      to = map (T.unpack . Mail.addressEmail) recipients
+  void $ withSMTP env $ SMTP.sendMail from to payload 
 
 -- | Spawns a thread to monitor mail queue table and send emails if necessary
 emailWorker :: (MonadIO m, RunDb f)

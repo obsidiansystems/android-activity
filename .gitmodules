@@ -7,9 +7,6 @@
 [submodule "ghcjs-canvas"]
 	path = ghcjs-canvas
 	url = git@github.com:ghcjs/ghcjs-canvas
-[submodule "amazonka"]
-	path = amazonka
-	url = git@github.com:ryantrinkle/amazonka
 [submodule "reflex-platform"]
 	path = reflex-platform
 	url = git@github.com:reflex-frp/reflex-platform

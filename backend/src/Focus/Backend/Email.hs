@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -14,34 +15,46 @@ module Focus.Backend.Email
 , module Focus.Email
 ) where
 
+import Focus.Backend.TH
 import Focus.Brand
-import Focus.Sign
 import Focus.Email
 import Focus.Route
-import Focus.Backend.TH
-import Network.Mail.Mime (Mail (..), htmlPart)
-import Data.Text (Text)
-import Text.Blaze.Html5 (Html)
-import Data.List.NonEmpty (NonEmpty)
-import Data.Foldable
-import Text.Blaze.Html.Renderer.Text
-import Network.Mail.SMTP (sendMailWithLogin', simpleMail, Address (..), UserName, Password)
+import Focus.Sign
+import Focus.TH (embedFile)
+
 import Control.Monad.IO.Class
 import Control.Monad.Reader
-import Data.Monoid
-import Network.Socket (PortNumber, HostName)
 import Data.Aeson
-import Data.Word
-import Text.Blaze.Html5.Attributes
-import Text.Blaze.Html5 ((!))
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-import Focus.TH (embedFile)
-import Data.Text.Encoding
-import Data.String (fromString)
 import Data.Default
+import Data.Foldable
+import Data.List.NonEmpty (NonEmpty)
+import Data.Monoid
+import Data.String (fromString)
+import Data.Text (Text)
+import Data.Text.Encoding
+import Data.Word
+import GHC.Generics
+import Network.HaskellNet.Auth
+import Network.HaskellNet.SMTP.SSL hiding (sendMail)
+import Network.Mail.Mime (Mail (..), htmlPart, Address (..))
+import Network.Mail.SMTP (simpleMail)
+import Network.Socket (PortNumber, HostName)
+import Text.Blaze.Html.Renderer.Text
+import Text.Blaze.Html5 ((!))
+import Text.Blaze.Html5 (Html)
+import qualified Text.Blaze.Html5 as H
+import Text.Blaze.Html5.Attributes
+import qualified Text.Blaze.Html5.Attributes as A
 
-type EmailEnv = (HostName, PortNumber, UserName, Password)
+data SMTPProtocol = SMTPProtocol_Plain
+                  | SMTPProtocol_SSL
+                  | SMTPProtocol_STARTTLS
+  deriving (Show, Read, Eq, Ord, Generic)
+
+instance FromJSON SMTPProtocol
+instance ToJSON SMTPProtocol
+
+type EmailEnv = (HostName, SMTPProtocol, PortNumber, UserName, Password)
 
 instance FromJSON PortNumber where
   parseJSON v = do
@@ -55,9 +68,24 @@ newtype EmailT m a = EmailT { unEmailT :: ReaderT EmailEnv m a } deriving (Funct
 
 instance MonadIO m => MonadEmail (EmailT m) where
   sendMail mail = do
-    (server, port, username, password) <- EmailT ask
+    env <- EmailT ask
     liftIO $ putStrLn $ "Sending email " <> show (map snd $ filter ((=="Subject") . fst) $ mailHeaders mail) <> " to " <> show (map addressEmail $ mailTo mail)
-    liftIO $ sendMailWithLogin' server port username password mail
+    liftIO $ sendEmail env mail
+
+sendEmail :: EmailEnv -> Mail -> IO ()
+sendEmail ee m = void $ withSMTP ee $ sendMimeMail2 m
+
+withSMTP :: EmailEnv -> (SMTPConnection -> IO a) -> IO (Either Text a)
+withSMTP  (hostname, protocol, port, un, pw) a =
+  let go c = do
+        loginResult <- authenticate LOGIN un pw c
+        if loginResult
+          then Right <$> a c
+          else return $ Left "Login failed"
+  in case protocol of
+    SMTPProtocol_Plain -> doSMTPPort hostname port go
+    SMTPProtocol_STARTTLS -> doSMTPSTARTTLSWithSettings hostname (defaultSettingsSMTPSTARTTLS { sslPort = port }) go
+    SMTPProtocol_SSL -> doSMTPSSLWithSettings hostname (defaultSettingsSMTPSSL { sslPort = port }) go
 
 runEmailT :: EmailT m a -> EmailEnv -> m a
 runEmailT = runReaderT . unEmailT
