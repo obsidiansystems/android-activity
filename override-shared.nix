@@ -84,38 +84,6 @@ self: super: {
       doCheck = false;
       doHaddock = false;
     });
-    amazonka = overrideCabal super.amazonka (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka;
-    });
-    amazonka-core = overrideCabal super.amazonka-core (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/core;
-    });
-    amazonka-ec2 = overrideCabal super.amazonka-ec2 (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-ec2;
-    });
-    amazonka-s3 = overrideCabal super.amazonka-s3 (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-s3;
-    });
-    amazonka-route53 = overrideCabal super.amazonka-route53 (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-route53;
-    });
-    amazonka-cloudwatch = overrideCabal super.amazonka-cloudwatch (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-cloudwatch;
-    });
-    amazonka-iam = overrideCabal super.amazonka-iam (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-iam;
-    });
-    amazonka-sts = overrideCabal super.amazonka-sts (drv: {
-      version = "0.3.4";
-      src = filterGitSource ./amazonka/amazonka-sts;
-    });
     JuicyPixels = overrideCabal super.JuicyPixels (drv: {
       jailbreak = true;
     });
