@@ -248,8 +248,15 @@ fromNotifications :: forall m t k vs. (Query vs, MonadHold t m, Reflex t, MonadF
                   => Dynamic t (AppendMap k vs)
                   -> Event t (AppendMap k (QueryResult vs))
                   -> m (Dynamic t (AppendMap k (QueryResult vs)))
-fromNotifications vs ePatch = do
-  views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) AppendMap.empty $ attach (current vs) ePatch
+fromNotifications vs ePatch = fromNotifications' AppendMap.empty vs ePatch
+
+fromNotifications' :: forall m t k vs. (Query vs, MonadHold t m, Reflex t, MonadFix m, Ord k)
+                  => AppendMap k (QueryResult vs)
+                  -> Dynamic t (AppendMap k vs)
+                  -> Event t (AppendMap k (QueryResult vs))
+                  -> m (Dynamic t (AppendMap k (QueryResult vs)))
+fromNotifications' v0 vs ePatch = do
+  views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) v0 $ attach (current vs) ePatch
   return views
   where
     applyPatch' m0 m1 = AppendMap.mergeWithKey (\_ x y -> Just (x <> y)) id (const AppendMap.empty) m0 m1
