@@ -259,7 +259,7 @@ fromNotifications' v0 vs ePatch = do
   views <- foldDyn (\(vs', p) v -> applyAndCrop p vs' v) v0 $ attach (current vs) ePatch
   return views
   where
-    applyPatch' m0 m1 = AppendMap.mergeWithKey (\_ x y -> Just (x <> y)) id (const AppendMap.empty) m0 m1
+    applyPatch' m0 m1 = AppendMap.unionWith (<>) m0 m1
     cropView' m0 m1 = AppendMap.mergeWithKey (\_ x y -> Just (cropView x y)) (fmap (\_ -> mempty)) (const AppendMap.empty) m0 m1
     applyAndCrop p vs' v = cropView' vs' $ applyPatch' p v
 
