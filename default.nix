@@ -795,7 +795,9 @@ in with nixpkgs.haskell.lib; {
                              if (countCharsWhere (c: c == ".") hostName == 1)
                              then ["www"] # We assume that domains of the form "abc.xyz" will also have a www subdomain, but domains with more components will not
                              else []
+                           , sslBehindLoadBalancer ? false
                            }:
+            assert !(ssl && sslBehindLoadBalancer);
             let acmeWebRoot = "/srv/acme/";
                 nginxService = {locations}:
                   let locationConfig = path: port: ''
@@ -825,6 +827,11 @@ in with nixpkgs.haskell.lib; {
                       server {
                         listen 80;
                         ${locationConfigs}
+                        ${lib.optionalString sslBehindLoadBalancer ''
+                          if ($http_x_forwarded_proto = 'http') {
+                            return 301 https://$host$request_uri;
+                          }
+                        ''}
                         access_log off;
                       }
                       error_log  /var/log/nginx_error.log  warn;
