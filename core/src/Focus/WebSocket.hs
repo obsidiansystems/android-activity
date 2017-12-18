@@ -26,7 +26,10 @@ data WebSocketUrl = WebSocketUrl
        , _websocket_host :: Text
        , _websocket_port :: Int
        , _websocket_path :: Text
-       } deriving (Eq, Ord, Show, Read)
+       } deriving (Eq, Ord, Show, Read, Typeable, Generic)
+
+instance ToJSON WebSocketUrl
+instance FromJSON WebSocketUrl
 
 websocketUrlFromRouteEnv :: RouteEnv -> WebSocketUrl
 websocketUrlFromRouteEnv (protocol, host, port) = 
