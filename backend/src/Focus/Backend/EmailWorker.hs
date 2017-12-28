@@ -19,6 +19,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe
 import Data.Pool
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Database.Groundhog.Postgresql hiding (Cond)
@@ -100,25 +101,34 @@ clearMailQueue db emailEnv = do
           Just expiry' -> do
             return $ now < expiry'
         when notExpired $ do
-          withStreamedLargeObject oid $ \payload ->
-            sendQueuedEmail emailEnv from to (LBS.toStrict payload)
-          liftIO $ putStrLn $ mconcat
-            [ "["
-            , show now
-            , "] "
-            , "Sending email to: "
-            , show to
-            ]
+          withStreamedLargeObject oid $ \payload -> do
+            ersp <- sendQueuedEmail emailEnv from to (LBS.toStrict payload)
+            case ersp of
+              Left err -> liftIO $ error $ mconcat
+                [ "["
+                , show now
+                , "] Failed to send email to "
+                , show to
+                , ". Error: "
+                , T.unpack err
+                ]
+              Right _ -> liftIO $ putStrLn $ mconcat
+                [ "["
+                , show now
+                , "] "
+                , "Sending email to: "
+                , show to
+                ]
       runDb db $ do
         _ <- execute [sql| DELETE FROM "QueuedEmail" q WHERE q.id = ? |] (Only qid)
         deleteLargeObject oid
       clearMailQueue db emailEnv
 
-sendQueuedEmail :: EmailEnv -> Mail.Address -> [Mail.Address] -> ByteString -> IO ()
+sendQueuedEmail :: EmailEnv -> Mail.Address -> [Mail.Address] -> ByteString -> IO (Either Text ())
 sendQueuedEmail env sender recipients payload = do
   let from = T.unpack . Mail.addressEmail $ sender
       to = map (T.unpack . Mail.addressEmail) recipients
-  void $ withSMTP env $ SMTP.sendMail from to payload 
+  withSMTP env $ SMTP.sendMail from to payload 
 
 -- | Spawns a thread to monitor mail queue table and send emails if necessary
 emailWorker :: (MonadIO m, RunDb f)
