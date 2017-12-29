@@ -35,6 +35,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce
 import Data.Constraint
 import Data.Dependent.Map (DSum (..))
+import Data.Either.Combinators (rightToMaybe)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Semigroup
@@ -59,7 +60,16 @@ import GHCJS.DOM.Types (MonadJSM(..))
 import GHCJS.DOM.Types (MonadJSM)
 #endif
 
-type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest f app) Identity m)
+data ApiError = ApiError_ParseFailed
+  deriving (Show, Read, Eq, Ord)
+
+requestingRight
+  :: (Requester t m, Response m ~ Either ApiError)
+  => Event t (R.Request m a)
+  -> m (Event t a)
+requestingRight = fmap (fmapMaybe rightToMaybe) . requesting
+
+type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest f app) (Either ApiError) m)
 
 newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
@@ -78,7 +88,7 @@ instance HasJS x m => HasJS x (FocusWidget f app t m) where
 
 instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
   type Request (FocusWidget f app t m) = AppRequest f app
-  type Response (FocusWidget f app t m) = Identity
+  type Response (FocusWidget f app t m) = Either ApiError
   requesting = FocusWidget . requesting
   requesting_ = FocusWidget . requesting_
 
@@ -149,7 +159,7 @@ class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
       , R.Request m ~ AppRequest Identity app
-      , Response m ~ Identity
+      , Response m ~ Either ApiError
       , HasFocus Identity app
       , MonadQuery t (ViewSelector app SelectedCount) m
       ) => MonadFocusWidget app t m | m -> app t where
@@ -158,7 +168,7 @@ instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
          , Requester t m
          , R.Request m ~ AppRequest Identity app
-         , Response m ~ Identity
+         , Response m ~ Either ApiError
          , HasFocus Identity app
          , MonadQuery t (ViewSelector app SelectedCount) m
          ) => MonadFocusWidget app t m
@@ -275,7 +285,7 @@ identifyTags
   => Event t (RequesterData v)
   -> Event t (Data.Aeson.Value, Either Text Data.Aeson.Value)
   -> m ( Event t [(Data.Aeson.Value, Data.Aeson.Value)]
-       , Event t (RequesterData Identity)
+       , Event t (RequesterData (Either ApiError))
        )
 identifyTags send recv = do
   rec nextId :: Behavior t Int <- hold 1 $ fmap (\(a, _, _) -> a) send'
@@ -303,8 +313,10 @@ identifyTags send recv = do
                   Just n ->
                     return $ case Map.lookup n wf of
                       Just (Decoder k) -> Just $
-                        let Just v = parseMaybe parseJSON jsonV
-                        in (singletonRequesterData k $ Identity v, PatchMap $ Map.singleton n Nothing)
+                        let rspV = case parseMaybe parseJSON jsonV of
+                              Just v -> Right v
+                              Nothing -> Left ApiError_ParseFailed
+                        in (singletonRequesterData k rspV, PatchMap $ Map.singleton n Nothing)
                       Nothing -> Nothing
   return (fmap (\(_, _, c) -> c) send', fst <$> recv')
 

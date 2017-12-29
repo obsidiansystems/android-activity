@@ -30,6 +30,7 @@ library
     data-default,
     dependent-map,
     dependent-sum,
+    either,
     exception-transformers,
     filepath,
     focus-core,
