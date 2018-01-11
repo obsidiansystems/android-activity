@@ -232,7 +232,7 @@ makeViewListener chan getPatches = do
   connections <- newTVarIO (AppendMap.empty :: AppendMap SchemaName (TMVar (Connections vs vp state)))
   changes <- atomically $ dupTChan chan
 
-  thread <- forkIO $ forever $ handle logNotificationError $ do
+  thread <- forkIO $ forever $ handle (logNotificationError "") $ do
     n@(NotifyMessage schema _ _ _) <- atomically $ readTChan changes
     -- Insert schema into connections map if it isn't there
     schemaConn <- ensureSchemaViewListenerExists schema connections
@@ -248,11 +248,22 @@ makeViewListener chan getPatches = do
     go notification conns = revise (_connections_connState conns) $ \selectors -> do
       patches <- getPatches notification (fmap snd selectors)
       fmap (fmapMaybe id) . forM (align selectors patches) $ \case
-        These (send', (vs, _)) (Just patch, newState) -> do send' patch; return . Just $ (vs, newState)
+        These (send', (vs, _)) (Just patch, newState) -> do
+          result <- try $ send' patch
+          case result of
+            Left err -> do
+              logNotificationError "(error sending single patch)" err
+              return Nothing
+            Right _ -> return . Just $ (vs, newState)
         These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
         _ -> return Nothing
-    logNotificationError :: SomeException -> IO ()
-    logNotificationError e = hPutStrLn stderr $ "Focus.Backend.Listen makeViewListener exception: " <> (show e)
+    logNotificationError :: String -> SomeException -> IO ()
+    logNotificationError s e = hPutStrLn stderr $ mconcat
+      [ "Focus.Backend.Listen makeViewListener exception: "
+      , s
+      , " "
+      , show e
+      ]
 
 ensureSchemaViewListenerExists :: (Ord k)
                                => k
