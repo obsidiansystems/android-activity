@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.backend this.backend.haskellPackages.hdevtools).env'
+nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend (lib.addBuildDepend this.backend this.backend.haskellPackages.hdevtools) this.backend.haskellPackages.ghc-mod).env'
