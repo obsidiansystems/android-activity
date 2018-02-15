@@ -182,10 +182,10 @@ self: super: {
     });
     phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
       src = nixpkgs.fetchFromGitHub {
-        owner = "obsidiansystems";
+        owner = "wrinkl";
         repo = "haskell-phone-push";
-        rev = "edc4e11e55cd250614e88b1b5eb69a97b3422ea0";
-        sha256 = "06q8jn7ijm6i8gy3qv1191vg3g0c2zhp3kfahhxgwq9l7v8hc7qf";
+        rev = "b275df410e39c340788daa68f7160c2fdc428ad4";
+        sha256 = "1fa10n8gp7maj474jlsly9ikia1i08s4w3da6y3yzralnbqf6lby";
       };
     })) self.casing) self.data-default;
     MailchimpSimple = overrideCabal super.MailchimpSimple (drv: {
