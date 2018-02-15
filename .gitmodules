@@ -9,7 +9,7 @@
 	url = git@github.com:ghcjs/ghcjs-canvas
 [submodule "reflex-platform"]
 	path = reflex-platform
-	url = git@github.com:reflex-frp/reflex-platform
+	url = git@github.com:wrinkl/reflex-platform
 [submodule "http"]
 	path = http
 	url = git@github.com:obsidiansystems/focus-http.git
