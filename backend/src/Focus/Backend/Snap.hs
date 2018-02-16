@@ -22,6 +22,7 @@ module Focus.Backend.Snap
     , appConfig_initialHead
     , appConfig_serveJsexe
     , appConfig_jsexe
+    , appConfig_serveAppJs
     , frontendJsPath
     , frontendJsAssetsPath
     ) where
@@ -31,6 +32,7 @@ import Focus.HTTP.Serve
 import Snap
 
 import Control.Lens
+import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Default
 import Data.Maybe
@@ -68,6 +70,7 @@ data AppConfig m
                , _appConfig_initialHead :: Maybe ByteString
                , _appConfig_serveJsexe :: Bool
                , _appConfig_jsexe :: FilePath
+               , _appConfig_serveAppJs :: Bool
                }
 
 -- | Default instance for app configuration
@@ -79,6 +82,7 @@ instance Default (AppConfig m) where
                   , _appConfig_initialHead = mempty
                   , _appConfig_serveJsexe = True
                   , _appConfig_jsexe = "frontend.jsexe"
+                  , _appConfig_serveAppJs = True
                   }
 
 -- | Takes a location, app, and an app configuration as arguements and
@@ -136,7 +140,8 @@ serveStaticIndex cfg = do
       style_ initialStyles -- ^ generate style element or attribute
     body_ $ do -- ^ body element
       toHtmlRaw initialBody -- ^ convert html to HtmlT monad unit
-      script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
+      when (_appConfig_serveAppJs cfg) $
+        script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
       -- ^ create script element
       return ()
 
@@ -193,6 +198,7 @@ serveIndex cfg = do
       -- | render logo data and convert it to 'HtmlT m ()' 
       toHtml $ SVG.renderBS $ renderDia SVG svgOpts $ _appConfig_logo cfg
       -- | create script element
-      script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
+      when (_appConfig_serveAppJs cfg) $
+        script_ [type_ "text/javascript", src_ (maybe "/all.js" T.pack appJsPath), defer_ "defer"] ("" :: String)
 
 makeLenses ''AppConfig
