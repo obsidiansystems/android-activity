@@ -207,8 +207,8 @@ notifyEntities nt aid = do
 -- An elaborate control structure to do something a bit silly: we're modifying all the state MVars for all the connections at once,
 -- locking everything while we compute all the patches for a DB notification.
 -- AppendMap ThreadId (vp -> IO (), MVar (vs, state)) is the actual type of the first argument in usage.
-revise :: forall k s a. (Ord k) => AppendMap k (s, MVar a) -> (AppendMap k (s,a) -> IO (AppendMap k a)) -> IO ()
-revise m body = revise' (AppendMap.toList m) (AppendMap.empty) >> return ()
+revise :: forall k s a. (Ord k) => AppendMap k (s, MVar a) -> (AppendMap k (s,a) -> IO (AppendMap k a)) -> IO (AppendMap k a)
+revise m body = revise' (AppendMap.toList m) (AppendMap.empty)
   where
     revise' :: [(k, (s, MVar a))] -> AppendMap k (s,a) -> IO (AppendMap k a)
     revise' [] n = body n
@@ -236,27 +236,33 @@ makeViewListener chan getPatches = do
     n@(NotifyMessage schema _ _ _) <- atomically $ readTChan changes
     -- Insert schema into connections map if it isn't there
     schemaConn <- ensureSchemaViewListenerExists schema connections
-    bracket (atomically $ takeTMVar schemaConn)
-            (atomically . putTMVar schemaConn)
-            (go n)
+    bracketOnError
+      (atomically $ takeTMVar schemaConn)
+      (atomically . putTMVar schemaConn)
+      (atomically . putTMVar schemaConn <=< go n)
   return $ ViewListener { _viewListener_connections = connections
                         , _viewListener_thread = thread
                         }
   where
     -- TODO remove empty schema keys from the connections map
-    go :: NotifyMessage a -> Connections vs vp state -> IO ()
-    go notification conns = revise (_connections_connState conns) $ \selectors -> do
-      patches <- getPatches notification (fmap snd selectors)
-      fmap (fmapMaybe id) . forM (align selectors patches) $ \case
-        These (send', (vs, _)) (Just patch, newState) -> do
-          result <- try $ send' patch
-          case result of
-            Left err -> do
-              logNotificationError "(error sending single patch)" err
-              return Nothing
-            Right _ -> return . Just $ (vs, newState)
-        These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
-        _ -> return Nothing
+    go :: NotifyMessage a -> Connections vs vp state -> IO (Connections vs vp state)
+    go notification conns = do
+      newMap <- revise (_connections_connState conns) $ \selectors -> do
+        patches <- getPatches notification (fmap snd selectors)
+        connMap <- fmap (fmapMaybe id) . iforM (align selectors patches) $ \tid -> \case
+          These (send', (vs, _)) (Just patch, newState) -> do
+            result <- try $ send' patch
+            case result of
+              Left err -> do
+                logNotificationError "(error sending single patch)" err
+                killThread tid -- kill the thread responsible for the user we failed to send to. We're assuming here that their connection is gone.
+                return Nothing
+              Right _ -> return . Just $ (vs, newState)
+          These (_,     (vs, _)) (Nothing,    newState) -> return . Just $ (vs, newState)
+          _ -> return Nothing
+        return connMap
+      return conns { _connections_connState = AppendMap.intersectionWith (\a b -> a) (_connections_connState conns) newMap }
+      -- If any keys were removed, remove them also from the map of MVars.
     logNotificationError :: String -> SomeException -> IO ()
     logNotificationError s e = hPutStrLn stderr $ mconcat
       [ "Focus.Backend.Listen makeViewListener exception: "
@@ -365,7 +371,7 @@ websocketHandler (WebsocketHandlerConfig schema connectionCloseHook connectionOp
     connectionOpenHook (sender' WS.Text)
     handleConnectionException $ forever $ do
       dm <- receiveDataMessage conn
-      let (wrapper, r) = case dm of
+      let (wrapper, r) = case dm of 
             WS.Text r' -> (WS.Text, r')
             WS.Binary r' -> (WS.Text, r')
           decoded = eitherDecode' r
