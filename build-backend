@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+echo -ne '\033]0;BACKEND\007'
+nix-shell -E 'let this = import ./. { enableProfiling = true; }; lib = this.tryReflex.nixpkgs.haskell.lib; in this.backend.env' --run 'ghc -threaded -i{common,backend,frontend}/src Main -outputdir dist-backend -o dist-backend/backendExec -DUSE_TEMPLATE_HASKELL -DBACKEND -O0; ghc -prof -fprof-auto -threaded -Ldist-backend -osuf o_p -i{common,backend,frontend}/src Main -outputdir dist-backend -o dist-backend/backendExecP -DUSE_TEMPLATE_HASKELL -DBACKEND -O0' "$@"
+
+# GC flags
+# If BUSY_YIELD < SCHED_QUANTUM, only one thread ever seems to get to run.
+# -DGHCJS_GC_INTERVAL=60000 -DGHCJS_BUSY_YIELD=5 -DGHCJS_SCHED_QUANTUM=5
+
+# Xtreme optimization
+# -O2 -fplugin=Reflex.Optimizer -fexpose-all-unfoldings -fspecialise-aggressively
+
+# dump ghc intermediate outputs for analysis
+# -dumpdir=dump-js -ddump-to-file -ddump-simpl -ddump-hi -dppr-cols=200 -ddump-rule-firings -dsuppress-all
