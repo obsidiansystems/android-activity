@@ -40,6 +40,7 @@ import Focus.Patch
 
 import qualified GHCJS.DOM.HTMLElement as E
 import qualified GHCJS.DOM.HTMLInputElement as IE
+import GHCJS.DOM.Types (liftJSM, MonadJSM)
 
 -- | A variant of elDynAttr which sets the element's style to "display: none;" initially, until its attributes can be set properly.
 elDynAttrHide :: forall t m a. (DomBuilder t m, PostBuild t m) => Text -> Dynamic t (Map Text Text) -> m a -> m a
@@ -426,11 +427,12 @@ data PillAction = PillAction_Add Text
   deriving (Show, Eq)
 
 pillTypeahead
-  :: ( DomBuilder DomTimeline m, PostBuild DomTimeline m
-     , MonadHold DomTimeline m, MonadFix m )
+  :: ( DomBuilder t m, PostBuild t m, PerformEvent t m
+     , MonadHold t m, MonadFix m, MonadJSM (Performable m)
+     , GhcjsDomSpace ~ DomBuilderSpace m )
   => (Text -> Bool)
-  -> (Dynamic DomTimeline Text -> m (Dynamic DomTimeline (AppendMap Text v)))
-  -> m (Dynamic DomTimeline (Set Text))
+  -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
+  -> m (Dynamic t (Set Text))
 pillTypeahead validate get = do
   rec ps <- pills $ leftmost
         [ PillAction_Add <$> sel
@@ -457,16 +459,19 @@ pillTypeahead validate get = do
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text")
         & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
-      sel <- el "ul" $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
+      sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
-      let xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
+      let hasFocus = _inputElement_hasFocus i
+          ulAttrs = zipDynWith (\g f -> if AMap.null g || not f then "style" =: "display: none;" else mempty) got hasFocus
+          xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
+  performEvent_ $ ffor (updated selected) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
   return selected
 
 pills
-  :: ( DomBuilder DomTimeline m, PostBuild DomTimeline m
-     , MonadHold DomTimeline m, MonadFix m )
-  => Event DomTimeline PillAction       -- Take an action on pills
-  -> m (Dynamic DomTimeline [Text])     -- Some action
+  :: ( DomBuilder t m, PostBuild t m
+     , MonadHold t m, MonadFix m )
+  => Event t PillAction       -- Take an action on pills
+  -> m (Dynamic t [Text])     -- Some action
 pills e = do
   let update = \p b -> case p of
         PillAction_Add a -> if a `L.elem` b then b else b ++ [a]
