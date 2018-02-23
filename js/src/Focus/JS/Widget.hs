@@ -457,7 +457,7 @@ pillTypeahead validate get = do
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text")
         & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
-      sel <- comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
+      sel <- el "ul" $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
   return selected
