@@ -431,9 +431,10 @@ pillTypeahead
      , MonadHold t m, MonadFix m, MonadJSM (Performable m)
      , GhcjsDomSpace ~ DomBuilderSpace m )
   => (Text -> Bool)
+  -> Event t ()
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
   -> m (Dynamic t (Set Text))
-pillTypeahead validate get = do
+pillTypeahead validate setFocus get = do
   rec ps <- pills $ leftmost
         [ PillAction_Add <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
@@ -464,7 +465,7 @@ pillTypeahead validate get = do
       let hasFocus = _inputElement_hasFocus i
           ulAttrs = zipDynWith (\g f -> if AMap.null g || not f then "style" =: "display: none;" else mempty) got hasFocus
           xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
-  performEvent_ $ ffor (updated selected) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
+  performEvent_ $ ffor (leftmost [() <$ updated selected, setFocus]) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
   return selected
 
 pills
