@@ -426,6 +426,12 @@ data PillAction = PillAction_Add Text
                 | PillAction_RemoveLast
   deriving (Show, Eq)
 
+data Typeahead t k = Typeahead
+  { _typeahead_selections :: Dynamic t (Set k)
+  , _typeahead_inputError :: Event t Bool
+  , _typeahead_hasFocus :: Dynamic t Bool
+  }
+
 pillTypeahead
   :: ( DomBuilder t m, PostBuild t m, PerformEvent t m
      , MonadHold t m, MonadFix m, MonadJSM (Performable m)
@@ -433,7 +439,7 @@ pillTypeahead
   => (Text -> Bool)
   -> Event t ()
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
-  -> m (Dynamic t (Set Text))
+  -> m (Typeahead t Text)
 pillTypeahead validate setFocus get = do
   rec ps <- pills $ leftmost
         [ PillAction_Add <$> sel
@@ -448,25 +454,24 @@ pillTypeahead validate setFocus get = do
           inputChecked = attachWith (\v _ -> if validate v
             then Just v
             else Nothing) (current $ value i) $ keypress Enter i
-          mkInputAttrs = mapKeysToAttributeName . \case
-            Left Nothing -> "class" =: Just "error"
-            Left (Just _) -> "class" =: Nothing
-            Right () -> "class" =: Nothing
-          inputAttrs = fmap mkInputAttrs $ leftmost
-            [ Left <$> inputChecked
-            , Right () <$ updated (value i)
-            ]
       (i, actions) <- comboBoxInput $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text")
-        & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
+        -- & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let hasFocus = _inputElement_hasFocus i
           ulAttrs = zipDynWith (\g f -> if AMap.null g || not f then "style" =: "display: none;" else mempty) got hasFocus
           xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
   performEvent_ $ ffor (leftmost [() <$ updated selected, setFocus]) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
-  return selected
+  return $ Typeahead
+    { _typeahead_selections = selected
+    , _typeahead_hasFocus = hasFocus
+    , _typeahead_inputError = leftmost
+      [ fmap isNothing inputChecked
+      , False <$ updated (value i)
+      ]
+    }
 
 pills
   :: ( DomBuilder t m, PostBuild t m
