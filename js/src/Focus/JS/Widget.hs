@@ -17,6 +17,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Data.AppendMap (AppendMap)
 import qualified Data.AppendMap as AMap
+import Data.Default
 import qualified Data.Dependent.Map as DMap
 import qualified Data.List as L
 import qualified Data.Map as Map
@@ -426,6 +427,17 @@ data PillAction = PillAction_Add Text
                 | PillAction_RemoveLast
   deriving (Show, Eq)
 
+data TypeaheadConfig t = TypeaheadConfig
+  { _typeaheadConfig_validate :: Text -> Bool
+  , _typeaheadConfig_setFocus :: Event t ()
+  }
+
+instance Reflex t => Default (TypeaheadConfig t) where
+  def = TypeaheadConfig
+    { _typeaheadConfig_validate = const True
+    , _typeaheadConfig_setFocus = never
+    }
+
 data Typeahead t k = Typeahead
   { _typeahead_selections :: Dynamic t (Set k)
   , _typeahead_inputError :: Event t Bool
@@ -436,11 +448,10 @@ pillTypeahead
   :: ( DomBuilder t m, PostBuild t m, PerformEvent t m
      , MonadHold t m, MonadFix m, MonadJSM (Performable m)
      , GhcjsDomSpace ~ DomBuilderSpace m )
-  => (Text -> Bool)
-  -> Event t ()
+  => TypeaheadConfig t
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
   -> m (Typeahead t Text)
-pillTypeahead validate setFocus get = do
+pillTypeahead (TypeaheadConfig validate setFocus) get = do
   rec ps <- pills $ leftmost
         [ PillAction_Add <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
@@ -451,13 +462,12 @@ pillTypeahead validate setFocus get = do
             _ -> Nothing) (current $ value i) actions
         ]
       let selected = Set.fromList <$> ps
-          inputChecked = attachWith (\v _ -> if validate v
+          inputChecked = attachWith (\v _ -> if validate v && not (T.null v)
             then Just v
             else Nothing) (current $ value i) $ keypress Enter i
       (i, actions) <- comboBoxInput $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text")
-        -- & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let hasFocus = _inputElement_hasFocus i
