@@ -473,7 +473,7 @@ pillTypeahead (TypeaheadConfig validate setFocus ph) get = do
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let hasFocus = _inputElement_hasFocus i
-          ulAttrs = zipDynWith (\g f -> if AMap.null g || not f then "style" =: "display: none;" else mempty) got hasFocus
+          ulAttrs = zipDynWith (\g f -> if Map.null g || not f then "style" =: "display: none;" else mempty) xs hasFocus
           xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
   performEvent_ $ ffor (leftmost [() <$ updated selected, setFocus]) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
   return $ Typeahead
