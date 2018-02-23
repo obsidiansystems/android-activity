@@ -430,12 +430,14 @@ data PillAction = PillAction_Add Text
 data TypeaheadConfig t = TypeaheadConfig
   { _typeaheadConfig_validate :: Text -> Bool
   , _typeaheadConfig_setFocus :: Event t ()
+  , _typeaheadConfig_placeholder :: Text
   }
 
 instance Reflex t => Default (TypeaheadConfig t) where
   def = TypeaheadConfig
     { _typeaheadConfig_validate = const True
     , _typeaheadConfig_setFocus = never
+    , _typeaheadConfig_placeholder = ""
     }
 
 data Typeahead t k = Typeahead
@@ -451,7 +453,7 @@ pillTypeahead
   => TypeaheadConfig t
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
   -> m (Typeahead t Text)
-pillTypeahead (TypeaheadConfig validate setFocus) get = do
+pillTypeahead (TypeaheadConfig validate setFocus ph) get = do
   rec ps <- pills $ leftmost
         [ PillAction_Add <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
@@ -467,7 +469,7 @@ pillTypeahead (TypeaheadConfig validate setFocus) get = do
             else Nothing) (current $ value i) $ keypress Enter i
       (i, actions) <- comboBoxInput $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
-        & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text")
+        & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text" <> "placeholder" =: ph)
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let hasFocus = _inputElement_hasFocus i
