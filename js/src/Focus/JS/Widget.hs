@@ -15,7 +15,10 @@ module Focus.JS.Widget
 import Control.Lens hiding (ix, element)
 import Control.Monad
 import Control.Monad.Fix
+import Data.AppendMap (AppendMap)
+import qualified Data.AppendMap as AMap
 import qualified Data.Dependent.Map as DMap
+import qualified Data.List as L
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -261,7 +264,11 @@ comboBoxList xs li query externalActions = do
             _ -> Nothing
           mapMin = listToMaybe . Map.keys
           selectOnUpdate = attachWithMaybe (\f es -> if Map.member f es then Just f else mapMin es) (current focus) $ updated xs'
-      focus <- foldDyn (\a _ -> a) Nothing $ leftmost [ actionToFocus, selectOnUpdate ]
+      focus <- foldDyn (\a _ -> a) Nothing $ leftmost
+        [ Nothing <$ ffilter Map.null (updated xs)
+        , actionToFocus
+        , selectOnUpdate
+        ]
   return $ fmapMaybe id $ tag (current focus) $ ffilter ((==ComboBoxAction_Select) . snd) actions
 
 comboBox :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
@@ -412,3 +419,65 @@ draftWatermark = elAttr "div" attrs $ text "DRAFT"
           , "opacity: 0.1"
           , "font-size: 30vmin"
           ]
+
+data PillAction = PillAction_Add Text
+                | PillAction_Remove Text
+                | PillAction_RemoveLast
+  deriving (Show, Eq)
+
+pillTypeahead
+  :: ( DomBuilder DomTimeline m, PostBuild DomTimeline m
+     , MonadHold DomTimeline m, MonadFix m )
+  => (Text -> Bool)
+  -> (Dynamic DomTimeline Text -> m (Dynamic DomTimeline (AppendMap Text v)))
+  -> m (Dynamic DomTimeline (Set Text))
+pillTypeahead validate get = do
+  rec ps <- pills $ leftmost
+        [ PillAction_Add <$> sel
+        , PillAction_Add <$> fmapMaybe id inputChecked
+        , attachWithMaybe (\v -> \case
+            ComboBoxAction_Backspace -> if T.null v
+              then Just PillAction_RemoveLast
+              else Nothing
+            _ -> Nothing) (current $ value i) actions
+        ]
+      let selected = Set.fromList <$> ps
+          inputChecked = attachWith (\v _ -> if validate v
+            then Just v
+            else Nothing) (current $ value i) $ keypress Enter i
+          mkInputAttrs = mapKeysToAttributeName . \case
+            Left Nothing -> "class" =: Just "error"
+            Left (Just _) -> "class" =: Nothing
+            Right () -> "class" =: Nothing
+          inputAttrs = fmap mkInputAttrs $ leftmost
+            [ Left <$> inputChecked
+            , Right () <$ updated (value i)
+            ]
+      (i, actions) <- comboBoxInput $ def
+        & inputElementConfig_setValue .~ ("" <$ updated ps)
+        & inputElementConfig_elementConfig . elementConfig_modifyAttributes .~ inputAttrs
+      sel <- comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
+      got <- get (value i)
+      let xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
+  return selected
+
+pills
+  :: ( DomBuilder DomTimeline m, PostBuild DomTimeline m
+     , MonadHold DomTimeline m, MonadFix m )
+  => Event DomTimeline PillAction       -- Take an action on pills
+  -> m (Dynamic DomTimeline [Text])     -- Some action
+pills e = do
+  let update = \p b -> case p of
+        PillAction_Add a -> if a `L.elem` b then b else b ++ [a]
+        PillAction_Remove a -> L.delete a b
+        PillAction_RemoveLast -> reverse $ tail $ reverse b
+  rec ps <- foldDyn update [] $ leftmost
+        [ e
+        , PillAction_Remove <$> (switch . current $ fmap leftmost a)
+        ]
+      a <- simpleList ps $ \p -> fmap (tag (current p) . domEvent Click . fst) $
+        elAttr' "button" ("class" =: "pill") $ do
+          dynText p
+          elClass "i" "fa fa-blank fa-fw" blank
+          elClass "i" "fa fa-close fa-fw" blank
+  return ps
