@@ -61,8 +61,8 @@ makeDefaultKeyIdInt64 ''Account 'AccountKey
 tokenToAuth :: (Typeable f, FromJSON (f (Id Account))) => CS.Key -> Signed (AuthToken f) -> Maybe (f (Id Account))
 tokenToAuth csk = fmap unAuthToken . readSignedWithKey csk
 
-migrateAccount :: PersistBackend m => Migration m
-migrateAccount = migrate (undefined :: Account)
+migrateAccount :: PersistBackend m => TableAnalysis m -> Migration m
+migrateAccount tableInfo = migrate tableInfo (undefined :: Account)
 
 -- Returns whether a new account had to be created
 ensureAccountExists :: (PersistBackend m, SqlDb (PhantomDb m)) => Email -> m (Bool, Id Account)
