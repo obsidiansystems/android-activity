@@ -183,9 +183,6 @@ self: super: {
     http2-client = dontCheck (overrideCabal super.http2-client (drv: {
       version = "0.3.0.2"; # Required by push-notify-apn
       sha256 = "06iw2mi176rwjmmynhjhyl06f3jq832viyl7adbxgdyws36b64jl";
-      libraryHaskellDepends = with super; [
-        async base bytestring connection containers http2 network time tls
-      ];
     }));
     push-notify-apn = overrideCabal super.push-notify-apn (drv: {
       version = "0.1.0.5";
