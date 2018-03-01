@@ -13,14 +13,19 @@ Cabal-version: >=1.2
 library
   hs-source-dirs: src
   build-depends: base
+               , aeson
+               , base64-bytestring
                , bytestring
                , containers
                , focus-core
                , focus-backend
-               , resource-pool
                , groundhog-postgresql
                , http-conduit
+               , push-notify-apn
                , phone-push
+               , resource-pool
+               , stm
+               , text
   exposed-modules: PhonePush.Worker
 
   ghc-options: -threaded -Wall -Werror -fno-warn-unused-do-bind -fwarn-tabs -funbox-strict-fields -O2 -fprof-auto-calls -rtsopts

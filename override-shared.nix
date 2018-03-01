@@ -180,6 +180,17 @@ self: super: {
         sha256 = "1jiypxkwlknrnmyspc2w87qxb7bd45g89r8mizf22nd95h7vmcrc";
       };
     });
+    http2-client = dontCheck (overrideCabal super.http2-client (drv: {
+      version = "0.3.0.2"; # Required by push-notify-apn
+      sha256 = "06iw2mi176rwjmmynhjhyl06f3jq832viyl7adbxgdyws36b64jl";
+      libraryHaskellDepends = with super; [
+        async base bytestring connection containers http2 network time tls
+      ];
+    }));
+    push-notify-apn = overrideCabal super.push-notify-apn (drv: {
+      version = "0.1.0.5";
+      sha256 = "bf782b0a8a4a8bc22ab139be124091297cbc580f5e739c957d011b3ca350b6bf";
+    });
     phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
       src = nixpkgs.fetchFromGitHub {
         owner = "wrinkl";

@@ -1,35 +1,57 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PhonePush.Worker where
 
-import Control.Concurrent
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Map as Map
-import Data.Pool
-import Database.Groundhog.Postgresql
-import Focus.Backend.DB
-import Focus.Backend.DB.Groundhog
-import Focus.Backend.QueueWorker
-import Focus.Backend.Schema.TH
-import Focus.Concurrent
-import Focus.Schema
+import           Control.Exception             (bracket)
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Data.Char                     (toLower)
+import           Data.Maybe                    (listToMaybe)
+import           System.IO                     (hPutStrLn, stderr)
 
-import Network.HTTP.Conduit
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Data.Aeson
+import           Data.Aeson.Types
+import           Data.ByteString               (ByteString)
+import qualified Data.ByteString.Base64        as B64
+import qualified Data.Map                      as Map
+import           Data.Pool
+import           Data.Text                     (Text)
+import qualified Data.Text.Encoding            as T
+import           Database.Groundhog.Postgresql
+import           Focus.Backend.DB
+import           Focus.Backend.DB.Groundhog
+import           Focus.Backend.QueueWorker
+import           Focus.Backend.Schema.TH
+import           Focus.Concurrent
+import           Focus.Schema
+import           Network.HTTP.Conduit
 
-import PhonePush.Android
-import PhonePush.Android.Payload
-import PhonePush.IOS
+-- Android
+import           PhonePush.Android
+import           PhonePush.Android.Payload
 
+-- iOS
+import           Network.PushNotify.APN
+
+data APNSConfig = APNSConfig
+  { _APNSConfig_key         :: FilePath
+  , _APNSConfig_certificate :: FilePath
+  , _APNSConfig_ca          :: FilePath
+  , _APNSConfig_sandbox     :: Bool
+  , _APNSConfig_streams     :: Int
+  , _APNSConfig_bundleName  :: ByteString
+  }
 
 data QueuedApplePushMessage = QueuedApplePushMessage
-  { _queuedApplePushMessage_applePushMessage :: ApplePushMessage
+  { _queuedApplePushMessage_apnToken   :: Text
+  , _queuedApplePushMessage_jsonAps    :: Json JsonAps
   , _queuedApplePushMessage_checkedOut :: Bool
   }
 instance HasId QueuedApplePushMessage
@@ -41,12 +63,11 @@ mkFocusPersist (Just "migrateApplePushMessage") [groundhog|
         fields:
           - name: _queuedApplePushMessage_checkedOut
             default: "false"
-  - embedded: ApplePushMessage
 |]
 makeDefaultKeyIdInt64 ''QueuedApplePushMessage 'QueuedApplePushMessageKey
 
 data QueuedAndroidPushMessage = QueuedAndroidPushMessage
-  { _queuedAndroidPushMessage_payload :: Json FcmPayload
+  { _queuedAndroidPushMessage_payload    :: Json FcmPayload
   , _queuedAndroidPushMessage_checkedOut :: Bool
   }
 instance HasId QueuedAndroidPushMessage
@@ -61,31 +82,76 @@ mkFocusPersist (Just "migrateAndroidPushMessage") [groundhog|
 |]
 makeDefaultKeyIdInt64 ''QueuedAndroidPushMessage 'QueuedAndroidPushMessageKey
 
+-- Some orphan FromJSON instances - if necessary we can fork
+instance FromJSON JsonAps where
+  parseJSON = genericParseJSON defaultOptions
+    { fieldLabelModifier = drop 2 . map toLower }
+
+instance FromJSON JsonApsMessage where
+  parseJSON = genericParseJSON defaultOptions
+    { fieldLabelModifier = drop 3 . map toLower }
+
+instance FromJSON JsonApsAlert where
+  parseJSON = genericParseJSON defaultOptions
+    { fieldLabelModifier = drop 3 . map toLower }
+
+sendQueuedAppleMessage
+  :: ApnSession
+  -> QueuedApplePushMessage
+  -> IO ApnMessageResult
+sendQueuedAppleMessage session (QueuedApplePushMessage token (Json aps) _) =
+  sendMessage session (rawToken . B64.decodeLenient $ T.encodeUtf8 token) aps
+
+newAPNSSession :: APNSConfig -> IO ApnSession
+newAPNSSession cfg = newSession (_APNSConfig_key cfg)
+                                (_APNSConfig_certificate cfg)
+                                (_APNSConfig_ca cfg)
+                                (_APNSConfig_sandbox cfg)
+                                (_APNSConfig_streams cfg)
+                                (_APNSConfig_bundleName cfg)
+
+withAPNSSession :: APNSConfig -> (ApnSession -> IO ()) -> IO ()
+withAPNSSession cfg f = bracket (newAPNSSession cfg) f closeSession
+
 apnsWorker
   :: (MonadIO m, RunDb f)
   => APNSConfig
   -> Int
   -> f (Pool Postgresql)
+  -> Maybe (TChan Text)
   -> m (IO ())
-apnsWorker cfg delay db = return . killThread <=<
-  liftIO . forkIO . supervise . withAPNSSocket cfg $ \conn -> do
+apnsWorker cfg delay db mTokenChan = return . killThread <=<
+  liftIO . forkIO . supervise . withAPNSSession cfg $ \conn -> do
     void $ forever $ do
       let clear = do
-            qm <- Map.toList <$>
-              selectMap QueuedApplePushMessageConstructor
-                        ((QueuedApplePushMessage_checkedOutField ==. False) `limitTo` 1)
-            case qm of
-              [(k, QueuedApplePushMessage m _)] -> do
+            -- Get queued messages, mark them checked out
+            queuedMsg <- runDb db $ do
+              qm <- fmap (listToMaybe . Map.toList) $
+                selectMap QueuedApplePushMessageConstructor $
+                          (QueuedApplePushMessage_checkedOutField ==. False) `limitTo` 1
+              forM_ qm $ \(k, _) ->
                 update [QueuedApplePushMessage_checkedOutField =. True] $ AutoKeyField ==. fromId k
-                if LBS.length (_applePushMessage_payload m) > maxPayloadLength
-                  then deleteBy (fromId k) >> clear
-                  else do
-                    liftIO $ sendApplePushMessage conn m
-                    deleteBy $ fromId k
-                    clear
-              _ -> return ()
-      runDb db clear >> threadDelay delay
-    return ()
+              return qm
+            -- Send out messages
+            case queuedMsg of
+              Nothing -> return ()
+              Just (k, qm@(QueuedApplePushMessage token _ _)) -> do
+                sendQueuedAppleMessage conn qm >>= \case
+                  ApnMessageResultFatalError ->
+                    -- If this is occurring often, get specific error code from push-notify-apn and print it
+                    logError "APNS error: fatal error"
+                  ApnMessageResultTemporaryError -> do
+                    -- TODO Does temporary error indicate we should requeue for later?
+                    -- Perhaps even a threadDelay here, then just marking checkedOut False ?
+                    -- For now just deleting the task
+                    logError "APNS error: temporary error"
+                    runDb db $ deleteBy (fromId k)
+                  ApnMessageResultTokenNoLongerValid -> do
+                    runDb db $ delete $ QueuedApplePushMessage_apnTokenField ==. token
+                    forM_ mTokenChan $ \chan -> atomically $ writeTChan chan token
+                  _ -> runDb db $ deleteBy (fromId k)
+                clear
+      clear >> threadDelay delay
 
 firebaseWorker
   :: (MonadIO m, RunDb f)
@@ -97,14 +163,20 @@ firebaseWorker key delay db = do
   mgr <- liftIO $ newManager tlsManagerSettings
   worker delay $ do
     let clear = do
-          p <- Map.toList <$>
-            selectMap QueuedAndroidPushMessageConstructor
-                      ((QueuedAndroidPushMessage_checkedOutField ==. False) `limitTo` 1)
-          case p of
-            [(k, QueuedAndroidPushMessage (Json m) _)] -> do
+          queuedMsg <- runDb db $ do
+            qm <- fmap (listToMaybe . Map.toList) $
+              selectMap QueuedAndroidPushMessageConstructor $
+                        (QueuedAndroidPushMessage_checkedOutField ==. False) `limitTo` 1
+            forM_ qm $ \(k, _) ->
               update [QueuedAndroidPushMessage_checkedOutField =. True] $ AutoKeyField ==. fromId k
-              liftIO $ sendAndroidPushMessage mgr key m
-              deleteBy $ fromId k
+            return qm
+          case queuedMsg of
+            Nothing -> return ()
+            Just (k, QueuedAndroidPushMessage (Json m) _) -> do
+              sendAndroidPushMessage mgr key m
+              runDb db $ deleteBy (fromId k)
               clear
-            _ -> return ()
-    runDb db clear
+    clear
+
+logError :: String -> IO ()
+logError = hPutStrLn stderr
