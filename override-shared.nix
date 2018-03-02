@@ -181,13 +181,21 @@ self: super: {
       };
     });
     http2-client = dontCheck (overrideCabal super.http2-client (drv: {
-      version = "0.3.0.2"; # Required by push-notify-apn
-      sha256 = "06iw2mi176rwjmmynhjhyl06f3jq832viyl7adbxgdyws36b64jl";
+      src = nixpkgs.fetchFromGitHub {
+        owner = "lucasdicioccio";
+        repo = "http2-client";
+        rev = "60ae70e0312b46972b4e2702f698d7c038ddf5f6";
+        sha256 = "0cxlnhriq3i58z8mdqd1skwy5b9ga01innwa0yi84iivadsj26b8";
+      };
     }));
-    push-notify-apn = overrideCabal super.push-notify-apn (drv: {
-      version = "0.1.0.5";
-      sha256 = "bf782b0a8a4a8bc22ab139be124091297cbc580f5e739c957d011b3ca350b6bf";
-    });
+    push-notify-apn = addBuildDepend (overrideCabal super.push-notify-apn (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "wrinkl";
+        repo = "push-notify-apn";
+        rev = "e7e665c2cef18eebdafb73d7de3de3bb631202b3";
+        sha256 = "1g7mfcb74yhf812mgz1cc6r8vh0ck72r14xlv61gqwjk2rv2x5d3";
+      };
+    })) self.http2-client;
     phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
       src = nixpkgs.fetchFromGitHub {
         owner = "wrinkl";

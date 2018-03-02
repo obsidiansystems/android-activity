@@ -8,7 +8,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PhonePush.Worker where
 
-import           Control.Exception             (bracket)
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Char                     (toLower)
@@ -117,7 +116,7 @@ newAPNSSession cfg = newSession (_APNSConfig_key cfg)
                                 (T.encodeUtf8 $ _APNSConfig_bundleName cfg)
 
 withAPNSSession :: APNSConfig -> (ApnSession -> IO ()) -> IO ()
-withAPNSSession cfg f = bracket (newAPNSSession cfg) f closeSession
+withAPNSSession cfg f = newAPNSSession cfg >>= f
 
 apnsWorker
   :: (MonadIO m, RunDb f)
