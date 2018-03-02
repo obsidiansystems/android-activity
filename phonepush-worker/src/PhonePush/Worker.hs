@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
@@ -31,6 +32,7 @@ import           Focus.Backend.QueueWorker
 import           Focus.Backend.Schema.TH
 import           Focus.Concurrent
 import           Focus.Schema
+import           GHC.Generics
 import           Network.HTTP.Conduit
 
 -- Android
@@ -46,8 +48,12 @@ data APNSConfig = APNSConfig
   , _APNSConfig_ca          :: FilePath
   , _APNSConfig_sandbox     :: Bool
   , _APNSConfig_streams     :: Int
-  , _APNSConfig_bundleName  :: ByteString
-  }
+  , _APNSConfig_bundleName  :: Text
+  } deriving Generic
+
+instance FromJSON APNSConfig where
+  parseJSON = genericParseJSON defaultOptions
+    { fieldLabelModifier = drop 12 }
 
 data QueuedApplePushMessage = QueuedApplePushMessage
   { _queuedApplePushMessage_apnToken   :: Text
@@ -108,7 +114,7 @@ newAPNSSession cfg = newSession (_APNSConfig_key cfg)
                                 (_APNSConfig_ca cfg)
                                 (_APNSConfig_sandbox cfg)
                                 (_APNSConfig_streams cfg)
-                                (_APNSConfig_bundleName cfg)
+                                (T.encodeUtf8 $ _APNSConfig_bundleName cfg)
 
 withAPNSSession :: APNSConfig -> (ApnSession -> IO ()) -> IO ()
 withAPNSSession cfg f = bracket (newAPNSSession cfg) f closeSession
@@ -173,7 +179,7 @@ firebaseWorker key delay db = do
           case queuedMsg of
             Nothing -> return ()
             Just (k, QueuedAndroidPushMessage (Json m) _) -> do
-              sendAndroidPushMessage mgr key m
+              _ <- sendAndroidPushMessage mgr key m
               runDb db $ deleteBy (fromId k)
               clear
     clear
