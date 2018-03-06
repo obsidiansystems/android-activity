@@ -99,6 +99,7 @@ makePersistFieldNewtype t = do
 
 instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract this newtype-wrapper-monad-stack stuff
   type PhantomDb (ReaderT r m) = PhantomDb m
+  type TableAnalysis (ReaderT r m) = TableAnalysis m
   insert = lift . DB.insert
   insert_ = lift . DB.insert_
   insertBy u v = lift $ DB.insertBy u v
@@ -116,7 +117,7 @@ instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract
   count = lift . DB.count
   countAll = lift . DB.countAll
   project p o = lift $ DB.project p o
-  migrate v = S.mapStateT (lift) $ DB.migrate v
+  migrate i v = S.mapStateT (lift) $ DB.migrate i v
   executeRaw c q p = lift $ DB.executeRaw c q p
   queryRaw c q p f = do
     k <- ask
@@ -126,6 +127,7 @@ instance PersistBackend m => PersistBackend (ReaderT r m) where --TODO: Abstract
 
 instance PersistBackend m => PersistBackend (StateT s m) where
   type PhantomDb (StateT s m) = PhantomDb m
+  type TableAnalysis (StateT s m) = TableAnalysis m
   insert = lift . DB.insert
   insert_ = lift . DB.insert_
   insertBy u v = lift $ DB.insertBy u v
@@ -143,7 +145,7 @@ instance PersistBackend m => PersistBackend (StateT s m) where
   count = lift . DB.count
   countAll = lift . DB.countAll
   project p o = lift $ DB.project p o
-  migrate v = S.mapStateT (lift) $ DB.migrate v
+  migrate i v = S.mapStateT (lift) $ DB.migrate i v
   executeRaw c q p = lift $ DB.executeRaw c q p
   queryRaw c q p f = do
     k <- S.get
@@ -154,6 +156,7 @@ instance PersistBackend m => PersistBackend (StateT s m) where
 
 instance PersistBackend m => PersistBackend (Strict.StateT s m) where
   type PhantomDb (Strict.StateT s m) = PhantomDb m
+  type TableAnalysis (Strict.StateT s m) = TableAnalysis m
   insert = lift . DB.insert
   insert_ = lift . DB.insert_
   insertBy u v = lift $ DB.insertBy u v
@@ -171,7 +174,7 @@ instance PersistBackend m => PersistBackend (Strict.StateT s m) where
   count = lift . DB.count
   countAll = lift . DB.countAll
   project p o = lift $ DB.project p o
-  migrate v = S.mapStateT (lift) $ DB.migrate v
+  migrate i v = S.mapStateT (lift) $ DB.migrate i v
   executeRaw c q p = lift $ DB.executeRaw c q p
   queryRaw c q p f = do
     k <- Strict.get
@@ -182,6 +185,7 @@ instance PersistBackend m => PersistBackend (Strict.StateT s m) where
 
 instance PersistBackend m => PersistBackend (MaybeT m) where
   type PhantomDb (MaybeT m) = PhantomDb m
+  type TableAnalysis (MaybeT m) = TableAnalysis m
   insert = lift . DB.insert
   insert_ = lift . DB.insert_
   insertBy u v = lift $ DB.insertBy u v
@@ -199,7 +203,7 @@ instance PersistBackend m => PersistBackend (MaybeT m) where
   count = lift . DB.count
   countAll = lift . DB.countAll
   project p o = lift $ DB.project p o
-  migrate v = S.mapStateT (lift) $ DB.migrate v
+  migrate i v = S.mapStateT (lift) $ DB.migrate i v
   executeRaw c q p = lift $ DB.executeRaw c q p
   queryRaw c q p f = do
     ma <- lift $ DB.queryRaw c q p $ \rp -> runMaybeT (f $ lift rp)
