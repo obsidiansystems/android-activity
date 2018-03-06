@@ -3,7 +3,7 @@
 	url = git@gitlab.com:obsidian.systems/hs-stripe.git
 [submodule "groundhog"]
 	path = groundhog
-	url = git@github.com:ryantrinkle/groundhog.git
+	url = git@github.com:obsidiansystems/groundhog.git
 [submodule "ghcjs-canvas"]
 	path = ghcjs-canvas
 	url = git@github.com:ghcjs/ghcjs-canvas
