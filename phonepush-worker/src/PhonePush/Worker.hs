@@ -58,7 +58,7 @@ data QueuedApplePushMessage = QueuedApplePushMessage
   { _queuedApplePushMessage_apnToken   :: Text
   , _queuedApplePushMessage_jsonAps    :: Json JsonAps
   , _queuedApplePushMessage_checkedOut :: Bool
-  }
+  } deriving (Show)
 instance HasId QueuedApplePushMessage
 
 mkFocusPersist (Just "migrateApplePushMessage") [groundhog|
@@ -142,14 +142,15 @@ apnsWorker cfg delay db mTokenChan = return . killThread <=<
               Nothing -> return ()
               Just (k, qm@(QueuedApplePushMessage token _ _)) -> do
                 sendQueuedAppleMessage conn qm >>= \case
-                  ApnMessageResultFatalError ->
-                    -- If this is occurring often, get specific error code from push-notify-apn and print it
-                    logError "APNS error: fatal error"
-                  ApnMessageResultTemporaryError -> do
+                  ApnMessageResultFatalError code ->
+                    logError $ unlines $ [ "APNS error: " ++ show code
+                                         , "Caused by: " ++ show qm
+                                         ]
+                  ApnMessageResultTemporaryError mcode -> do
                     -- TODO Does temporary error indicate we should requeue for later?
                     -- Perhaps even a threadDelay here, then just marking checkedOut False ?
                     -- For now just deleting the task
-                    logError "APNS error: temporary error"
+                    logError $ "APNS error: temporary error" ++ maybe "" (\code -> " with code " ++ show code) mcode
                     runDb db $ deleteBy (fromId k)
                   ApnMessageResultTokenNoLongerValid -> do
                     runDb db $ delete $ QueuedApplePushMessage_apnTokenField ==. token
