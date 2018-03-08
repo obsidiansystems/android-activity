@@ -23,6 +23,7 @@ import qualified Data.ByteString.Base64        as B64
 import qualified Data.Map                      as Map
 import           Data.Pool
 import           Data.Text                     (Text)
+import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import           Database.Groundhog.Postgresql
 import           Focus.Backend.DB
@@ -142,17 +143,26 @@ apnsWorker cfg delay db mTokenChan = return . killThread <=<
               Nothing -> return ()
               Just (k, qm@(QueuedApplePushMessage token _ _)) -> do
                 sendQueuedAppleMessage conn qm >>= \case
-                  ApnMessageResultFatalError code ->
+                  ApnMessageResultFatalError code mreason ->
                     logError $ unlines $ [ "APNS error: " ++ show code
                                          , "Caused by: " ++ show qm
+                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
                                          ]
-                  ApnMessageResultTemporaryError mcode -> do
+
+                  ApnMessageResultTemporaryError mcode mreason -> do
                     -- TODO Does temporary error indicate we should requeue for later?
                     -- Perhaps even a threadDelay here, then just marking checkedOut False ?
                     -- For now just deleting the task
-                    logError $ "APNS error: temporary error" ++ maybe "" (\code -> " with code " ++ show code) mcode
+                    logError $ unlines $ [ "APNS temporary error: " ++ maybe "too much concurrency" show mcode
+                                         , "Caused by: " ++ show qm
+                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
+                                         ]
                     runDb db $ deleteBy (fromId k)
-                  ApnMessageResultTokenNoLongerValid -> do
+                  ApnMessageResultTokenNoLongerValid mreason -> do
+                    logError $ unlines $ [ "APNS token no longer valid"
+                                         , "Caused by: " ++ show qm
+                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
+                                         ]
                     runDb db $ delete $ QueuedApplePushMessage_apnTokenField ==. token
                     forM_ mTokenChan $ \chan -> atomically $ writeTChan chan token
                   _ -> runDb db $ deleteBy (fromId k)
