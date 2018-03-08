@@ -23,7 +23,6 @@ import qualified Data.ByteString.Base64        as B64
 import qualified Data.Map                      as Map
 import           Data.Pool
 import           Data.Text                     (Text)
-import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import           Database.Groundhog.Postgresql
 import           Focus.Backend.DB
@@ -48,7 +47,7 @@ data APNSConfig = APNSConfig
   , _APNSConfig_ca          :: FilePath
   , _APNSConfig_sandbox     :: Bool
   , _APNSConfig_streams     :: Int
-  , _APNSConfig_bundleName  :: Text
+  , _APNSConfig_bundleId    :: Text
   } deriving Generic
 
 instance FromJSON APNSConfig where
@@ -114,7 +113,7 @@ newAPNSSession cfg = newSession (_APNSConfig_key cfg)
                                 (_APNSConfig_ca cfg)
                                 (_APNSConfig_sandbox cfg)
                                 (_APNSConfig_streams cfg)
-                                (T.encodeUtf8 $ _APNSConfig_bundleName cfg)
+                                (T.encodeUtf8 $ _APNSConfig_bundleId cfg)
 
 withAPNSSession :: APNSConfig -> (ApnSession -> IO ()) -> IO ()
 withAPNSSession cfg f = newAPNSSession cfg >>= f
@@ -139,33 +138,34 @@ apnsWorker cfg delay db mTokenChan = return . killThread <=<
                 update [QueuedApplePushMessage_checkedOutField =. True] $ AutoKeyField ==. fromId k
               return qm
             -- Send out messages
+            -- TODO right now for all errors we are logging them in full and deleting the row
+            -- Once initial bugs worked out, requeue those that satisfy predicate 'apnErrorIsTemporary'
             case queuedMsg of
               Nothing -> return ()
               Just (k, qm@(QueuedApplePushMessage token _ _)) -> do
-                sendQueuedAppleMessage conn qm >>= \case
-                  ApnMessageResultFatalError code mreason ->
+                let removeDeviceToken = do
+                      -- Delete from this queue table
+                      runDb db $ delete $ QueuedApplePushMessage_apnTokenField ==. token
+                      -- Delete from all tenant tables
+                      forM_ mTokenChan $ \chan -> atomically $ writeTChan chan token
+                      return False
+                needsRemoval <- sendQueuedAppleMessage conn qm >>= \case
+                  ApnMessageResultError _ (Just BadDeviceToken) -> removeDeviceToken
+                  ApnMessageResultError _ (Just DeviceTokenNotForTopic) -> removeDeviceToken
+                  ApnMessageResultError _ (Just Unregistered) -> removeDeviceToken
+                  ApnMessageResultError code mreason -> do
                     logError $ unlines $ [ "APNS error: " ++ show code
                                          , "Caused by: " ++ show qm
-                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
+                                         , "Reason: " ++ maybe "unknown" show mreason
                                          ]
-
-                  ApnMessageResultTemporaryError mcode mreason -> do
-                    -- TODO Does temporary error indicate we should requeue for later?
-                    -- Perhaps even a threadDelay here, then just marking checkedOut False ?
-                    -- For now just deleting the task
-                    logError $ unlines $ [ "APNS temporary error: " ++ maybe "too much concurrency" show mcode
+                    return True
+                  ApnMessageResultInternalError -> do
+                    logError $ unlines $ [ "Internal error in push-notify-apn"
                                          , "Caused by: " ++ show qm
-                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
                                          ]
-                    runDb db $ deleteBy (fromId k)
-                  ApnMessageResultTokenNoLongerValid mreason -> do
-                    logError $ unlines $ [ "APNS token no longer valid"
-                                         , "Caused by: " ++ show qm
-                                         , "Reason: " ++ maybe "unknown" T.unpack mreason
-                                         ]
-                    runDb db $ delete $ QueuedApplePushMessage_apnTokenField ==. token
-                    forM_ mTokenChan $ \chan -> atomically $ writeTChan chan token
-                  _ -> runDb db $ deleteBy (fromId k)
+                    return True
+                  _ -> return True
+                when needsRemoval $ runDb db $ deleteBy (fromId k)
                 clear
       clear >> threadDelay delay
 
