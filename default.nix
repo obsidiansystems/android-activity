@@ -5,6 +5,7 @@
 , iosSdkVersion ? "10.2"
 , useZopfli ? true
 , withHoogle ? false
+, extraNginxServerConfig ? ""
 }:
 assert runWithHeapProfiling -> enableProfiling;
 let tryReflex' = import ./reflex-platform {
@@ -821,6 +822,7 @@ in with nixpkgs.haskell.lib; {
                         ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;  # don't use SSLv3 ref: POODLE
                         ${locationConfigs}
                         access_log off;
+                        ${extraNginxServerConfig}
                       }
                       error_log  /var/log/nginx_error.log  warn;
                     '' else ''
@@ -833,6 +835,7 @@ in with nixpkgs.haskell.lib; {
                           }
                         ''}
                         access_log off;
+                        ${extraNginxServerConfig}
                       }
                       error_log  /var/log/nginx_error.log  warn;
                     '';
