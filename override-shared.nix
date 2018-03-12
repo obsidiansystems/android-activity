@@ -192,8 +192,8 @@ self: super: {
       src = nixpkgs.fetchFromGitHub {
         owner = "wrinkl";
         repo = "push-notify-apn";
-        rev = "e7e665c2cef18eebdafb73d7de3de3bb631202b3";
-        sha256 = "1g7mfcb74yhf812mgz1cc6r8vh0ck72r14xlv61gqwjk2rv2x5d3";
+        rev = "4fead216bfc4e4901e075f408fe5cc4f901d1f0f";
+        sha256 = "11y9krlg6rh5syvhr6zphq6yya905ir67l05jg2bn1prgyd0l35z";
       };
     })) self.http2-client;
     phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
