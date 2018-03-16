@@ -494,7 +494,9 @@ pills e = do
   let update = \p b -> case p of
         PillAction_Add a -> if a `L.elem` b then b else b ++ [a]
         PillAction_Remove a -> L.delete a b
-        PillAction_RemoveLast -> reverse $ tail $ reverse b
+        PillAction_RemoveLast -> reverse $ case reverse b of
+          [] -> []
+          (_:xs) -> xs
   rec ps <- foldDyn update [] $ leftmost
         [ e
         , PillAction_Remove <$> (switch . current $ fmap leftmost a)
