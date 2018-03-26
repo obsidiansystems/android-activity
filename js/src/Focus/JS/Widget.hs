@@ -81,7 +81,7 @@ enumDropdown' d f cfg = do
 
 data ListEdit = InsertBefore | Delete | InsertAfter deriving (Eq, Ord, Show, Read)
 
-extensibleListWidget :: forall t m a b. (MonadWidget t m)
+extensibleListWidget :: (DomBuilder t m, MonadHold t m, MonadFix m)
                      => Int -- ^ Minimum number of entries (be careful: if this is 0, the entire list is allowed to vanish)
                      -> a -- ^ Initial entry for newly inserted items
                      -> [a] -- ^ Initial sequence of entries
@@ -92,7 +92,7 @@ extensibleListWidget :: forall t m a b. (MonadWidget t m)
 extensibleListWidget n x0 xs0 itemWidget = extensibleListWidgetWithSize n x0 xs0 (\d -> itemWidget (fst <$> d))
 
 -- | Like `extensibleListWidget`, but the items know the current size of the whole list, as well as their position.
-extensibleListWidgetWithSize :: forall t m a b. (MonadWidget t m)
+extensibleListWidgetWithSize :: forall t m a b. (DomBuilder t m, MonadHold t m, MonadFix m)
                              => Int -- ^ Minimum number of entries (be careful: if this is 0, the entire list is allowed to vanish)
                              -> a -- ^ Initial entry for newly inserted items
                              -> [a] -- ^ Initial sequence of entries
