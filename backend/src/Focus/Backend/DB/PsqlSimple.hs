@@ -32,7 +32,6 @@ import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Builder
-import Data.Char (isSpace)
 import Data.Int
 import Data.IORef
 import Data.Semigroup
@@ -299,41 +298,101 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
           FromField f, FromField g, FromField h, FromField i, FromField j,
           FromField k) =>
     FromRow (a,b,c,d,e,f,g,h,i,j,k) where
-    fromRow = (,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
-                           <*> field <*> field <*> field <*> field <*> field
-                           <*> field
+    fromRow = (,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field
 
 instance (FromField a, FromField b, FromField c, FromField d, FromField e,
           FromField f, FromField g, FromField h, FromField i, FromField j,
           FromField k, FromField l) =>
     FromRow (a,b,c,d,e,f,g,h,i,j,k,l) where
-    fromRow = (,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
-                            <*> field <*> field <*> field <*> field <*> field
-                            <*> field <*> field
+    fromRow = (,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field
 
 instance (FromField a, FromField b, FromField c, FromField d, FromField e,
           FromField f, FromField g, FromField h, FromField i, FromField j,
           FromField k, FromField l, FromField m) =>
     FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m) where
-    fromRow = (,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
-                             <*> field <*> field <*> field <*> field <*> field
-                             <*> field <*> field <*> field
+    fromRow = (,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field
 
 instance (FromField a, FromField b, FromField c, FromField d, FromField e,
           FromField f, FromField g, FromField h, FromField i, FromField j,
           FromField k, FromField l, FromField m, FromField n) =>
     FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n) where
-    fromRow = (,,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
-                              <*> field <*> field <*> field <*> field <*> field
-                              <*> field <*> field <*> field <*> field
+    fromRow = (,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field
 
 instance (FromField a, FromField b, FromField c, FromField d, FromField e,
           FromField f, FromField g, FromField h, FromField i, FromField j,
           FromField k, FromField l, FromField m, FromField n, FromField o) =>
     FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) where
-    fromRow = (,,,,,,,,,,,,,,) <$> field <*> field <*> field <*> field <*> field
-                               <*> field <*> field <*> field <*> field <*> field
-                               <*> field <*> field <*> field <*> field <*> field
+    fromRow = (,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) where
+    fromRow = (,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q) where
+    fromRow = (,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r) where
+    fromRow = (,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s) where
+    fromRow = (,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
 
 -- | This quasiquoter is the obvious combination of 'sqlQ' and 'query'.
 queryQ :: QuasiQuoter
