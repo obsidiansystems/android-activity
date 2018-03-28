@@ -449,6 +449,7 @@ data Typeahead t k = Typeahead
 pillTypeahead
   :: ( DomBuilder t m, PostBuild t m, PerformEvent t m
      , MonadHold t m, MonadFix m, MonadJSM (Performable m)
+     , TriggerEvent t m
      , GhcjsDomSpace ~ DomBuilderSpace m )
   => TypeaheadConfig t
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
@@ -473,7 +474,8 @@ pillTypeahead (TypeaheadConfig validate setFocus ph) get = do
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
       got <- get (value i)
       let hasFocus = _inputElement_hasFocus i
-          ulAttrs = zipDynWith (\g f -> if Map.null g || not f then "style" =: "display: none;" else mempty) xs hasFocus
+      hasFocusDelayed <- buildDynamic (sample $ current hasFocus) <=< delay 0.2 $ updated hasFocus
+      let ulAttrs = zipDynWith (\g f -> if Map.null g || not f then "style" =: "display: none;" else mempty) xs hasFocusDelayed
           xs = zipDynWith (\vals -> AMap._unAppendMap . AMap.difference vals . AMap.fromSet (\_ -> ())) got selected
   performEvent_ $ ffor (leftmost [() <$ updated selected, setFocus]) $ \_ -> liftJSM $ E.focus $_inputElement_raw i
   return $ Typeahead
