@@ -212,12 +212,4 @@ self: super: {
         sha256 = "1g2lz7b84hwnjgiv3sabzhcj069x06cly018cc0s1w9r2m5r2bf1";
       };
     });
-    http2-client = dontCheck (overrideCabal super.http2-client (drv: {
-      version = "0.3.0.2"; # Required by push-notify-apn
-      sha256 = "06iw2mi176rwjmmynhjhyl06f3jq832viyl7adbxgdyws36b64jl";
-    }));
-    push-notify-apn = overrideCabal super.push-notify-apn (drv: {
-      version = "0.1.0.5";
-      sha256 = "bf782b0a8a4a8bc22ab139be124091297cbc580f5e739c957d011b3ca350b6bf";
-    });
   }
