@@ -180,6 +180,22 @@ self: super: {
         sha256 = "1jiypxkwlknrnmyspc2w87qxb7bd45g89r8mizf22nd95h7vmcrc";
       };
     });
+    http2-client = dontCheck (overrideCabal super.http2-client (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "lucasdicioccio";
+        repo = "http2-client";
+        rev = "60ae70e0312b46972b4e2702f698d7c038ddf5f6";
+        sha256 = "0cxlnhriq3i58z8mdqd1skwy5b9ga01innwa0yi84iivadsj26b8";
+      };
+    }));
+    push-notify-apn = addBuildDepend (overrideCabal super.push-notify-apn (drv: {
+      src = nixpkgs.fetchFromGitHub {
+        owner = "wrinkl";
+        repo = "push-notify-apn";
+        rev = "4fead216bfc4e4901e075f408fe5cc4f901d1f0f";
+        sha256 = "11y9krlg6rh5syvhr6zphq6yya905ir67l05jg2bn1prgyd0l35z";
+      };
+    })) self.http2-client;
     phone-push = addBuildDepend (addBuildDepend (overrideCabal super.phone-push (drv: {
       src = nixpkgs.fetchFromGitHub {
         owner = "wrinkl";
