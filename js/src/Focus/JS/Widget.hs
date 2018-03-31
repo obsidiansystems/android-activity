@@ -431,6 +431,7 @@ data TypeaheadConfig t = TypeaheadConfig
   { _typeaheadConfig_validate :: Text -> Bool
   , _typeaheadConfig_setFocus :: Event t ()
   , _typeaheadConfig_placeholder :: Text
+  , _typeaheadConfig_initialValues :: [Text]
   }
 
 instance Reflex t => Default (TypeaheadConfig t) where
@@ -438,6 +439,7 @@ instance Reflex t => Default (TypeaheadConfig t) where
     { _typeaheadConfig_validate = const True
     , _typeaheadConfig_setFocus = never
     , _typeaheadConfig_placeholder = ""
+    , _typeaheadConfig_initialValues = []
     }
 
 data Typeahead t k = Typeahead
@@ -454,8 +456,8 @@ pillTypeahead
   => TypeaheadConfig t
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
   -> m (Typeahead t Text)
-pillTypeahead (TypeaheadConfig validate setFocus ph) get = do
-  rec ps <- pills $ leftmost
+pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
+  rec ps <- pills ps0 $ leftmost
         [ PillAction_Add <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
         , attachWithMaybe (\v -> \case
@@ -490,16 +492,17 @@ pillTypeahead (TypeaheadConfig validate setFocus ph) get = do
 pills
   :: ( DomBuilder t m, PostBuild t m
      , MonadHold t m, MonadFix m )
-  => Event t PillAction       -- Take an action on pills
+  => [Text]
+  -> Event t PillAction       -- Take an action on pills
   -> m (Dynamic t [Text])     -- Some action
-pills e = do
+pills ps0 e = do
   let update = \p b -> case p of
         PillAction_Add a -> if a `L.elem` b then b else b ++ [a]
         PillAction_Remove a -> L.delete a b
         PillAction_RemoveLast -> reverse $ case reverse b of
           [] -> []
           (_:xs) -> xs
-  rec ps <- foldDyn update [] $ leftmost
+  rec ps <- foldDyn update ps0 $ leftmost
         [ e
         , PillAction_Remove <$> (switch . current $ fmap leftmost a)
         ]
