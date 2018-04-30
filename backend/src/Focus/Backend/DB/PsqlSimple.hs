@@ -394,6 +394,71 @@ instance (FromField a, FromField b, FromField c, FromField d, FromField e,
       <*> field <*> field <*> field <*> field <*> field
       <*> field <*> field <*> field <*> field <*> field
 
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t,
+          FromField u) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t,
+          FromField u, FromField v) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t,
+          FromField u, FromField v, FromField w) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t,
+          FromField u, FromField v, FromField w, FromField x) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field
+
+instance (FromField a, FromField b, FromField c, FromField d, FromField e,
+          FromField f, FromField g, FromField h, FromField i, FromField j,
+          FromField k, FromField l, FromField m, FromField n, FromField o,
+          FromField p, FromField q, FromField r, FromField s, FromField t,
+          FromField u, FromField v, FromField w, FromField x, FromField y) =>
+    FromRow (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y) where
+    fromRow = (,,,,,,,,,,,,,,,,,,,,,,,,)
+      <$> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+      <*> field <*> field <*> field <*> field <*> field
+
 -- | This quasiquoter is the obvious combination of 'sqlQ' and 'query'.
 queryQ :: QuasiQuoter
 queryQ = QuasiQuoter
