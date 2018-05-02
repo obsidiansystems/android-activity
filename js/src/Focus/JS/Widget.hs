@@ -467,9 +467,13 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
             _ -> Nothing) (current $ value i) actions
         ]
       let selected = Set.fromList <$> ps
+          submitPill = leftmost
+            [ keypress Enter i
+            , domEvent Blur i
+            ]
           inputChecked = attachWith (\v _ -> if validate v && not (T.null v)
             then Just v
-            else Nothing) (current $ value i) $ keypress Enter i
+            else Nothing) (current $ value i) submitPill
       (i, actions) <- comboBoxInput $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text" <> "placeholder" =: ph)
