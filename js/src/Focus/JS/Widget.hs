@@ -470,6 +470,7 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
           submitPill = leftmost
             [ keypress Enter i
             , domEvent Blur i
+            , keypress Comma i
             ]
           inputChecked = attachWith (\v _ -> if validate v && not (T.null v)
             then Just v
