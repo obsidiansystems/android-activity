@@ -224,15 +224,23 @@ keycodeDown = 40
 keycodeBackspace :: Int
 keycodeBackspace = 8
 
-comboBoxInput :: forall t m. (DomBuilder t m)
-              => InputElementConfig EventResult t (DomBuilderSpace m)
+comboBoxInput
+  :: forall t m. DomBuilder t m
+  => InputElementConfig EventResult t (DomBuilderSpace m)
+  -> m (InputElement EventResult (DomBuilderSpace m) t, Event t ComboBoxAction)
+comboBoxInput = comboBoxInput' Set.empty Map.empty
+
+comboBoxInput' :: forall t m. (DomBuilder t m)
+              => Set Key -- Prevent default
+              -> Map Key ComboBoxAction -- Extra actions
+              -> InputElementConfig EventResult t (DomBuilderSpace m)
               -> m (InputElement EventResult (DomBuilderSpace m) t, Event t ComboBoxAction)
-comboBoxInput cfg = do
+comboBoxInput' pd actions cfg = do
   let keydownFlags = \case
         Just (EventResult k) -> case keyCodeLookup $ fromIntegral k of
           ArrowUp -> preventDefault
           ArrowDown -> preventDefault
-          _ -> mempty
+          key -> if Set.member key pd then preventDefault else mempty
         Nothing -> mempty
   t <- inputElement $ cfg
     & inputElementConfig_elementConfig . elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Keydown keydownFlags
@@ -244,7 +252,7 @@ comboBoxInput cfg = do
         ArrowRight -> Just ComboBoxAction_Right
         ArrowUp -> Just ComboBoxAction_Up
         ArrowDown -> Just ComboBoxAction_Down
-        _ -> Nothing
+        key -> Map.lookup key actions
   return (t, leftmost [keypressAction, keydownAction])
 
 comboBoxList :: (Ord k, DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
@@ -449,7 +457,8 @@ data Typeahead t k = Typeahead
   }
 
 pillTypeahead
-  :: ( DomBuilder t m, PostBuild t m, PerformEvent t m
+  :: forall t m v.
+     ( DomBuilder t m, PostBuild t m, PerformEvent t m
      , MonadHold t m, MonadFix m, MonadJSM (Performable m)
      , TriggerEvent t m
      , GhcjsDomSpace ~ DomBuilderSpace m )
@@ -470,12 +479,14 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
           submitPill = leftmost
             [ keypress Enter i
             , domEvent Blur i
-            , keypress Comma i
+            , fforMaybe (domEvent Keydown i) $ \x -> case keyCodeLookup (fromIntegral x) of
+                Comma -> Just ()
+                _ -> Nothing
             ]
           inputChecked = attachWith (\v _ -> if validate v && not (T.null v)
             then Just v
             else Nothing) (current $ value i) submitPill
-      (i, actions) <- comboBoxInput $ def
+      (i, actions) <- comboBoxInput' (Set.singleton Comma) Map.empty $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text" <> "placeholder" =: ph)
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
