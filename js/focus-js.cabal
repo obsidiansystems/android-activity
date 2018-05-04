@@ -31,6 +31,7 @@ library
     dependent-map,
     dependent-sum,
     either,
+    email-validate,
     exception-transformers,
     filepath,
     focus-core,

@@ -29,8 +29,10 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Reflex.Dynamic (improvingMaybe)
 import Reflex.Dom.Core hiding (Delete)
+import Text.Email.Validate as Email
 
 import Focus.App
 import Focus.Highlight
@@ -430,13 +432,13 @@ draftWatermark = elAttr "div" attrs $ text "DRAFT"
           , "font-size: 30vmin"
           ]
 
-data PillAction = PillAction_Add Text
+data PillAction = PillAction_Add [Text]
                 | PillAction_Remove Text
                 | PillAction_RemoveLast
   deriving (Show, Eq)
 
 data TypeaheadConfig t = TypeaheadConfig
-  { _typeaheadConfig_validate :: Text -> Bool
+  { _typeaheadConfig_validate :: Text -> Maybe [Text]
   , _typeaheadConfig_setFocus :: Event t ()
   , _typeaheadConfig_placeholder :: Text
   , _typeaheadConfig_initialValues :: [Text]
@@ -444,11 +446,18 @@ data TypeaheadConfig t = TypeaheadConfig
 
 instance Reflex t => Default (TypeaheadConfig t) where
   def = TypeaheadConfig
-    { _typeaheadConfig_validate = const True
+    { _typeaheadConfig_validate = Just . (:[])
     , _typeaheadConfig_setFocus = never
     , _typeaheadConfig_placeholder = ""
     , _typeaheadConfig_initialValues = []
     }
+
+emailsInputValidate :: Text -> Maybe [Text]
+emailsInputValidate v = case fmap T.strip $ T.splitOn "," v of
+  [] -> Just []
+  es -> sequence $ ffor es $ \x -> if isValid (T.encodeUtf8 x)
+    then Just x
+    else Nothing
 
 data Typeahead t k = Typeahead
   { _typeahead_selections :: Dynamic t (Set k)
@@ -467,7 +476,7 @@ pillTypeahead
   -> m (Typeahead t Text)
 pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
   rec ps <- pills ps0 $ leftmost
-        [ PillAction_Add <$> sel
+        [ PillAction_Add . (:[]) <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
         , attachWithMaybe (\v -> \case
             ComboBoxAction_Backspace -> if T.null v
@@ -479,14 +488,12 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
           submitPill = leftmost
             [ keypress Enter i
             , domEvent Blur i
-            , fforMaybe (domEvent Keydown i) $ \x -> case keyCodeLookup (fromIntegral x) of
-                Comma -> Just ()
-                _ -> Nothing
             ]
-          inputChecked = attachWith (\v _ -> if validate v && not (T.null v)
-            then Just v
-            else Nothing) (current $ value i) submitPill
-      (i, actions) <- comboBoxInput' (Set.singleton Comma) Map.empty $ def
+          inputChecked = attachWithMaybe (\v _ ->
+            if T.null (T.strip v)
+              then Nothing
+              else Just $ validate v) (current $ value i) submitPill
+      (i, actions) <- comboBoxInput $ def
         & inputElementConfig_setValue .~ ("" <$ updated ps)
         & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ ("type" =: "text" <> "placeholder" =: ph)
       sel <- elDynAttr "ul" ulAttrs $ comboBoxList xs (comboBoxListItem (\_ x -> [Highlight_Off x]) (\k _ -> k)) (value i) actions
@@ -513,7 +520,7 @@ pills
   -> m (Dynamic t [Text])     -- Some action
 pills ps0 e = do
   let update = \p b -> case p of
-        PillAction_Add a -> if a `L.elem` b then b else b ++ [a]
+        PillAction_Add as -> foldl (\b' a -> if a `L.elem` b' then b' else b' ++ [a]) b as
         PillAction_Remove a -> L.delete a b
         PillAction_RemoveLast -> reverse $ case reverse b of
           [] -> []
