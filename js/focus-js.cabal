@@ -14,8 +14,7 @@ library
   hs-source-dirs: src
 
   if impl(ghcjs)
-    build-depends: ghcjs-base,
-                   ghcjs-json
+    build-depends: ghcjs-base
 
   build-depends:
     aeson,
