@@ -36,7 +36,6 @@ import GHCJS.DOM.Types (liftJSM)
 import GHCJS.Marshal
 import Control.Exception (try, SomeException)
 import System.IO.Unsafe
-import JavaScript.JSON.Types.FromJSVal ()
 #endif
 
 import Focus.WebSocket

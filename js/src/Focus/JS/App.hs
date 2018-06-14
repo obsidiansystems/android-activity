@@ -112,7 +112,11 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e = FocusWidget . wrapRawElement e
 
-instance (Reflex t, MonadFix m, MonadHold t m, MonadAdjust t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => MonadAdjust t (FocusWidget f app t m) where
+instance NotReady t m => NotReady t (FocusWidget f app t m) where
+    notReadyUntil = lift . notReadyUntil
+    notReady = lift notReady
+
+instance (Reflex t, MonadFix m, MonadHold t m, Adjustable t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => Adjustable t (FocusWidget f app t m) where
   runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (coerceEvent a')
   traverseDMapWithKeyWithAdjust f dm0 dm' = FocusWidget $ traverseDMapWithKeyWithAdjust (\k v -> unFocusWidget $ f k v) (coerce dm0) (coerceEvent dm')
   traverseDMapWithKeyWithAdjustWithMove f dm0 dm' = FocusWidget $ traverseDMapWithKeyWithAdjustWithMove (\k v -> unFocusWidget $ f k v) (coerce dm0) (coerceEvent dm')
