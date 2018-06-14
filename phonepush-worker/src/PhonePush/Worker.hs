@@ -17,7 +17,6 @@ import           System.IO                     (hPutStrLn, stderr)
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Data.Aeson
-import           Data.Aeson.Types
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString.Base64        as B64
 import qualified Data.Map                      as Map
