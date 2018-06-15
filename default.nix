@@ -139,10 +139,6 @@ in with nixpkgs.haskell.lib; {
               dontStrip = true;
               enableSharedExecutables = false;
               configureFlags = (drv.configureFlags or []) ++ [
-                "--ghc-option=-fPIC"
-                "--ghc-option=-optc-fPIC"
-                "--ghc-option=-optc-shared"
-                "--ghc-option=-optl-shared"
               ];
             });
           };
