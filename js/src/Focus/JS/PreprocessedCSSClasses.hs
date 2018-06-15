@@ -73,11 +73,15 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (Preprocesse
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger f = lift $ newFanEventWithTrigger f
 
-instance MonadAdjust t m => MonadAdjust t (PreprocessedCSSClassesT m) where
+instance Adjustable t m => Adjustable t (PreprocessedCSSClassesT m) where
   traverseDMapWithKeyWithAdjust f dm0 dm' = PreprocessedCSSClassesT $ traverseDMapWithKeyWithAdjust (\k v -> runPreprocessedCSSClassesT $ f k v) (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
   traverseDMapWithKeyWithAdjustWithMove f dm0 dm' = PreprocessedCSSClassesT $ traverseDMapWithKeyWithAdjustWithMove (\k v -> runPreprocessedCSSClassesT $ f k v) (coerce dm0) (unsafeCoerce dm') --TODO: Eliminate unsafeCoerce
   runWithReplace a0 a' = lift $ runWithReplace (runPreprocessedCSSClassesT a0) (runPreprocessedCSSClassesT <$> a')
 
+
+instance NotReady t m => NotReady t (PreprocessedCSSClassesT m) where
+    notReadyUntil = lift . notReadyUntil
+    notReady = lift notReady
 
 instance DomBuilder t m => DomBuilder t (PreprocessedCSSClassesT m) where
   type DomBuilderSpace (PreprocessedCSSClassesT m) = DomBuilderSpace m

@@ -139,10 +139,6 @@ in with nixpkgs.haskell.lib; {
               dontStrip = true;
               enableSharedExecutables = false;
               configureFlags = (drv.configureFlags or []) ++ [
-                "--ghc-option=-fPIC"
-                "--ghc-option=-optc-fPIC"
-                "--ghc-option=-optc-shared"
-                "--ghc-option=-optl-shared"
               ];
             });
           };
@@ -176,7 +172,7 @@ in with nixpkgs.haskell.lib; {
              focus-gitlab = focusFlags (self.callCabal2nix "focus-gitlab" (filterGitSource ./gitlab) {});
              focus-http-th = focusFlags (self.callCabal2nix "focus-http-th" (filterGitSource ./http/th) {});
              focus-js = focusFlags (overrideCabal (self.callCabal2nix "focus-js" (filterGitSource ./js) {}) (drv: {
-               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base ghcjs-json]) else []);
+               libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (if self.ghc.isGhcjs or false then (with self; [ghcjs-base]) else []);
              }));
              focus-pivotal = haddockWhenWithHoogle (self.callCabal2nix "focus-pivotal" (filterGitSource ./pivotal) {});
              focus-serve = haddockWhenWithHoogle (self.callCabal2nix "focus-serve" (filterGitSource ./http/serve) {});
