@@ -432,7 +432,7 @@ in with nixpkgs.haskell.lib; {
         name = "${appName}-${appVersion}";
         staticAssets = mkAssets (fixupStaticForBackend staticSrc);
         zoneinfo = ./zoneinfo;
-        frontendJsAssets = mkAssets "${ghcjsApp.unminified}/bin";
+        frontendJsAssets = mkAssets "${ghcjsApp}";
         ${if builtins.pathExists ../marketing then "marketing" else null} = marketingSrc;
         # Give the minification step its own derivation so that backend rebuilds don't redo the minification
         frontend = ghcjsApp;
