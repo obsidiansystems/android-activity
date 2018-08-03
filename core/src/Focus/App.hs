@@ -11,6 +11,7 @@ module Focus.App where
 
 import Data.Aeson
 import Data.Align
+import Data.Proxy
 import Data.Semigroup
 
 import Reflex.Query.Class
@@ -44,8 +45,20 @@ class ( ToJSON (ViewSelector app ()), FromJSON (ViewSelector app ())
 cropView :: (Query q) => q -> QueryResult q -> QueryResult q
 cropView = crop
 
-class (Request (PublicRequest app f), Request (PrivateRequest app f), ToJSON (AppCredential app f), FromJSON (AppCredential app f)) => HasRequest app (f :: * -> *) where
-  data PublicRequest app f :: * -> *
-  data PrivateRequest app f :: * -> *
+newtype Version = Version { unVersion :: Int }
+
+class IsVersion v where
+  getVersion :: Proxy v -> Version
+  getVersionNum :: Proxy v -> Int
+  getVersionNum = unVersion . getVersion
+
+class ( IsVersion v
+      , Request (PublicRequest v app f)
+      , Request (PrivateRequest v app f)
+      , ToJSON (AppCredential app f)
+      , FromJSON (AppCredential app f)
+      ) => HasRequest v app (f :: * -> *) where
+  data PublicRequest v app f :: * -> *
+  data PrivateRequest v app f :: * -> *
   type AppCredential app f :: *
   type AppCredential app f = Signed (AuthToken f)

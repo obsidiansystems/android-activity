@@ -11,7 +11,7 @@ data ApiRequest (f :: * -> *) :: * -> ((* -> *) -> k -> *) -> ((* -> *) -> k -> 
   ApiRequest_Private :: cred -> private f a -> ApiRequest f cred public private a
   deriving (Show)
 
-type AppRequest f app = ApiRequest f (AppCredential app f) (PublicRequest app) (PrivateRequest app)
+type AppRequest v f app = ApiRequest f (AppCredential app f) (PublicRequest v app) (PrivateRequest v app)
 
 instance (Request (private f), Request (public f), ToJSON cred, FromJSON cred) => Request (ApiRequest f cred public private) where
   requestToJSON r = case r of
@@ -36,8 +36,8 @@ instance (Request (private f), Request (public f), ToJSON cred, FromJSON cred) =
     ApiRequest_Public p -> requestResponseFromJSON p
     ApiRequest_Private _ p -> requestResponseFromJSON p
 
-public :: PublicRequest app f t -> AppRequest f app t
+public :: PublicRequest v app f t -> AppRequest v f app t
 public = ApiRequest_Public
 
-private :: AppCredential app f -> PrivateRequest app f t -> AppRequest f app t
+private :: AppCredential app f -> PrivateRequest v app f t -> AppRequest v f app t
 private = ApiRequest_Private
