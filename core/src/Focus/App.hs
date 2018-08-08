@@ -46,6 +46,7 @@ cropView :: (Query q) => q -> QueryResult q -> QueryResult q
 cropView = crop
 
 newtype Version = Version { unVersion :: Int }
+  deriving (Show, Eq, Ord, Num, FromJSON, ToJSON)
 
 class IsVersion v where
   getVersion :: Proxy v -> Version
