@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 echo -ne '\033]0;FRONTEND\007'
-exec nix-shell -A frontendGhc.env --run 'mkdir -p dist-frontend-ghc; ghc -i{common,frontend}/src Main -o dist-frontend-ghc/frontend-ghc -outputdir dist-frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'
+exec nix-shell -E 'let this = import ./. { enableProfiling = true; }; in this.frontendGhc.env' --run 'mkdir -p dist-frontend-ghc; ghc -i{common,frontend}/src Main -o dist-frontend-ghc/frontend-ghc -outputdir dist-frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL; mkdir -p dist-frontend-ghc; ghc -prof -fprof-auto -osuf o_p -i{common,frontend}/src Main -o dist-frontend-ghc/frontend-ghcP -outputdir dist-frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'
