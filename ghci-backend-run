@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 echo -ne '\033]0;BACKEND\007'
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.backend.env' --command "ghci -Wall -DUSE_TEMPLATE_HASKELL -icommon/src -ibackend/src -ifrontend/src Main -e main" "$@"
+exec nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.backend.env' --run "exec ghci -Wall -DUSE_TEMPLATE_HASKELL -icommon/src -ibackend/src -ifrontend/src Main -e main" "$@"

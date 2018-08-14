@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --command "ghcid --test=writeLandlordCss -c'ghci -Wall -ifrontend/src Frontend.CSS'" "$@"
+exec nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in (lib.addBuildDepend this.frontendGhc this.frontendGhc.haskellPackages.ghcid).env' --run "exec ghcid --test=writeLandlordCss -c'ghci -Wall -ifrontend/src Frontend.CSS'" "$@"

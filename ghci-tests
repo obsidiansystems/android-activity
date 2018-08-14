@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.tests.env' --command "ghci -itests/src Main -hide-package cryptonite" "$@"
+exec nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.tests.env' --run "exec ghci -itests/src Main -hide-package cryptonite" "$@"

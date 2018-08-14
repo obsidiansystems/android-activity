@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 echo -ne '\033]0;BACKEND\007'
-nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.backend.env' --command "ghci -ibackend/src -icommon/src Main -hide-package cryptonite" "$@"
+exec nix-shell -E 'let this = import ./. {}; lib = this.tryReflex.nixpkgs.haskell.lib; in this.backend.env' --command "exec ghci -ibackend/src -icommon/src Main -hide-package cryptonite" "$@"
