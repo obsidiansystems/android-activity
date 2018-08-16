@@ -69,41 +69,41 @@ requestingRight
   -> m (Event t a)
 requestingRight = fmap (fmapMaybe rightToMaybe) . requesting
 
-type FocusWidgetInternal f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest f app) (Either ApiError) m)
+type FocusWidgetInternal v f app t m = QueryT t (ViewSelector app SelectedCount) (RequesterT t (AppRequest v f app) (Either ApiError) m)
 
-newtype FocusWidget f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal f app t m a }
+newtype FocusWidget v f app t m a = FocusWidget { unFocusWidget :: FocusWidgetInternal v f app t m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadException)
 
 #ifndef ghcjs_HOST_OS
-instance MonadJSM m => MonadJSM (FocusWidget f app t m) where
+instance MonadJSM m => MonadJSM (FocusWidget v f app t m) where
   liftJSM' = lift . liftJSM'
 #endif
 
-instance MonadTrans (FocusWidget f app t) where
+instance MonadTrans (FocusWidget v f app t) where
   lift = FocusWidget . lift . lift
 
-instance HasJS x m => HasJS x (FocusWidget f app t m) where
-  type JSX (FocusWidget f app t m) = JSX m
+instance HasJS x m => HasJS x (FocusWidget v f app t m) where
+  type JSX (FocusWidget v f app t m) = JSX m
   liftJS = lift . liftJS
 
-instance (HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget f app t m) where
-  type Request (FocusWidget f app t m) = AppRequest f app
-  type Response (FocusWidget f app t m) = Either ApiError
+instance (IsVersion v, HasEnv f app, MonadWidget' t m, PrimMonad m) => Requester t (FocusWidget v f app t m) where
+  type Request (FocusWidget v f app t m) = AppRequest v f app
+  type Response (FocusWidget v f app t m) = Either ApiError
   requesting = FocusWidget . requesting
   requesting_ = FocusWidget . requesting_
 
-instance PerformEvent t m => PerformEvent t (FocusWidget f app t m) where
-  type Performable (FocusWidget f app t m) = Performable m
+instance PerformEvent t m => PerformEvent t (FocusWidget v f app t m) where
+  type Performable (FocusWidget v f app t m) = Performable m
   performEvent_ = lift . performEvent_
   performEvent = lift . performEvent
 
-instance TriggerEvent t m => TriggerEvent t (FocusWidget f app t m) where
+instance TriggerEvent t m => TriggerEvent t (FocusWidget v f app t m) where
   newTriggerEvent = lift newTriggerEvent
   newTriggerEventWithOnComplete = lift newTriggerEventWithOnComplete
   newEventWithLazyTriggerWithOnComplete = lift . newEventWithLazyTriggerWithOnComplete
 
-instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => DomBuilder t (FocusWidget f app t m) where
-  type DomBuilderSpace (FocusWidget f app t m) = DomBuilderSpace m
+instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref m, MonadFix m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => DomBuilder t (FocusWidget v f app t m) where
+  type DomBuilderSpace (FocusWidget v f app t m) = DomBuilderSpace m
   textNode = liftTextNode
   element elementTag cfg (FocusWidget child) = FocusWidget $ element elementTag cfg child
   inputElement = FocusWidget . inputElement
@@ -112,43 +112,43 @@ instance (HasView app, DomBuilder t m, MonadHold t m, Ref (Performable m) ~ Ref 
   placeRawElement = FocusWidget . placeRawElement
   wrapRawElement e = FocusWidget . wrapRawElement e
 
-instance NotReady t m => NotReady t (FocusWidget f app t m) where
+instance NotReady t m => NotReady t (FocusWidget v f app t m) where
     notReadyUntil = lift . notReadyUntil
     notReady = lift notReady
 
-instance (Reflex t, MonadFix m, MonadHold t m, Adjustable t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => Adjustable t (FocusWidget f app t m) where
+instance (Reflex t, MonadFix m, MonadHold t m, Adjustable t m, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount), Query (ViewSelector app SelectedCount)) => Adjustable t (FocusWidget v f app t m) where
   runWithReplace a0 a' = FocusWidget $ runWithReplace (coerce a0) (coerceEvent a')
   traverseDMapWithKeyWithAdjust f dm0 dm' = FocusWidget $ traverseDMapWithKeyWithAdjust (\k v -> unFocusWidget $ f k v) (coerce dm0) (coerceEvent dm')
   traverseDMapWithKeyWithAdjustWithMove f dm0 dm' = FocusWidget $ traverseDMapWithKeyWithAdjustWithMove (\k v -> unFocusWidget $ f k v) (coerce dm0) (coerceEvent dm')
 
-instance PostBuild t m => PostBuild t (FocusWidget f app t m) where
+instance PostBuild t m => PostBuild t (FocusWidget v f app t m) where
   getPostBuild = lift getPostBuild
 
-instance MonadRef m => MonadRef (FocusWidget f app t m) where
-  type Ref (FocusWidget f app t m) = Ref m
+instance MonadRef m => MonadRef (FocusWidget v f app t m) where
+  type Ref (FocusWidget v f app t m) = Ref m
   newRef = FocusWidget . newRef
   readRef = FocusWidget . readRef
   writeRef r = FocusWidget . writeRef r
 
-instance MonadHold t m => MonadHold t (FocusWidget f app t m) where
+instance MonadHold t m => MonadHold t (FocusWidget v f app t m) where
   hold a = FocusWidget . hold a
   holdDyn a = FocusWidget . holdDyn a
   holdIncremental a = FocusWidget . holdIncremental a
 
-instance MonadSample t m => MonadSample t (FocusWidget f app t m) where
+instance MonadSample t m => MonadSample t (FocusWidget v f app t m) where
   sample = FocusWidget . sample
 
-instance HasJSContext m => HasJSContext (FocusWidget f app t m) where
-  type JSContextPhantom (FocusWidget f app t m) = JSContextPhantom m
+instance HasJSContext m => HasJSContext (FocusWidget v f app t m) where
+  type JSContextPhantom (FocusWidget v f app t m) = JSContextPhantom m
   askJSContext = FocusWidget askJSContext
 
-instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget f app t m) where
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (FocusWidget v f app t m) where
   newEventWithTrigger = FocusWidget . newEventWithTrigger
   newFanEventWithTrigger a = FocusWidget . lift $ newFanEventWithTrigger a
 
 -- | This synonym adds constraints to MonadFocusWidget that are only available on the frontend, and not via backend rendering.
-type MonadFocusFrontendWidget app t m =
-    ( MonadFocusWidget app t m
+type MonadFocusFrontendWidget v app t m =
+    ( MonadFocusWidget v app t m
     , DomBuilderSpace m ~ GhcjsDomSpace
     )
 
@@ -157,25 +157,25 @@ class (HasView app) => HasEnv f app where
   getToken :: Env app t -> Dynamic t (Maybe (Signed (AuthToken f))) -- This is a Maybe to handle logged-out interactions
   getViews :: Env app t -> Dynamic t (Map (Signed (AuthToken f)) (View app))
 
-class (HasRequest app f, HasView app, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => HasFocus f app
+class (HasRequest v app f, HasView app, Group (ViewSelector app SelectedCount), Additive (ViewSelector app SelectedCount)) => HasFocus v f app
 
 class ( MonadWidget' t m
       , MonadFix (WidgetHost m)
       , Requester t m
-      , R.Request m ~ AppRequest Identity app
+      , R.Request m ~ AppRequest v Identity app
       , Response m ~ Either ApiError
-      , HasFocus Identity app
+      , HasFocus v Identity app
       , MonadQuery t (ViewSelector app SelectedCount) m
-      ) => MonadFocusWidget app t m | m -> app t where
+      ) => MonadFocusWidget v app t m | m -> app t where
 
 instance ( MonadWidget' t m
          , MonadFix (WidgetHost m)
          , Requester t m
-         , R.Request m ~ AppRequest Identity app
+         , R.Request m ~ AppRequest v Identity app
          , Response m ~ Either ApiError
-         , HasFocus Identity app
+         , HasFocus v Identity app
          , MonadQuery t (ViewSelector app SelectedCount) m
-         ) => MonadFocusWidget app t m
+         ) => MonadFocusWidget v app t m
 
 queryDynUniq :: ( Monad m
                 , Reflex t
@@ -223,23 +223,23 @@ type MonadWidget' t m =
   , Ref (Performable m) ~ Ref IO
   )
 
-runFocusWidget :: forall t m a x f app.
+runFocusWidget :: forall v t m a x f app.
                 ( MonadWidget' t m
                 , HasJSContext m
                 , HasJS x m
                 , MonadJSM m
                 , MonadJSM (Performable m)
-                , HasFocus f app
+                , HasFocus v f app
                 , Eq (ViewSelector app SelectedCount)
                 )
                => Signed (AuthToken f)
-               -> FocusWidget f app t m a
+               -> FocusWidget v f app t m a
                -> m a
 runFocusWidget = runFocusWidget' (Right "/listen")
 
 runFocusWidget'
-   :: forall app f m t b x.
-      ( HasFocus f app
+  :: forall v app f m t b x.
+      ( HasFocus v f app
       , Eq (ViewSelector app SelectedCount)
       , HasJS x m, HasJSContext m, PerformEvent t m
       , TriggerEvent t m
@@ -248,7 +248,7 @@ runFocusWidget'
       )
    => Either WebSocketUrl Text
    -> Signed (AuthToken f)
-   -> FocusWidget f app t m b
+   -> FocusWidget v f app t m b
    -> m b
 runFocusWidget' murl token child = do
   rec (notification, response) <- openWebSocket murl request' $ (fmap (fmap (\_ -> ()))) <$> nubbedVs
