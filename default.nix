@@ -272,7 +272,11 @@ let overrideCabal = pkg: f: if pkg == null then null else haskellLib.overrideCab
         ########################################################################
         reflex = addFastWeakFlag (addReflexTraceEventsFlag (addReflexOptimizerFlag (self.callPackage (hackGet ./reflex) {})));
         reflex-dom = addReflexOptimizerFlag (doJailbreak reflexDom.reflex-dom);
-        reflex-dom-core = addReflexOptimizerFlag (doJailbreak reflexDom.reflex-dom-core);
+        reflex-dom-core = let
+            # From newer nixpkgs. When focus is finally bumped will go away.
+            appendConfigureFlags = drv: xs: overrideCabal drv (drv: { configureFlags = (drv.configureFlags or []) ++ xs; });
+          in appendConfigureFlags (addReflexOptimizerFlag (doJailbreak reflexDom.reflex-dom-core))
+                                  (optional enableLibraryProfiling "-fprofile-reflex");
         reflex-todomvc = self.callPackage (hackGet ./reflex-todomvc) {};
         reflex-aeson-orphans = self.callPackage (hackGet ./reflex-aeson-orphans) {};
         haven = self.callHackage "haven" "0.2.0.0" {};
