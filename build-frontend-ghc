@@ -4,4 +4,4 @@ echo -ne '\033]0;FRONTEND\007'
 exec nix-shell -E 'let this = import ./. { enableProfiling = true; }; in this.frontendGhc.env' --run '\
   mkdir -p dist-frontend-ghc; \
   ghc Main -i{common,frontend}/src -outputdir dist-frontend-ghc -o dist-frontend-ghc/frontend-ghc -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL; \
-  ghc Main -prof -fprof-auto  -Ldist-backend -osuf o_p -i{common,frontend}/src -outputdir dist-frontend-ghc -o dist-frontend-ghc/frontend-ghcP -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'
+  ghc Main -prof -fprof-auto -Ldist-frontend-ghc -osuf o_p -i{common,frontend}/src -outputdir dist-frontend-ghc -o dist-frontend-ghc/frontend-ghcP -fexpose-all-unfoldings -funfolding-creation-threshold=1000000 -ddump-rule-firings -ddump-simpl -ddump-simpl-stats -ddump-hi -ddump-to-file -DUSE_WARP -DUSE_TEMPLATE_HASKELL'
