@@ -4,7 +4,9 @@ echo -ne '\033]0;BACKEND\007'
 exec nix-shell -E 'let this = import ./. { enableProfiling = true; }; in this.backend.env' --run '\
   mkdir -p dist-backend; \
   ghc Main -threaded -i{common,backend,frontend}/src -outputdir dist-backend -o dist-backend/backendExec -DUSE_TEMPLATE_HASKELL -DBACKEND -O0; \
-  ghc Main -prof -fprof-auto -threaded -Ldist-backend -osuf o_p -i{common,backend,frontend}/src -outputdir dist-backend -o dist-backend/backendExecP -DUSE_TEMPLATE_HASKELL -DBACKEND -O0' \
+  ghc Main -threaded -i{common,backend,frontend}/src -outputdir dist-backend -o dist-backend/backendExecP -DUSE_TEMPLATE_HASKELL -DBACKEND -O0 \
+  -prof -fprof-auto -Ldist-backend \
+  -hcsuf hc_p -hisuf hi_p -osuf o_p -dynosuf dyno_p -dynhisuf dynhi_p' \
   "$@"
 
 # GC flags
