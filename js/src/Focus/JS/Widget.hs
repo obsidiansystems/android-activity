@@ -442,6 +442,7 @@ data TypeaheadConfig t = TypeaheadConfig
   , _typeaheadConfig_setFocus :: Event t ()
   , _typeaheadConfig_placeholder :: Text
   , _typeaheadConfig_initialValues :: [Text]
+  , _typeaheadConfig_nubBy :: Text -> Text -> Bool
   }
 
 instance Reflex t => Default (TypeaheadConfig t) where
@@ -450,6 +451,7 @@ instance Reflex t => Default (TypeaheadConfig t) where
     , _typeaheadConfig_setFocus = never
     , _typeaheadConfig_placeholder = ""
     , _typeaheadConfig_initialValues = []
+    , _typeaheadConfig_nubBy = (==)
     }
 
 emailsInputValidate :: Text -> Maybe [Text]
@@ -474,8 +476,8 @@ pillTypeahead
   => TypeaheadConfig t
   -> (Dynamic t Text -> m (Dynamic t (AppendMap Text v)))
   -> m (Typeahead t Text)
-pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
-  rec ps <- pills ps0 $ leftmost
+pillTypeahead (TypeaheadConfig validate setFocus ph ps0 uniq) get = do
+  rec ps <- pills uniq ps0 $ leftmost
         [ PillAction_Add . (:[]) <$> sel
         , PillAction_Add <$> fmapMaybe id inputChecked
         , attachWithMaybe (\v -> \case
@@ -484,7 +486,7 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
               else Nothing
             _ -> Nothing) (current $ value i) actions
         ]
-      let selected = Set.fromList <$> ps
+      let selected = Set.fromList . L.nubBy uniq <$> ps
           submitPill = leftmost
             [ keypress Enter i
             , domEvent Blur i
@@ -515,12 +517,13 @@ pillTypeahead (TypeaheadConfig validate setFocus ph ps0) get = do
 pills
   :: ( DomBuilder t m, PostBuild t m
      , MonadHold t m, MonadFix m )
-  => [Text]
+  => (Text -> Text -> Bool)
+  -> [Text]
   -> Event t PillAction       -- Take an action on pills
   -> m (Dynamic t [Text])     -- Some action
-pills ps0 e = do
+pills uniq ps0 e = do
   let update = \p b -> case p of
-        PillAction_Add as -> foldl (\b' a -> if a `L.elem` b' then b' else b' ++ [a]) b as
+        PillAction_Add as -> foldl (\b' a -> L.nubBy uniq $ b ++ [a]) b as
         PillAction_Remove a -> L.delete a b
         PillAction_RemoveLast -> reverse $ case reverse b of
           [] -> []
