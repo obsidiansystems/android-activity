@@ -523,7 +523,7 @@ pills
   -> m (Dynamic t [Text])     -- Some action
 pills uniq ps0 e = do
   let update = \p b -> case p of
-        PillAction_Add as -> foldl (\b' a -> L.nubBy uniq $ b ++ [a]) b as
+        PillAction_Add as -> foldl (\b' a -> L.nubBy uniq $ b' ++ [a]) b as
         PillAction_Remove a -> L.delete a b
         PillAction_RemoveLast -> reverse $ case reverse b of
           [] -> []
