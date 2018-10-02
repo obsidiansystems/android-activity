@@ -32,7 +32,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Reflex.Dynamic (improvingMaybe)
 import Reflex.Dom.Core hiding (Delete)
-import Text.Email.Validate as Email
+import qualified Text.Email.Validate as Email
 
 import Focus.App
 import Focus.Highlight
@@ -457,7 +457,7 @@ instance Reflex t => Default (TypeaheadConfig t) where
 emailsInputValidate :: Text -> Maybe [Text]
 emailsInputValidate v = case fmap T.strip $ T.splitOn "," v of
   [] -> Just []
-  es -> sequence $ ffor es $ \x -> if isValid (T.encodeUtf8 x)
+  es -> sequence $ ffor es $ \x -> if Email.isValid (T.encodeUtf8 x)
     then Just x
     else Nothing
 
