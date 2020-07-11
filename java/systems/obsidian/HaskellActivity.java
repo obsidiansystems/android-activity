@@ -58,7 +58,7 @@ public class HaskellActivity extends Activity {
   }
 
   // This can be called by the Haskell application to unblock the construction
-  // of the HaskellActivity and proced with the given callbacks
+  // of the HaskellActivity and proceed with the given callbacks.
 
   // NOTE: This shouldn't be an instance method, because it must be called *before*
   // the constructor returns (it *causes* the constructor to return).
