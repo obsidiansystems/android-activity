@@ -19,6 +19,8 @@ extern StgClosure ZCMain_main_closure;
 
 JavaVM* HaskellActivity_jvm = NULL;
 
+static ActivityCallbacks *gCallbacks = NULL;
+
 JNIEXPORT void JNICALL Java_systems_obsidian_HaskellActivity_haskellOnCreate (JNIEnv *env, jobject thisObj, jlong callbacksLong) {
   const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
   if(callbacks->onCreate) {
@@ -86,21 +88,19 @@ JNIEXPORT void JNICALL Java_systems_obsidian_HaskellActivity_haskellOnNewIntent 
   }
 }
 
-JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseInstanceIDService_handleDeviceToken (JNIEnv *env, jobject thisObj, jlong callbacksLong, jstring token) {
-  const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
-  if(callbacks->firebaseInstanceIdService_sendRegistrationToServer) {
+JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseInstanceIDService_handleDeviceToken (JNIEnv *env, jobject thisObj, jstring token) {
+  if(gCallbacks && gCallbacks->firebaseInstanceIdService_sendRegistrationToServer) {
     const char *cstring_token = (*env)->GetStringUTFChars(env, token, 0);
-    callbacks->firebaseInstanceIdService_sendRegistrationToServer(cstring_token);
+    gCallbacks->firebaseInstanceIdService_sendRegistrationToServer(cstring_token);
     (*env)->ReleaseStringUTFChars(env, token, cstring_token);
   }
 }
 
-JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseMessagingService_handleNotification (JNIEnv *env, jobject thisObj, jlong callbacksLong, jstring intent, jstring notificationdata) {
-  const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
-  if(callbacks->onNewIntent) {
+JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseMessagingService_handleNotification (JNIEnv *env, jobject thisObj, jstring intent, jstring notificationdata) {
+  if(gCallbacks && gCallbacks->onNewIntent) {
     const char *cstring_intent = (*env)->GetStringUTFChars(env, intent, 0);
     const char *cstring_notificationdata = (*env)->GetStringUTFChars(env, notificationdata, 0);
-    callbacks->onNewIntent(cstring_intent, cstring_notificationdata);
+    gCallbacks->onNewIntent(cstring_intent, cstring_notificationdata);
     (*env)->ReleaseStringUTFChars(env, intent, cstring_intent);
     (*env)->ReleaseStringUTFChars(env, notificationdata, cstring_notificationdata);
   }
@@ -205,6 +205,8 @@ void HaskellActivity_continueWithCallbacks(const ActivityCallbacks *callbacks) {
 
   (*env)->DeleteGlobalRef(env, setCallbacksQueue);
   setCallbacksQueue = 0;
+
+  gCallbacks = callbacks; // We'll need to use this in some callbacks that aren't methods of HaskellActivity
 }
 
 JNIEXPORT int JNICALL Java_systems_obsidian_HaskellActivity_haskellStartMain (JNIEnv *env, jobject thisObj, jobject setCallbacksQueue_) {
