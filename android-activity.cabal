@@ -11,6 +11,8 @@ category: Mobile
 build-type: Simple
 extra-source-files:
   java/systems/obsidian/HaskellActivity.java
+  java/systems/obsidian/LocalFirebaseInstanceIDService.java
+  java/systems/obsidian/LocalFirebaseMessagingService.java
 cabal-version: >=1.10
 
 library

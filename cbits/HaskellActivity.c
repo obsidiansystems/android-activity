@@ -86,6 +86,26 @@ JNIEXPORT void JNICALL Java_systems_obsidian_HaskellActivity_haskellOnNewIntent 
   }
 }
 
+JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseInstanceIDService_handleDeviceToken (JNIEnv *env, jobject thisObj, jlong callbacksLong, jstring token) {
+  const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
+  if(callbacks->firebaseInstanceIdService_sendRegistrationToServer) {
+    const char *cstring_token = (*env)->GetStringUTFChars(env, token, 0);
+    callbacks->firebaseInstanceIdService_sendRegistrationToServer(cstring_token);
+    (*env)->ReleaseStringUTFChars(env, token, cstring_token);
+  }
+}
+
+JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseMessagingService_handleNotification (JNIEnv *env, jobject thisObj, jlong callbacksLong, jstring intent, jstring notificationdata) {
+  const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
+  if(callbacks->onNewIntent) {
+    const char *cstring_intent = (*env)->GetStringUTFChars(env, intent, 0);
+    const char *cstring_notificationdata = (*env)->GetStringUTFChars(env, notificationdata, 0);
+    callbacks->onNewIntent(cstring_intent, cstring_notificationdata);
+    (*env)->ReleaseStringUTFChars(env, intent, cstring_intent);
+    (*env)->ReleaseStringUTFChars(env, notificationdata, cstring_notificationdata);
+  }
+}
+
 static jmp_buf mainJmpbuf;
 
 // setjmp returns 0 on its initial call, but we want to be able to return all
