@@ -12,7 +12,6 @@ module Android.HaskellActivity
 import Control.Exception
 import Control.Monad
 import Data.Default
-import Data.Monoid
 import Debug.Trace
 import Foreign.C.String
 import Foreign.Marshal.Utils
@@ -103,6 +102,7 @@ traceActivityCallbacks ac = ActivityCallbacks
   , _activityCallbacks_onDestroy = traceBracket "onDestroy" $ _activityCallbacks_onDestroy ac
   , _activityCallbacks_onRestart = traceBracket "onRestart" $ _activityCallbacks_onRestart ac
   , _activityCallbacks_onNewIntent = \x y -> traceBracket "onNewIntent" $ _activityCallbacks_onNewIntent ac x y
+  , _activityCallbacks_onBackPressed = traceBracket "onBackPressed" $ _activityCallbacks_onBackPressed ac
   , _activityCallbacks_firebaseInstanceIdServiceSendRegistrationToServer = \x ->
       traceBracket "firebaseInstanceIdServiceSendRegistrationToServer" $ _activityCallbacks_firebaseInstanceIdServiceSendRegistrationToServer ac x
   }
