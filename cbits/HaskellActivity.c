@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <android/log.h>
 #include <setjmp.h>
+#include <string.h>
 #include "HsFFI.h"
 #include "Rts.h"
 #include "HaskellActivity.h"
@@ -19,7 +20,7 @@ extern StgClosure ZCMain_main_closure;
 
 JavaVM* HaskellActivity_jvm = NULL;
 
-static ActivityCallbacks *gCallbacks = NULL;
+static ActivityCallbacks const *gCallbacks = NULL;
 
 JNIEXPORT void JNICALL Java_systems_obsidian_HaskellActivity_haskellOnCreate (JNIEnv *env, jobject thisObj, jlong callbacksLong) {
   const ActivityCallbacks *callbacks = (const ActivityCallbacks *)callbacksLong;
@@ -206,7 +207,8 @@ void HaskellActivity_continueWithCallbacks(const ActivityCallbacks *callbacks) {
   (*env)->DeleteGlobalRef(env, setCallbacksQueue);
   setCallbacksQueue = 0;
 
-  gCallbacks = callbacks; // We'll need to use this in some callbacks that aren't methods of HaskellActivity
+  // We'll need to use this in some callbacks that aren't methods of HaskellActivity
+  gCallbacks = callbacks;
 }
 
 JNIEXPORT int JNICALL Java_systems_obsidian_HaskellActivity_haskellStartMain (JNIEnv *env, jobject thisObj, jobject setCallbacksQueue_) {
