@@ -89,7 +89,7 @@ JNIEXPORT void JNICALL Java_systems_obsidian_HaskellActivity_haskellOnNewIntent 
   }
 }
 
-JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseInstanceIDService_handleDeviceToken (JNIEnv *env, jobject thisObj, jstring token) {
+JNIEXPORT void JNICALL Java_systems_obsidian_LocalFirebaseMessagingService_handleDeviceToken (JNIEnv *env, jobject thisObj, jstring token) {
   if(gCallbacks && gCallbacks->firebaseInstanceIdService_sendRegistrationToServer) {
     const char *cstring_token = (*env)->GetStringUTFChars(env, token, 0);
     gCallbacks->firebaseInstanceIdService_sendRegistrationToServer(cstring_token);
