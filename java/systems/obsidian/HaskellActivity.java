@@ -154,87 +154,86 @@ public class HaskellActivity extends Activity {
   // we simply handle PermissionRequests directly here - it is just sooo much
   // easier. Java makes it really hard to write good code.
   public void requestWebViewPermissions(final PermissionRequest request) {
-      try {
-        String[] resources = request.getResources();
-        ArrayList<String> sysResourcesToRequestList = new ArrayList<String>();
-        for(int i=0; i < resources.length; i++) {
-            String manifestRequest = null;
-            switch(resources[i]) {
-                case PermissionRequest.RESOURCE_AUDIO_CAPTURE:
-                    manifestRequest =  Manifest.permission.RECORD_AUDIO;
-                    break;
-                case PermissionRequest.RESOURCE_VIDEO_CAPTURE:
-                    manifestRequest = Manifest.permission.CAMERA;
-                    break;
-            }
-            if(manifestRequest != null && checkSelfPermission(manifestRequest) != PackageManager.PERMISSION_GRANTED)
-                sysResourcesToRequestList.add(manifestRequest);
+    try {
+      String[] resources = request.getResources();
+      ArrayList<String> sysResourcesToRequestList = new ArrayList<String>();
+      for(int i=0; i < resources.length; i++) {
+        String manifestRequest = null;
+        switch(resources[i]) {
+          case PermissionRequest.RESOURCE_AUDIO_CAPTURE:
+            manifestRequest =  Manifest.permission.RECORD_AUDIO;
+            break;
+          case PermissionRequest.RESOURCE_VIDEO_CAPTURE:
+            manifestRequest = Manifest.permission.CAMERA;
+            break;
         }
-        String[] sysResourcesToRequest = sysResourcesToRequestList.toArray(new String[0]);
-        if(sysResourcesToRequest.length > 0) {
-            permissionRequests.put(nextRequestCode, request);
-            requestPermissions(sysResourcesToRequest, nextRequestCode++);
-        }
-        else {
-            runOnUiThread(new Runnable() {
-                    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                    @Override
-                    public void run() {
-                        request.grant(request.getResources());
-                    }
-                });
-        }
-      } catch (NoSuchMethodError e) { // Compatibility for older Android versions (Android 5 and below)
-          runOnUiThread(new Runnable() {
-                  @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                  @Override
-                  public void run() {
-                      request.grant(request.getResources());
-                  }
-              });
+        if(manifestRequest != null && checkSelfPermission(manifestRequest) != PackageManager.PERMISSION_GRANTED)
+          sysResourcesToRequestList.add(manifestRequest);
       }
+      String[] sysResourcesToRequest = sysResourcesToRequestList.toArray(new String[0]);
+      if(sysResourcesToRequest.length > 0) {
+        permissionRequests.put(nextRequestCode, request);
+        requestPermissions(sysResourcesToRequest, nextRequestCode++);
+      }
+      else {
+        runOnUiThread(new Runnable() {
+          @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+          @Override
+          public void run() {
+            request.grant(request.getResources());
+          }
+        });
+      }
+    } catch (NoSuchMethodError e) { // Compatibility for older Android versions (Android 5 and below)
+      runOnUiThread(new Runnable() {
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        @Override
+        public void run() {
+          request.grant(request.getResources());
+        }
+      });
+    }
   }
 
   @Override
-  public void onRequestPermissionsResult(int requestCode,
-                                         String permissions[], int[] grantResults) {
-      final PermissionRequest request = permissionRequests.get(requestCode);
-      permissionRequests.remove(requestCode);
+  public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+    final PermissionRequest request = permissionRequests.get(requestCode);
+    permissionRequests.remove(requestCode);
 
-      String[] requestedPermissions = request.getResources();
-      final HashSet<String> grantedPermissions = new HashSet<String>(Arrays.asList(requestedPermissions));
+    String[] requestedPermissions = request.getResources();
+    final HashSet<String> grantedPermissions = new HashSet<String>(Arrays.asList(requestedPermissions));
 
-      // We assume grantResults and permissions have same length ... obviously.
-      for(int i = 0; i< permissions.length; i++) {
-          if(grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-              String permission = null;
-              switch(permissions[i]) {
-                  case Manifest.permission.RECORD_AUDIO:
-                      Log.d("HaskellActivity", "Granting RESOURCE_AUDIO_CAPTURE!");
-                      permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE;
-                      break;
-                  case Manifest.permission.CAMERA:
-                      Log.d("HaskellActivity", "Granting RESOURCE_VIDEO_CAPTURE!");
-                      permission = PermissionRequest.RESOURCE_VIDEO_CAPTURE;
-                      break;
-              }
-              if(permission != null && grantResults[i] != PackageManager.PERMISSION_GRANTED)
-                  grantedPermissions.remove(permission);
-          }
+    // We assume grantResults and permissions have same length ... obviously.
+    for(int i = 0; i< permissions.length; i++) {
+      if(grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+        String permission = null;
+        switch(permissions[i]) {
+          case Manifest.permission.RECORD_AUDIO:
+            Log.d("HaskellActivity", "Granting RESOURCE_AUDIO_CAPTURE!");
+            permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE;
+            break;
+          case Manifest.permission.CAMERA:
+            Log.d("HaskellActivity", "Granting RESOURCE_VIDEO_CAPTURE!");
+            permission = PermissionRequest.RESOURCE_VIDEO_CAPTURE;
+            break;
+        }
+        if(permission != null && grantResults[i] != PackageManager.PERMISSION_GRANTED)
+          grantedPermissions.remove(permission);
       }
-      runOnUiThread(new Runnable() {
-              @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-              @Override
-              public void run() {
-                if(grantedPermissions.size() > 0) {
-                    Log.d("HaskellActivity", "Granting permissions!");
-                    request.grant(grantedPermissions.toArray(new String[0]));
-                }
-                else {
-                    request.deny();
-                }
-              }
-          });
+    }
+    runOnUiThread(new Runnable() {
+      @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+      @Override
+      public void run() {
+        if(grantedPermissions.size() > 0) {
+          Log.d("HaskellActivity", "Granting permissions!");
+          request.grant(grantedPermissions.toArray(new String[0]));
+        }
+        else {
+          request.deny();
+        }
+      }
+    });
   }
 
   private HashMap<Integer, PermissionRequest> permissionRequests;
