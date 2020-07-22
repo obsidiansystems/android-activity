@@ -1,21 +1,21 @@
 package systems.obsidian;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
-import android.content.Intent;
-import android.app.PendingIntent;
 import android.app.Notification;
-import android.os.Bundle;
-import android.util.Log;
-import java.util.concurrent.SynchronousQueue;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.Manifest;
+import android.os.Build;
+import android.os.Bundle;
+import android.util.Log;
 import android.webkit.PermissionRequest;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Arrays;
+import java.util.concurrent.SynchronousQueue;
+import java.util.HashMap;
 import java.util.HashSet;
-import android.annotation.TargetApi;
-import android.os.Build;
 
 public class HaskellActivity extends Activity {
   public native int haskellStartMain(SynchronousQueue<Long> setCallbacks);
