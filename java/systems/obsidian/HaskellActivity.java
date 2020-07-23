@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.Manifest;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.concurrent.SynchronousQueue;
 import java.util.HashMap;
 import java.util.HashSet;
+import android.webkit.ValueCallback;
 
 public class HaskellActivity extends Activity {
   public native int haskellStartMain(SynchronousQueue<Long> setCallbacks);
@@ -28,6 +30,8 @@ public class HaskellActivity extends Activity {
   public native void haskellOnRestart(long callbacks);
   public native void haskellOnBackPressed(long callbacks);
   public native void haskellOnNewIntent(long callbacks, String intent, String intentdata);
+
+  public static final int REQUEST_CODE_FILE_PICKER = 51426;
 
   // Apparently 'long' is the right way to store a C pointer in Java
   // See https://stackoverflow.com/questions/337268/what-is-the-correct-way-to-store-a-native-pointer-inside-a-java-object
@@ -236,6 +240,54 @@ public class HaskellActivity extends Activity {
     });
   }
 
+  // File uploads don't work out of the box.
+  // You have to start an 'Intent' from 'onShowFileChooser' by setting the callback with
+  // 'setFileUploadCallback'. The callback will be handled here.
+  @Override
+  public void onActivityResult(final int requestCode, final int resultCode, final Intent intent) {
+    if (requestCode == REQUEST_CODE_FILE_PICKER) {
+      if (resultCode == Activity.RESULT_OK) {
+        if (intent != null) {
+          if (fileUploadCallback != null) {
+            Uri[] dataUris = null;
+
+            try {
+              if (intent.getDataString() != null) {
+                dataUris = new Uri[] { Uri.parse(intent.getDataString()) };
+              }
+              else {
+                if (intent.getClipData() != null) {
+                  final int numSelectedFiles = intent.getClipData().getItemCount();
+                  dataUris = new Uri[numSelectedFiles];
+                  for (int i = 0; i < numSelectedFiles; i++) {
+                    dataUris[i] = intent.getClipData().getItemAt(i).getUri();
+                  }
+                }
+              }
+            }
+            catch (Exception ignored) { }
+
+            fileUploadCallback.onReceiveValue(dataUris);
+            fileUploadCallback = null;
+          }
+        }
+      }
+      else if (fileUploadCallback != null) {
+        fileUploadCallback.onReceiveValue(null);
+        fileUploadCallback = null;
+      }
+    }
+  }
+
+  // Set the file upload callback to be used by 'onActivityResult'.
+  public void setFileUploadCallback(ValueCallback<Uri[]> cb) {
+    if (fileUploadCallback != null) {
+      fileUploadCallback.onReceiveValue(null);
+    }
+    fileUploadCallback = cb;
+  }
+
   private HashMap<Integer, PermissionRequest> permissionRequests;
   private int nextRequestCode = 0;
+  private ValueCallback<Uri[]> fileUploadCallback;
 }
