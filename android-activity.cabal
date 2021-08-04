@@ -16,7 +16,7 @@ cabal-version: >=1.10
 
 library
   other-extensions: ForeignFunctionInterface
-  build-depends: base >=4.9 && <4.13
+  build-depends: base >=4.9 && <4.15
                , data-default == 0.7.*
   hs-source-dirs: src
   build-tools: hsc2hs
