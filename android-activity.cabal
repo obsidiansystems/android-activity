@@ -26,4 +26,5 @@ library
   install-includes: HaskellActivity.h
   exposed-modules:
     Android.HaskellActivity
+  extra-libraries: log
   ghc-options: -Wall -Werror
