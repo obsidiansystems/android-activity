@@ -1,10 +1,11 @@
 { callPackage, callCabal2nix, jdk }:
 let
-  pkgs = callPackage ({pkgs}: pkgs) {};
+  pkgs = callPackage ({ pkgs }: pkgs) {};
+  inherit (pkgs) lib;
   src = builtins.filterSource
-    (path: type:
-      let baseName = baseNameOf path; in baseName != ".git"
-    )
+    (path: type: let
+      baseName = baseNameOf path;
+    in ! lib.elem baseName [ ".git" "default.nix" ])
     ./.;
   pkg = callCabal2nix "android-activity" src {
     # prevent Nix from trying to provide the "log" package
