@@ -1,9 +1,13 @@
 package systems.obsidian;
 
+import android.app.Activity;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.Notification;
 import android.app.PendingIntent;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.Manifest;
@@ -151,6 +155,26 @@ public class HaskellActivity extends Activity {
     super.onNewIntent(intent);
     if(callbacks != 0 && intent != null && intent.getData() != null && intent.getAction() != null) {
       haskellOnNewIntent(callbacks, intent.getAction(), intent.getDataString()); //TODO: Use a more canonical way of passing this data - i.e. pass the Intent and let the Haskell side get the data out with JNI
+    }
+  }
+
+  // function that will show in Android logs that bluetooth has been enabled.
+  public void enableBluetooth() {
+    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+    if (bluetoothAdapter == null) {
+      Log.v("HaskellActivity", "bluetoothAdapter is null");
+    } else {
+      Log.v("HaskellActivity", "bluetoothAdapter obtained");
+    }
+
+    //Enable bluetooth if it isn't already enabled
+    if (!bluetoothAdapter.isEnabled()) {
+      Log.v("HaskellActivity", "Enabling bluetooth...");
+      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+      this.getApplicationContext().startActivity(enableBtIntent);
+      Log.v("HaskellActivity", "...bluetooth has been enabled.");
+    } else {
+      Log.v("HaskellActivity", "Bluetooth enabled");
     }
   }
 
