@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.Intent;
@@ -21,6 +22,7 @@ import java.util.Arrays;
 import java.util.concurrent.SynchronousQueue;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 import android.webkit.ValueCallback;
 
 public class HaskellActivity extends Activity {
@@ -176,6 +178,34 @@ public class HaskellActivity extends Activity {
     } else {
       Log.v("HaskellActivity", "Bluetooth enabled");
     }
+  }
+
+  // function that will return a list of Bluetooth device names
+  public ArrayList<String> scanDevices() {
+    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+    if (bluetoothAdapter == null) {
+      Log.v("HaskellActivity", "bluetoothAdapter is null");
+    } else {
+      Log.v("HaskellActivity", "bluetoothAdapter obtained");
+    }
+
+    //Enable bluetooth if it isn't already enabled
+    if (!bluetoothAdapter.isEnabled()) {
+      Log.v("HaskellActivity", "Enabling bluetooth...");
+      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+      this.getApplicationContext().startActivity(enableBtIntent);
+      Log.v("HaskellActivity", "...bluetooth has been enabled.");
+    } else {
+      Log.v("HaskellActivity", "Bluetooth enabled");
+    }
+
+    Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+    ArrayList<String> deviceNames = new ArrayList<String>();
+    for (BluetoothDevice bt : pairedDevices) {
+      deviceNames.add(bt.getName());
+    }
+
+    return deviceNames;
   }
 
   // Proper separation of concerns is really a whole lot of work in Java, so

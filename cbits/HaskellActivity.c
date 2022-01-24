@@ -195,6 +195,18 @@ void *HaskellActivity_enableBluetooth(jobject haskellActivity) {
   (*env)->CallVoidMethod(env, haskellActivity, enableBluetooth);
 }
 
+jobject *HaskellActivity_scanDevices(jobject haskellActivity) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jmethodID scanDevices = (*env)->GetMethodID(env, haskellActivityClass, "scanDevices", "()V");
+  assert(scanDevices);
+
+  jobject pairedDevices = (*env)->CallObjectMethod(env, haskellActivity, scanDevices);
+  return pairedDevices;
+}
+
 // Continue constructing the HaskellActivity.
 // WARNING: This may only be invoked once per Haskell 'main' invocation
 void HaskellActivity_continueWithCallbacks(const ActivityCallbacks *callbacks) {
