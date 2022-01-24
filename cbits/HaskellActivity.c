@@ -200,7 +200,7 @@ jobject *HaskellActivity_scanDevices(jobject haskellActivity) {
   JNIEnv *env = getJNIEnv();
 
   jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
-  jmethodID scanDevices = (*env)->GetMethodID(env, haskellActivityClass, "scanDevices", "()V");
+  jmethodID scanDevices = (*env)->GetMethodID(env, haskellActivityClass, "scanDevices", "()Ljava/util/ArrayList;");
   assert(scanDevices);
 
   jobject pairedDevices = (*env)->CallObjectMethod(env, haskellActivity, scanDevices);
