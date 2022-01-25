@@ -195,16 +195,27 @@ void *HaskellActivity_enableBluetooth(jobject haskellActivity) {
   (*env)->CallVoidMethod(env, haskellActivity, enableBluetooth);
 }
 
-jobject *HaskellActivity_scanDevices(jobject haskellActivity) {
+char *HaskellActivity_scanDevices(jobject haskellActivity) {
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "start...");
   assert(haskellActivity);
   JNIEnv *env = getJNIEnv();
 
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "checkpoint1...");
   jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
-  jmethodID scanDevices = (*env)->GetMethodID(env, haskellActivityClass, "scanDevices", "()Ljava/util/ArrayList;");
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "checkpoint2...");
+  jmethodID scanDevices = (*env)->GetMethodID(env, haskellActivityClass, "scanDevices", "()Ljava/lang/String;");
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "checkpoint3...");
   assert(scanDevices);
 
   jobject pairedDevices = (*env)->CallObjectMethod(env, haskellActivity, scanDevices);
-  return pairedDevices;
+  if (!pairedDevices) return NULL;
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "checkpoint4...");
+
+  return copyToCString(env, pairedDevices);
+}
+
+void *HaskellActivity_freeString(jobject haskellActivity, char str) {
+  free(str);
 }
 
 // Continue constructing the HaskellActivity.

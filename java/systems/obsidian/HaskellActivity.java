@@ -181,7 +181,7 @@ public class HaskellActivity extends Activity {
   }
 
   // function that will return a list of Bluetooth device names
-  public ArrayList<String> scanDevices() {
+  public String scanDevices() {
     BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     if (bluetoothAdapter == null) {
       Log.v("HaskellActivity", "bluetoothAdapter is null");
@@ -205,7 +205,10 @@ public class HaskellActivity extends Activity {
       deviceNames.add(bt.getName());
     }
 
-    return deviceNames;
+    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
+
+    Log.v("HaskellActivity", "returning deviceNameArray...");
+    return String.join(",", deviceNameArray);
   }
 
   // Proper separation of concerns is really a whole lot of work in Java, so
