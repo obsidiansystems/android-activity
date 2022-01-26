@@ -214,9 +214,9 @@ char *HaskellActivity_scanDevices(jobject haskellActivity) {
   return copyToCString(env, pairedDevices);
 }
 
-void *HaskellActivity_freeString(jobject haskellActivity, char str) {
-  free(str);
-}
+// void *HaskellActivity_freeString(jobject haskellActivity, char str) {
+//   free(str);
+// }
 
 // Continue constructing the HaskellActivity.
 // WARNING: This may only be invoked once per Haskell 'main' invocation
