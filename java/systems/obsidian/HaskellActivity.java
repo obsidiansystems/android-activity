@@ -242,6 +242,11 @@ public class HaskellActivity extends Activity {
       Log.v("HaskellActivity", "Bluetooth enabled");
     }
 
+    //make this device discoverable by a receiver app attempting to pair
+    Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+    discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60);
+    startActivityForResult(discoverableIntent, 1);
+
     IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
     registerReceiver(receiver, filter);
     Log.v("HaskellActivity", "Receiver registered");
@@ -484,16 +489,21 @@ public class HaskellActivity extends Activity {
       // Retreive bluetooth device information for use when establishing RFComm
       BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceName, connectionReadyDevices);
       ParcelUuid[] uuids = btDevice.getUuids();
-      Log.v("HaskellActivity", "UUID info obtained.");
+      if (!(uuids.length <= 0)) {
+        Log.v("HaskellActivity", "UUID info obtained.");
 
-      try {
-        Log.v("HaskellActivity", "listenUsingRfcommWithServiceRecord initiating...");
-        tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid()); //TODO: get MY_UUID
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Socket listen failed" + e));
+        try {
+          Log.v("HaskellActivity", "listenUsingRfcommWithServiceRecord initiating...");
+          tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
+        } catch (IOException e) {
+          Log.e("HaskellActivity", ("Socket listen failed" + e));
+        }
+        Log.v("HaskellActivity", "setting mmServerSocket...");
+        mmServerSocket = tmp;
+      } else {
+        Log.e("HaskellActivity", "Bluetooth Device object not found.");
+        mmServerSocket = null;
       }
-      Log.v("HaskellActivity", "setting mmServerSocket...");
-      mmServerSocket = tmp;
     }
 
     public void run () {
@@ -503,13 +513,14 @@ public class HaskellActivity extends Activity {
         try {
           Log.v("HaskellActivity", "accepting server socket...");
           socket = mmServerSocket.accept();
+          Log.v("HaskellActivity", "server socket accepted.");
         } catch (IOException e) {
-          Log.e("HaskellActivity", ("Socket accept() failed: " + e));
+          Log.e("HaskellActivity", ("Socket accept failed: " + e));
           break;
         }
 
         if (socket != null) {
-          Log.v("HaskellActivity", "socket accepted, connecting thread...");
+          Log.v("HaskellActivity", "connecting thread...");
           ConnectedThread connectedThread = new ConnectedThread(socket);
           Log.v("HaskellActivity", "running thread...");
           connectedThread.run();
