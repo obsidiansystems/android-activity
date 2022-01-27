@@ -8,6 +8,8 @@ import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothServerSocket;
+import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -17,8 +19,14 @@ import android.Manifest;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.os.ParcelUuid;
 import android.util.Log;
 import android.webkit.PermissionRequest;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -207,6 +215,7 @@ public class HaskellActivity extends Activity {
     ArrayList<String> deviceNames = new ArrayList<String>();
     for (BluetoothDevice bt : pairedDevices) {
       deviceNames.add(bt.getName());
+      connectionReadyDevices.add(bt);
     }
 
     String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
@@ -272,6 +281,7 @@ public class HaskellActivity extends Activity {
   }
 
   public ArrayList<String> discoveredDevices = new ArrayList<String>();
+  public ArrayList<BluetoothDevice> connectionReadyDevices = new ArrayList<BluetoothDevice>();
 
   private final BroadcastReceiver receiver = new BroadcastReceiver() {
     public void onReceive(Context context, Intent intent) {
@@ -285,7 +295,12 @@ public class HaskellActivity extends Activity {
         // broader scoped variable, and retrieved on a reflex frontend using a getter function
         // getDiscoveredDevices()
         Log.v("HaskellActivity", ("Discovered the following device: " + deviceName));
-        discoveredDevices.add(deviceName);
+
+        // if Bluetooth device does not have a name, it will not be trusted to pair with
+        if (deviceName != "null") {
+          discoveredDevices.add(deviceName);
+          connectionReadyDevices.add(device);
+        }
       }
     }
   };
@@ -433,4 +448,170 @@ public class HaskellActivity extends Activity {
   private HashMap<Integer, PermissionRequest> permissionRequests;
   private int nextRequestCode = 0;
   private ValueCallback<Uri[]> fileUploadCallback;
+
+  public void establishRFComm(String btDeviceName) {
+    AcceptThread acceptThread = new AcceptThread(btDeviceName);
+    Log.v("HaskellActivity", ("Establishing bluetooth communication with " + btDeviceName + "..."));
+    acceptThread.run();
+  }
+
+  class AcceptThread extends Thread {
+    private final BluetoothServerSocket mmServerSocket;
+
+    public BluetoothDevice getBluetoothDeviceInfo(String dName, ArrayList<BluetoothDevice> dvs) {
+      for (BluetoothDevice dv : dvs) {
+        if (dv.getName().equals(dName)) {
+          Log.v("HaskellActivity", "bluetoothDevice name found");
+          return dv;
+        }
+      }
+      Log.v("HaskellActivity", "bluetoothDevice name not found");
+      return null;
+    }
+
+    public AcceptThread(String deviceName) {
+      BluetoothServerSocket tmp = null;
+
+      // TODO: we should pass this adapter through the constructor
+      BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+      if (bluetoothAdapter == null) {
+        Log.v("HaskellActivity", "bluetoothAdapter is null");
+      } else {
+        Log.v("HaskellActivity", "bluetoothAdapter obtained");
+      }
+
+      Log.v("HaskellActivity", "Getting UUID info....");
+      // Retreive bluetooth device information for use when establishing RFComm
+      BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceName, connectionReadyDevices);
+      ParcelUuid[] uuids = btDevice.getUuids();
+      Log.v("HaskellActivity", "UUID info obtained.");
+
+      try {
+        Log.v("HaskellActivity", "listenUsingRfcommWithServiceRecord initiating...");
+        tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid()); //TODO: get MY_UUID
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Socket listen failed" + e));
+      }
+      Log.v("HaskellActivity", "setting mmServerSocket...");
+      mmServerSocket = tmp;
+    }
+
+    public void run () {
+      BluetoothSocket socket = null;
+
+      while (true) {
+        try {
+          Log.v("HaskellActivity", "accepting server socket...");
+          socket = mmServerSocket.accept();
+        } catch (IOException e) {
+          Log.e("HaskellActivity", ("Socket accept() failed: " + e));
+          break;
+        }
+
+        if (socket != null) {
+          Log.v("HaskellActivity", "socket accepted, connecting thread...");
+          ConnectedThread connectedThread = new ConnectedThread(socket);
+          Log.v("HaskellActivity", "running thread...");
+          connectedThread.run();
+          try {
+            mmServerSocket.close();
+          } catch (IOException e) {
+            Log.e("HaskellActivity", ("Failed to close server socket: " + e));
+          }
+          break;
+        }
+      }
+    }
+
+    public void cancel() {
+      try {
+        mmServerSocket.close();
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
+      }
+    }
+  }
+
+  private Handler handler; //fetches Bluetooth service info
+
+  private interface MessageConstants {
+    public static final int MESSAGE_READ = 0;
+    public static final int MESSAGE_WRITE = 1;
+    public static final int MESSAGE_TOAST = 2;
+  }
+
+  class ConnectedThread extends Thread {
+    // TODO: will this need it own class?
+    private final BluetoothSocket mmSocket;
+    private final InputStream mmInStream;
+    private final OutputStream mmOutStream;
+    private byte[] mmBuffer;
+
+    public ConnectedThread(BluetoothSocket socket) {
+      mmSocket = socket;
+      InputStream tmpIn = null;
+      OutputStream tmpOut = null;
+
+      try {
+        Log.v("HaskellActivity", "getting InputStream...");
+        tmpIn = socket.getInputStream();
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Error while creating input stream: " + e));
+      }
+      try{
+        Log.v("HaskellActivity", "getting OutputStream...");
+        tmpOut = socket.getOutputStream();
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Error while creating output stream: " + e));
+      }
+
+      Log.v("HaskellActivity", "steams secured, setting streams");
+      mmInStream = tmpIn;
+      mmOutStream = tmpOut;
+    }
+
+    public void run() {
+      mmBuffer = new byte[1024];
+      int numBytes;
+
+      while (true) {
+        try {
+          // TODO: Flesh out sending and receiving logic here
+          Log.v("HaskellActivity", "reading bytes...");
+          numBytes = mmInStream.read(mmBuffer);
+          Message readMsg = handler.obtainMessage(MessageConstants.MESSAGE_READ, numBytes, -1, mmBuffer);
+          Log.v("HaskellActivity", "sending message to target...");
+          readMsg.sendToTarget();
+        } catch (IOException e) {
+          Log.d("HaskellActivity", ("Input stream disconnected: " + e));
+          break;
+        }
+        Log.v("HaskellActivity", "message sent.");
+      }
+    }
+
+    public void write(byte[] bytes) {
+      try {
+        mmOutStream.write(bytes);
+        Message writtenMsg = handler.obtainMessage(MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
+        writtenMsg.sendToTarget();
+      } catch (IOException e){
+        Log.e("HaskellActivity", ("Error while sending data:" + e));
+        Message writeErrorMsg = handler.obtainMessage(MessageConstants.MESSAGE_TOAST);
+        Bundle bundle = new Bundle();
+        bundle.putString("toast", "Data could not be sent to other device");
+        writeErrorMsg.setData(bundle);
+        handler.sendMessage(writeErrorMsg);
+      }
+    }
+
+    public void cancel() {
+      try {
+        mmSocket.close();
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
+      }
+    }
+  }
 }
+

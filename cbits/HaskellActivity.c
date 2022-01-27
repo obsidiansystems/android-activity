@@ -206,6 +206,18 @@ void *HaskellActivity_discoverDevices(jobject haskellActivity) {
   (*env)->CallVoidMethod(env, haskellActivity, discoverDevices);
 }
 
+void *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jstring dName = (*env)->NewStringUTF(env, deviceName);
+  jmethodID establishRFComm = (*env)->GetMethodID(env, haskellActivityClass, "establishRFComm", "(Ljava/lang/String;)V");
+  assert(establishRFComm);
+
+  (*env)->CallVoidMethod(env, haskellActivity, establishRFComm, dName);
+}
+
 char *HaskellActivity_scanDevices(jobject haskellActivity) {
   __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "start...");
   assert(haskellActivity);
