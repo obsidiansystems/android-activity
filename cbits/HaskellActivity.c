@@ -195,6 +195,17 @@ void *HaskellActivity_enableBluetooth(jobject haskellActivity) {
   (*env)->CallVoidMethod(env, haskellActivity, enableBluetooth);
 }
 
+void *HaskellActivity_discoverDevices(jobject haskellActivity) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jmethodID discoverDevices = (*env)->GetMethodID(env, haskellActivityClass, "discoverDevices", "()V");
+  assert(discoverDevices);
+
+  (*env)->CallVoidMethod(env, haskellActivity, discoverDevices);
+}
+
 char *HaskellActivity_scanDevices(jobject haskellActivity) {
   __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "start...");
   assert(haskellActivity);
@@ -212,6 +223,25 @@ char *HaskellActivity_scanDevices(jobject haskellActivity) {
   __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "checkpoint4...");
 
   return copyToCString(env, pairedDevices);
+}
+
+char *HaskellActivity_getDiscoveredDevices(jobject haskellActivity) {
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "start...");
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint1...");
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint2...");
+  jmethodID getDiscoveredDevices = (*env)->GetMethodID(env, haskellActivityClass, "getDiscoveredDevices", "()Ljava/lang/String;");
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint3...");
+  assert(getDiscoveredDevices);
+
+  jobject discoveredDevices = (*env)->CallObjectMethod(env, haskellActivity, getDiscoveredDevices);
+  if (!discoveredDevices) return NULL;
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint4...");
+
+  return copyToCString(env, discoveredDevices);
 }
 
 // void *HaskellActivity_freeString(jobject haskellActivity, char str) {

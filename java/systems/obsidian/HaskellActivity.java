@@ -8,8 +8,10 @@ import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.Manifest;
 import android.net.Uri;
@@ -17,6 +19,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.PermissionRequest;
+import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.SynchronousQueue;
@@ -133,6 +136,7 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnDestroy(callbacks);
     }
+    unregisterReceiver(receiver);
     //TODO: Should we call hs_exit somehow here?
     android.os.Process.killProcess(android.os.Process.myPid()); //TODO: Properly handle the process surviving between invocations which means that the Haskell RTS needs to not be initialized twice.
   }
@@ -208,6 +212,88 @@ public class HaskellActivity extends Activity {
     String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
 
     Log.v("HaskellActivity", "returning deviceNameArray...");
+    return String.join(",", deviceNameArray);
+  }
+
+  public void discoverDevices() {
+    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+    if (bluetoothAdapter == null) {
+      Log.v("HaskellActivity", "bluetoothAdapter is null");
+    } else {
+      Log.v("HaskellActivity", "bluetoothAdapter obtained");
+    }
+
+    //Enable bluetooth if it isn't already enabled
+    if (!bluetoothAdapter.isEnabled()) {
+      Log.v("HaskellActivity", "Enabling bluetooth...");
+      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+      this.getApplicationContext().startActivity(enableBtIntent);
+      Log.v("HaskellActivity", "...bluetooth has been enabled.");
+    } else {
+      Log.v("HaskellActivity", "Bluetooth enabled");
+    }
+
+    IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+    registerReceiver(receiver, filter);
+    Log.v("HaskellActivity", "Receiver registered");
+    // Pre-check to make sure device is not already discovering
+    if (bluetoothAdapter.isDiscovering()) {
+      bluetoothAdapter.cancelDiscovery();
+    }
+    bluetoothAdapter.startDiscovery();
+    // Give discovery a moment to start up
+    try {
+      Thread.sleep(2000);
+    } catch(InterruptedException e) {
+      Log.v("HaskellActivity", "Thread.sleep exception thrown");
+    }
+    if (bluetoothAdapter.isDiscovering()) {
+      Log.v("HaskellActivity", "Discovery started...");
+      // Give time for discovery to discover devices
+      try {
+        Thread.sleep(10000);
+      } catch(InterruptedException e) {
+        Log.v("HaskellActivity", "Thread.sleep exception thrown");
+      }
+      Log.v("HaskellActivity", "Cancelling discovery...");
+      boolean discoveryDisabled = bluetoothAdapter.cancelDiscovery();
+      if (discoveryDisabled) {
+        Log.v("HaskellActivity", "Discovery cancelled");
+      } else {
+        Log.v("HaskellActivity", "Discovery cancellation unsuccessful");
+      }
+    } else {
+      /* ContactsContract.CommonDataKinds.Note: If bluetooth adapter never started,
+      ** it's likely that location is not enabled by the user.
+      ** Check within Settings -> App -> "this app name" ->
+      ** permissions on the android device */
+      Log.v("HaskellActivity", "Discovery was not started.");
+    }
+  }
+
+  public ArrayList<String> discoveredDevices = new ArrayList<String>();
+
+  private final BroadcastReceiver receiver = new BroadcastReceiver() {
+    public void onReceive(Context context, Intent intent) {
+      String action = intent.getAction();
+      if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+        BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+        String deviceName = device.getName();
+        String deviceHardwareAddress = device.getAddress(); //TODO: Will need this later, this is the device MAC Address
+        // In average Android Studio apps, the view would be updated within this function
+        // Since we are using Reflex and Webview, this information will be pushed to a
+        // broader scoped variable, and retrieved on a reflex frontend using a getter function
+        // getDiscoveredDevices()
+        Log.v("HaskellActivity", ("Discovered the following device: " + deviceName));
+        discoveredDevices.add(deviceName);
+      }
+    }
+  };
+
+
+  public String getDiscoveredDevices() {
+    String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
+    discoveredDevices.clear();
     return String.join(",", deviceNameArray);
   }
 
