@@ -218,6 +218,18 @@ void *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName)
   (*env)->CallVoidMethod(env, haskellActivity, establishRFComm, dName);
 }
 
+void *HaskellActivity_writeToConnectedDevice(jobject haskellActivity, char *inputString) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jstring inpString = (*env)->NewStringUTF(env, inputString);
+  jmethodID writeToConnectedDevice = (*env)->GetMethodID(env, haskellActivityClass, "writeToConnectedDevice", "(Ljava/lang/String;)V");
+  assert(writeToConnectedDevice);
+
+  (*env)->CallVoidMethod(env, haskellActivity, writeToConnectedDevice, inpString);
+}
+
 char *HaskellActivity_scanDevices(jobject haskellActivity) {
   __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_scanDevices", "start...");
   assert(haskellActivity);

@@ -288,6 +288,27 @@ public class HaskellActivity extends Activity {
   public ArrayList<String> discoveredDevices = new ArrayList<String>();
   public ArrayList<BluetoothDevice> connectionReadyDevices = new ArrayList<BluetoothDevice>();
 
+  // Outputstream in order to write to connected devices. Has been set at this level in order to be accessed
+  // by Reflex via FFI imports to pass strings from input dom element to connected bluetooth device
+  private OutputStream mmOutStream;
+  private byte[] mmBuffer = new byte[1024];
+
+  public void writeToConnectedDevice(String inputString) {
+    byte[] bytes = inputString.getBytes();
+    try {
+      mmOutStream.write(bytes);
+      Message writtenMsg = handler.obtainMessage(MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
+      writtenMsg.sendToTarget();
+    } catch (IOException e){
+      Log.e("HaskellActivity", ("Error while sending data:" + e));
+      Message writeErrorMsg = handler.obtainMessage(MessageConstants.MESSAGE_TOAST);
+      Bundle bundle = new Bundle();
+      bundle.putString("toast", "Data could not be sent to other device");
+      writeErrorMsg.setData(bundle);
+      handler.sendMessage(writeErrorMsg);
+    }
+  }
+
   private final BroadcastReceiver receiver = new BroadcastReceiver() {
     public void onReceive(Context context, Intent intent) {
       String action = intent.getAction();
@@ -555,7 +576,7 @@ public class HaskellActivity extends Activity {
     // TODO: will this need it own class?
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
-    private final OutputStream mmOutStream;
+    // private final OutputStream mmOutStream;
     private byte[] mmBuffer;
 
     public ConnectedThread(BluetoothSocket socket) {
@@ -582,7 +603,6 @@ public class HaskellActivity extends Activity {
     }
 
     public void run() {
-      mmBuffer = new byte[1024];
       int numBytes;
 
       while (true) {
@@ -601,6 +621,7 @@ public class HaskellActivity extends Activity {
       }
     }
 
+    // TODO: Currently not used, at least at this class level. Using writeToConnectedDevice
     public void write(byte[] bytes) {
       try {
         mmOutStream.write(bytes);
