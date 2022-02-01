@@ -242,7 +242,7 @@ public class HaskellActivity extends Activity {
       Log.v("HaskellActivity", "Bluetooth enabled");
     }
 
-    //make this device discoverable by a receiver app attempting to pair
+    //make this device discoverable by a linux receiver app attempting to pair
     Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
     discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60);
     startActivityForResult(discoverableIntent, 1);
@@ -263,7 +263,7 @@ public class HaskellActivity extends Activity {
     }
     if (bluetoothAdapter.isDiscovering()) {
       Log.v("HaskellActivity", "Discovery started...");
-      // Give time for discovery to discover devices
+      // Give 10 seconds for discovery to discover devices
       try {
         Thread.sleep(10000);
       } catch(InterruptedException e) {
@@ -573,7 +573,6 @@ public class HaskellActivity extends Activity {
   }
 
   class ConnectedThread extends Thread {
-    // TODO: will this need it own class?
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
     // private final OutputStream mmOutStream;
@@ -607,7 +606,7 @@ public class HaskellActivity extends Activity {
 
       while (true) {
         try {
-          // TODO: Flesh out sending and receiving logic here
+          // TODO: Flesh out reading logic here
           Log.v("HaskellActivity", "reading bytes...");
           numBytes = mmInStream.read(mmBuffer);
           Message readMsg = handler.obtainMessage(MessageConstants.MESSAGE_READ, numBytes, -1, mmBuffer);
