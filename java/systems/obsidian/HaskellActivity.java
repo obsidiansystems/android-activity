@@ -214,7 +214,7 @@ public class HaskellActivity extends Activity {
     Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
     ArrayList<String> deviceNames = new ArrayList<String>();
     for (BluetoothDevice bt : pairedDevices) {
-      deviceNames.add(bt.getName());
+      deviceNames.add(bt.getName() + "|" + bt.getAddress());
       connectionReadyDevices.add(bt);
     }
 
@@ -322,11 +322,8 @@ public class HaskellActivity extends Activity {
         // getDiscoveredDevices()
         Log.v("HaskellActivity", ("Discovered the following device: " + deviceName));
 
-        // if Bluetooth device does not have a name, it will not be trusted to pair with
-        if (deviceName != "null") {
-          discoveredDevices.add(deviceName);
-          connectionReadyDevices.add(device);
-        }
+        discoveredDevices.add(deviceName + "|" + deviceHardwareAddress);
+        connectionReadyDevices.add(device);
       }
     }
   };
@@ -334,7 +331,7 @@ public class HaskellActivity extends Activity {
 
   public String getDiscoveredDevices() {
     String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
-    discoveredDevices.clear();
+    // discoveredDevices.clear();
     return String.join(",", deviceNameArray);
   }
 
@@ -475,27 +472,40 @@ public class HaskellActivity extends Activity {
   private int nextRequestCode = 0;
   private ValueCallback<Uri[]> fileUploadCallback;
 
+  private boolean isAcceptThreadInProgress = false;
+
   public void establishRFComm(String btDeviceName) {
-    AcceptThread acceptThread = new AcceptThread(btDeviceName);
-    Log.v("HaskellActivity", ("Establishing bluetooth communication with " + btDeviceName + "..."));
-    acceptThread.run();
+    if (! isAcceptThreadInProgress) {
+      isAcceptThreadInProgress = true;
+      AcceptThread acceptThread = new AcceptThread(btDeviceName);
+      Log.v("HaskellActivity", ("Establishing bluetooth communication with " + btDeviceName + "..."));
+      acceptThread.run();
+    } else {
+      Log.v("HaskellActivity", ("AcceptThread already in progress..."));
+    }
   }
 
   class AcceptThread extends Thread {
     private final BluetoothServerSocket mmServerSocket;
 
-    public BluetoothDevice getBluetoothDeviceInfo(String dName, ArrayList<BluetoothDevice> dvs) {
-      for (BluetoothDevice dv : dvs) {
-        if (dv.getName().equals(dName)) {
-          Log.v("HaskellActivity", "bluetoothDevice name found");
-          return dv;
+    public BluetoothDevice getBluetoothDeviceInfo(String dvAddr, ArrayList<BluetoothDevice> dvs) {
+      if (! dvs.isEmpty()) {
+        Log.v("HaskellActivity", ("getBluetoothDeviceInfo: LOOKING FOR " + dvAddr));
+        for (BluetoothDevice dv : dvs) {
+          Log.v("HaskellActivity", ("LOOKING AT " + dv.getName() + " with mac address " + dv.getAddress()));
+          if (dv.getAddress().equals(dvAddr)) {
+            Log.v("HaskellActivity", "bluetoothDevice hardware address found");
+            return dv;
+          }
         }
+        Log.v("HaskellActivity", "bluetoothDevice hardware address not found");
+        return null;
       }
-      Log.v("HaskellActivity", "bluetoothDevice name not found");
+      Log.v("HaskellActivity", "empty list was passed to getBluetoothDeviceInfo");
       return null;
     }
 
-    public AcceptThread(String deviceName) {
+    public AcceptThread(String deviceAddr) {
       BluetoothServerSocket tmp = null;
 
       // TODO: we should pass this adapter through the constructor
@@ -506,9 +516,10 @@ public class HaskellActivity extends Activity {
         Log.v("HaskellActivity", "bluetoothAdapter obtained");
       }
 
-      Log.v("HaskellActivity", "Getting UUID info....");
+      Log.v("HaskellActivity", "Getting Device info....");
       // Retreive bluetooth device information for use when establishing RFComm
-      BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceName, connectionReadyDevices);
+      BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceAddr, connectionReadyDevices);
+      Log.v("HaskellActivity", "Getting UUID info....");
       ParcelUuid[] uuids = btDevice.getUuids();
       if (!(uuids.length <= 0)) {
         Log.v("HaskellActivity", "UUID info obtained.");
@@ -533,7 +544,7 @@ public class HaskellActivity extends Activity {
       while (true) {
         try {
           Log.v("HaskellActivity", "accepting server socket...");
-          socket = mmServerSocket.accept();
+          socket = mmServerSocket.accept(5000);
           Log.v("HaskellActivity", "server socket accepted.");
         } catch (IOException e) {
           Log.e("HaskellActivity", ("Socket accept failed: " + e));
