@@ -479,6 +479,11 @@ public class HaskellActivity extends Activity {
       isAcceptThreadInProgress = true;
       AcceptThread acceptThread = new AcceptThread(btDeviceName);
       Log.v("HaskellActivity", ("Establishing bluetooth communication with " + btDeviceName + "..."));
+      try {
+        Thread.sleep(1000);
+      } catch(InterruptedException e) {
+        Log.v("HaskellActivity", "Thread.sleep exception thrown");
+      }
       acceptThread.run();
     } else {
       Log.v("HaskellActivity", ("AcceptThread already in progress..."));
@@ -529,6 +534,7 @@ public class HaskellActivity extends Activity {
           tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
         } catch (IOException e) {
           Log.e("HaskellActivity", ("Socket listen failed" + e));
+          isAcceptThreadInProgress = false;
         }
         Log.v("HaskellActivity", "setting mmServerSocket...");
         mmServerSocket = tmp;
@@ -548,6 +554,7 @@ public class HaskellActivity extends Activity {
           Log.v("HaskellActivity", "server socket accepted.");
         } catch (IOException e) {
           Log.e("HaskellActivity", ("Socket accept failed: " + e));
+          isAcceptThreadInProgress = false;
           break;
         }
 
@@ -555,11 +562,17 @@ public class HaskellActivity extends Activity {
           Log.v("HaskellActivity", "connecting thread...");
           ConnectedThread connectedThread = new ConnectedThread(socket);
           Log.v("HaskellActivity", "running thread...");
+          try {
+            Thread.sleep(1000);
+          } catch(InterruptedException e) {
+            Log.v("HaskellActivity", "Thread.sleep exception thrown");
+          }
           connectedThread.run();
           try {
             mmServerSocket.close();
           } catch (IOException e) {
             Log.e("HaskellActivity", ("Failed to close server socket: " + e));
+            isAcceptThreadInProgress = false;
           }
           break;
         }
@@ -571,6 +584,7 @@ public class HaskellActivity extends Activity {
         mmServerSocket.close();
       } catch (IOException e) {
         Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
+        isAcceptThreadInProgress = false;
       }
     }
   }
@@ -599,12 +613,14 @@ public class HaskellActivity extends Activity {
         tmpIn = socket.getInputStream();
       } catch (IOException e) {
         Log.e("HaskellActivity", ("Error while creating input stream: " + e));
+        isAcceptThreadInProgress = false;
       }
       try{
         Log.v("HaskellActivity", "getting OutputStream...");
         tmpOut = socket.getOutputStream();
       } catch (IOException e) {
         Log.e("HaskellActivity", ("Error while creating output stream: " + e));
+        isAcceptThreadInProgress = false;
       }
 
       Log.v("HaskellActivity", "steams secured, setting streams");
@@ -625,6 +641,7 @@ public class HaskellActivity extends Activity {
           readMsg.sendToTarget();
         } catch (IOException e) {
           Log.d("HaskellActivity", ("Input stream disconnected: " + e));
+          isAcceptThreadInProgress = false;
           break;
         }
         Log.v("HaskellActivity", "message sent.");
@@ -652,6 +669,7 @@ public class HaskellActivity extends Activity {
         mmSocket.close();
       } catch (IOException e) {
         Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
+        isAcceptThreadInProgress = false;
       }
     }
   }
