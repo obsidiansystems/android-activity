@@ -297,15 +297,10 @@ public class HaskellActivity extends Activity {
     byte[] bytes = inputString.getBytes();
     try {
       mmOutStream.write(bytes);
-      Message writtenMsg = handler.obtainMessage(MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
-      writtenMsg.sendToTarget();
     } catch (IOException e){
       Log.e("HaskellActivity", ("Error while sending data:" + e));
-      Message writeErrorMsg = handler.obtainMessage(MessageConstants.MESSAGE_TOAST);
       Bundle bundle = new Bundle();
       bundle.putString("toast", "Data could not be sent to other device");
-      writeErrorMsg.setData(bundle);
-      handler.sendMessage(writeErrorMsg);
     }
   }
 
@@ -315,7 +310,7 @@ public class HaskellActivity extends Activity {
       if (BluetoothDevice.ACTION_FOUND.equals(action)) {
         BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
         String deviceName = device.getName();
-        String deviceHardwareAddress = device.getAddress(); //TODO: Will need this later, this is the device MAC Address
+        String deviceHardwareAddress = device.getAddress();
         // In average Android Studio apps, the view would be updated within this function
         // Since we are using Reflex and Webview, this information will be pushed to a
         // broader scoped variable, and retrieved on a reflex frontend using a getter function
@@ -484,7 +479,7 @@ public class HaskellActivity extends Activity {
       } catch(InterruptedException e) {
         Log.v("HaskellActivity", "Thread.sleep exception thrown");
       }
-      acceptThread.run();
+      acceptThread.start();
     } else {
       Log.v("HaskellActivity", ("AcceptThread already in progress..."));
     }
@@ -530,7 +525,7 @@ public class HaskellActivity extends Activity {
         Log.v("HaskellActivity", "UUID info obtained.");
 
         try {
-          Log.v("HaskellActivity", "listenUsingRfcommWithServiceRecord initiating...");
+          Log.v("HaskellActivity", ("listenUsingRfcommWithServiceRecord initiating with UUID: " + uuids[0].getUuid()));
           tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
         } catch (IOException e) {
           Log.e("HaskellActivity", ("Socket listen failed" + e));
@@ -550,7 +545,7 @@ public class HaskellActivity extends Activity {
       while (true) {
         try {
           Log.v("HaskellActivity", "accepting server socket...");
-          socket = mmServerSocket.accept(5000);
+          socket = mmServerSocket.accept();
           Log.v("HaskellActivity", "server socket accepted.");
         } catch (IOException e) {
           Log.e("HaskellActivity", ("Socket accept failed: " + e));
@@ -567,7 +562,7 @@ public class HaskellActivity extends Activity {
           } catch(InterruptedException e) {
             Log.v("HaskellActivity", "Thread.sleep exception thrown");
           }
-          connectedThread.run();
+          connectedThread.start();
           try {
             mmServerSocket.close();
           } catch (IOException e) {
@@ -631,36 +626,23 @@ public class HaskellActivity extends Activity {
     public void run() {
       int numBytes;
 
+      Log.v("HaskellActivity", "ready to read incoming bytes...");
+
       while (true) {
         try {
-          // TODO: Flesh out reading logic here
-          Log.v("HaskellActivity", "reading bytes...");
-          numBytes = mmInStream.read(mmBuffer);
-          Message readMsg = handler.obtainMessage(MessageConstants.MESSAGE_READ, numBytes, -1, mmBuffer);
-          Log.v("HaskellActivity", "sending message to target...");
-          readMsg.sendToTarget();
+          if (mmBuffer!= null) {
+            Log.v("HaskellActivity", "reading bytes...");
+            numBytes = mmInStream.read(mmBuffer);
+            Message readMsg = handler.obtainMessage(MessageConstants.MESSAGE_READ, numBytes, -1, mmBuffer);
+            Log.v("HaskellActivity", "sending message to target...");
+            readMsg.sendToTarget();
+            Log.v("HaskellActivity", "message sent.");
+          }
         } catch (IOException e) {
           Log.d("HaskellActivity", ("Input stream disconnected: " + e));
           isAcceptThreadInProgress = false;
           break;
         }
-        Log.v("HaskellActivity", "message sent.");
-      }
-    }
-
-    // TODO: Currently not used, at least at this class level. Using writeToConnectedDevice
-    public void write(byte[] bytes) {
-      try {
-        mmOutStream.write(bytes);
-        Message writtenMsg = handler.obtainMessage(MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
-        writtenMsg.sendToTarget();
-      } catch (IOException e){
-        Log.e("HaskellActivity", ("Error while sending data:" + e));
-        Message writeErrorMsg = handler.obtainMessage(MessageConstants.MESSAGE_TOAST);
-        Bundle bundle = new Bundle();
-        bundle.putString("toast", "Data could not be sent to other device");
-        writeErrorMsg.setData(bundle);
-        handler.sendMessage(writeErrorMsg);
       }
     }
 
