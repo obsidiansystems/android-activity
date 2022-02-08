@@ -469,7 +469,8 @@ public class HaskellActivity extends Activity {
 
   private boolean isAcceptThreadInProgress = false;
 
-  public void establishRFComm(String btDeviceName) {
+  public String establishRFComm(String btDeviceName) {
+    String status = null;
     if (! isAcceptThreadInProgress) {
       isAcceptThreadInProgress = true;
       AcceptThread acceptThread = new AcceptThread(btDeviceName);
@@ -478,11 +479,16 @@ public class HaskellActivity extends Activity {
         Thread.sleep(1000);
       } catch(InterruptedException e) {
         Log.v("HaskellActivity", "Thread.sleep exception thrown");
+        status = "ThreadSleepError";
       }
       acceptThread.start();
+      status = "Connected";
     } else {
       Log.v("HaskellActivity", ("AcceptThread already in progress..."));
+      status = "DuplicateConnectionError";
     }
+
+    return status.toString();
   }
 
   class AcceptThread extends Thread {

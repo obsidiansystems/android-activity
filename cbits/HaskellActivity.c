@@ -206,16 +206,19 @@ void *HaskellActivity_discoverDevices(jobject haskellActivity) {
   (*env)->CallVoidMethod(env, haskellActivity, discoverDevices);
 }
 
-void *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName) {
+char *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName) {
   assert(haskellActivity);
   JNIEnv *env = getJNIEnv();
 
   jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
   jstring dName = (*env)->NewStringUTF(env, deviceName);
-  jmethodID establishRFComm = (*env)->GetMethodID(env, haskellActivityClass, "establishRFComm", "(Ljava/lang/String;)V");
+  jmethodID establishRFComm = (*env)->GetMethodID(env, haskellActivityClass, "establishRFComm", "(Ljava/lang/String;)Ljava/lang/String;");
   assert(establishRFComm);
 
-  (*env)->CallVoidMethod(env, haskellActivity, establishRFComm, dName);
+  jobject connectionStatus = (*env)->CallObjectMethod(env, haskellActivity, establishRFComm, dName);
+  if (!connectionStatus) return NULL;
+
+  return copyToCString(env, connectionStatus);
 }
 
 void *HaskellActivity_writeToConnectedDevice(jobject haskellActivity, char *inputString) {
