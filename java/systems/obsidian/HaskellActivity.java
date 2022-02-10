@@ -292,6 +292,7 @@ public class HaskellActivity extends Activity {
   // by Reflex via FFI imports to pass strings from input dom element to connected bluetooth device
   private OutputStream mmOutStream;
   private byte[] mmBuffer = new byte[1024];
+  private BluetoothServerSocket mmServerSocket;
 
   public void writeToConnectedDevice(String inputString) {
     byte[] bytes = inputString.getBytes();
@@ -492,7 +493,6 @@ public class HaskellActivity extends Activity {
   }
 
   class AcceptThread extends Thread {
-    private final BluetoothServerSocket mmServerSocket;
 
     public BluetoothDevice getBluetoothDeviceInfo(String dvAddr, ArrayList<BluetoothDevice> dvs) {
       if (! dvs.isEmpty()) {
@@ -581,6 +581,17 @@ public class HaskellActivity extends Activity {
     }
 
     public void cancel() {
+      try {
+        mmServerSocket.close();
+      } catch (IOException e) {
+        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
+        isAcceptThreadInProgress = false;
+      }
+    }
+  }
+
+  public void cancelBluetoothConnection() {
+    if (isAcceptThreadInProgress) {
       try {
         mmServerSocket.close();
       } catch (IOException e) {

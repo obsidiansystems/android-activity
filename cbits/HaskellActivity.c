@@ -221,6 +221,17 @@ char *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName)
   return copyToCString(env, connectionStatus);
 }
 
+void *HaskellActivity_cancelBluetoothConnection(jobject haskellActivity) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jmethodID cancelBluetoothConnection = (*env)->GetMethodID(env, haskellActivityClass, "cancelBluetoothConnection", "()V");
+  assert(cancelBluetoothConnection);
+
+  (*env)->CallVoidMethod(env, haskellActivity, cancelBluetoothConnection);
+}
+
 void *HaskellActivity_writeToConnectedDevice(jobject haskellActivity, char *inputString) {
   assert(haskellActivity);
   JNIEnv *env = getJNIEnv();
