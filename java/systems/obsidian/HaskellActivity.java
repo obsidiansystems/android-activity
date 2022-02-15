@@ -2,7 +2,6 @@ package systems.obsidian;
 
 import android.app.Activity;
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
@@ -49,6 +48,8 @@ public class HaskellActivity extends Activity {
   public native void haskellOnNewIntent(long callbacks, String intent, String intentdata);
 
   public static final int REQUEST_CODE_FILE_PICKER = 51426;
+
+  private BluetoothLib bluetoothLib = new BluetoothLib();
 
   // Apparently 'long' is the right way to store a C pointer in Java
   // See https://stackoverflow.com/questions/337268/what-is-the-correct-way-to-store-a-native-pointer-inside-a-java-object
@@ -144,7 +145,6 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnDestroy(callbacks);
     }
-    unregisterReceiver(receiver);
     //TODO: Should we call hs_exit somehow here?
     android.os.Process.killProcess(android.os.Process.myPid()); //TODO: Properly handle the process surviving between invocations which means that the Haskell RTS needs to not be initialized twice.
   }
@@ -174,161 +174,40 @@ public class HaskellActivity extends Activity {
 
   // function that will show in Android logs that bluetooth has been enabled.
   public void enableBluetooth() {
-    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    if (bluetoothAdapter == null) {
-      Log.v("HaskellActivity", "bluetoothAdapter is null");
-    } else {
-      Log.v("HaskellActivity", "bluetoothAdapter obtained");
-    }
-
-    //Enable bluetooth if it isn't already enabled
-    if (!bluetoothAdapter.isEnabled()) {
-      Log.v("HaskellActivity", "Enabling bluetooth...");
-      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-      this.getApplicationContext().startActivity(enableBtIntent);
-      Log.v("HaskellActivity", "...bluetooth has been enabled.");
-    } else {
-      Log.v("HaskellActivity", "Bluetooth enabled");
-    }
+    bluetoothLib.enableBluetooth(this.getApplicationContext());
   }
 
   // function that will return a list of Bluetooth device names
   public String scanDevices() {
-    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    if (bluetoothAdapter == null) {
-      Log.v("HaskellActivity", "bluetoothAdapter is null");
-    } else {
-      Log.v("HaskellActivity", "bluetoothAdapter obtained");
-    }
-
-    //Enable bluetooth if it isn't already enabled
-    if (!bluetoothAdapter.isEnabled()) {
-      Log.v("HaskellActivity", "Enabling bluetooth...");
-      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-      this.getApplicationContext().startActivity(enableBtIntent);
-      Log.v("HaskellActivity", "...bluetooth has been enabled.");
-    } else {
-      Log.v("HaskellActivity", "Bluetooth enabled");
-    }
-
-    Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-    ArrayList<String> deviceNames = new ArrayList<String>();
-    for (BluetoothDevice bt : pairedDevices) {
-      deviceNames.add(bt.getName() + "|" + bt.getAddress());
-      connectionReadyDevices.add(bt);
-    }
-
-    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
-
-    Log.v("HaskellActivity", "returning deviceNameArray...");
-    return String.join(",", deviceNameArray);
+    return bluetoothLib.scanDevices(this.getApplicationContext());
   }
 
   public void discoverDevices() {
-    BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    if (bluetoothAdapter == null) {
-      Log.v("HaskellActivity", "bluetoothAdapter is null");
-    } else {
-      Log.v("HaskellActivity", "bluetoothAdapter obtained");
-    }
-
-    //Enable bluetooth if it isn't already enabled
-    if (!bluetoothAdapter.isEnabled()) {
-      Log.v("HaskellActivity", "Enabling bluetooth...");
-      Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-      this.getApplicationContext().startActivity(enableBtIntent);
-      Log.v("HaskellActivity", "...bluetooth has been enabled.");
-    } else {
-      Log.v("HaskellActivity", "Bluetooth enabled");
-    }
-
     //make this device discoverable by a linux receiver app attempting to pair
     Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
     discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60);
     startActivityForResult(discoverableIntent, 1);
+    bluetoothLib.discoverDevices(this.getApplicationContext());
 
-    IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-    registerReceiver(receiver, filter);
-    Log.v("HaskellActivity", "Receiver registered");
-    // Pre-check to make sure device is not already discovering
-    if (bluetoothAdapter.isDiscovering()) {
-      bluetoothAdapter.cancelDiscovery();
-    }
-    bluetoothAdapter.startDiscovery();
-    // Give discovery a moment to start up
-    try {
-      Thread.sleep(2000);
-    } catch(InterruptedException e) {
-      Log.v("HaskellActivity", "Thread.sleep exception thrown");
-    }
-    if (bluetoothAdapter.isDiscovering()) {
-      Log.v("HaskellActivity", "Discovery started...");
-      // Give 10 seconds for discovery to discover devices
-      try {
-        Thread.sleep(10000);
-      } catch(InterruptedException e) {
-        Log.v("HaskellActivity", "Thread.sleep exception thrown");
-      }
-      Log.v("HaskellActivity", "Cancelling discovery...");
-      boolean discoveryDisabled = bluetoothAdapter.cancelDiscovery();
-      if (discoveryDisabled) {
-        Log.v("HaskellActivity", "Discovery cancelled");
-      } else {
-        Log.v("HaskellActivity", "Discovery cancellation unsuccessful");
-      }
-    } else {
-      /* ContactsContract.CommonDataKinds.Note: If bluetooth adapter never started,
-      ** it's likely that location is not enabled by the user.
-      ** Check within Settings -> App -> "this app name" ->
-      ** permissions on the android device */
-      Log.v("HaskellActivity", "Discovery was not started.");
-    }
+    return;
   }
-
-  public ArrayList<String> discoveredDevices = new ArrayList<String>();
-  public ArrayList<BluetoothDevice> connectionReadyDevices = new ArrayList<BluetoothDevice>();
-
-  // Outputstream in order to write to connected devices. Has been set at this level in order to be accessed
-  // by Reflex via FFI imports to pass strings from input dom element to connected bluetooth device
-  private OutputStream mmOutStream;
-  private byte[] mmBuffer = new byte[1024];
-  private BluetoothServerSocket mmServerSocket;
 
   public void writeToConnectedDevice(String inputString) {
-    byte[] bytes = inputString.getBytes();
-    try {
-      mmOutStream.write(bytes);
-    } catch (IOException e){
-      Log.e("HaskellActivity", ("Error while sending data:" + e));
-      Bundle bundle = new Bundle();
-      bundle.putString("toast", "Data could not be sent to other device");
-    }
+    bluetoothLib.writeToConnectedDevice(inputString);
+    return;
   }
 
-  private final BroadcastReceiver receiver = new BroadcastReceiver() {
-    public void onReceive(Context context, Intent intent) {
-      String action = intent.getAction();
-      if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-        BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-        String deviceName = device.getName();
-        String deviceHardwareAddress = device.getAddress();
-        // In average Android Studio apps, the view would be updated within this function
-        // Since we are using Reflex and Webview, this information will be pushed to a
-        // broader scoped variable, and retrieved on a reflex frontend using a getter function
-        // getDiscoveredDevices()
-        Log.v("HaskellActivity", ("Discovered the following device: " + deviceName));
-
-        discoveredDevices.add(deviceName + "|" + deviceHardwareAddress);
-        connectionReadyDevices.add(device);
-      }
-    }
-  };
-
-
   public String getDiscoveredDevices() {
-    String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
-    // discoveredDevices.clear();
-    return String.join(",", deviceNameArray);
+    return bluetoothLib.getDiscoveredDevices();
+  }
+
+  public String establishRFComm(String btDeviceName) {
+    return bluetoothLib.establishRFComm(btDeviceName);
+  }
+
+  public void cancelBluetoothConnection() {
+    bluetoothLib.cancelBluetoothConnection(this.getApplicationContext());
+    return;
   }
 
   // Proper separation of concerns is really a whole lot of work in Java, so
@@ -468,209 +347,5 @@ public class HaskellActivity extends Activity {
   private int nextRequestCode = 0;
   private ValueCallback<Uri[]> fileUploadCallback;
 
-  private boolean isAcceptThreadInProgress = false;
-
-  public String establishRFComm(String btDeviceName) {
-    String status = null;
-    if (! isAcceptThreadInProgress) {
-      isAcceptThreadInProgress = true;
-      AcceptThread acceptThread = new AcceptThread(btDeviceName);
-      Log.v("HaskellActivity", ("Establishing bluetooth communication with " + btDeviceName + "..."));
-      try {
-        Thread.sleep(1000);
-      } catch(InterruptedException e) {
-        Log.v("HaskellActivity", "Thread.sleep exception thrown");
-        status = "ThreadSleepError";
-      }
-      acceptThread.start();
-      status = "Connected";
-    } else {
-      Log.v("HaskellActivity", ("AcceptThread already in progress..."));
-      status = "DuplicateConnectionError";
-    }
-
-    return status.toString();
-  }
-
-  class AcceptThread extends Thread {
-
-    public BluetoothDevice getBluetoothDeviceInfo(String dvAddr, ArrayList<BluetoothDevice> dvs) {
-      if (! dvs.isEmpty()) {
-        Log.v("HaskellActivity", ("getBluetoothDeviceInfo: LOOKING FOR " + dvAddr));
-        for (BluetoothDevice dv : dvs) {
-          Log.v("HaskellActivity", ("LOOKING AT " + dv.getName() + " with mac address " + dv.getAddress()));
-          if (dv.getAddress().equals(dvAddr)) {
-            Log.v("HaskellActivity", "bluetoothDevice hardware address found");
-            return dv;
-          }
-        }
-        Log.v("HaskellActivity", "bluetoothDevice hardware address not found");
-        return null;
-      }
-      Log.v("HaskellActivity", "empty list was passed to getBluetoothDeviceInfo");
-      return null;
-    }
-
-    public AcceptThread(String deviceAddr) {
-      BluetoothServerSocket tmp = null;
-
-      // TODO: we should pass this adapter through the constructor
-      BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-      if (bluetoothAdapter == null) {
-        Log.v("HaskellActivity", "bluetoothAdapter is null");
-      } else {
-        Log.v("HaskellActivity", "bluetoothAdapter obtained");
-      }
-
-      Log.v("HaskellActivity", "Getting Device info....");
-      // Retreive bluetooth device information for use when establishing RFComm
-      BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceAddr, connectionReadyDevices);
-      Log.v("HaskellActivity", "Getting UUID info....");
-      ParcelUuid[] uuids = btDevice.getUuids();
-      if (!(uuids.length <= 0)) {
-        Log.v("HaskellActivity", "UUID info obtained.");
-
-        try {
-          Log.v("HaskellActivity", ("listenUsingRfcommWithServiceRecord initiating with UUID: " + uuids[0].getUuid()));
-          tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
-        } catch (IOException e) {
-          Log.e("HaskellActivity", ("Socket listen failed" + e));
-          isAcceptThreadInProgress = false;
-        }
-        Log.v("HaskellActivity", "setting mmServerSocket...");
-        mmServerSocket = tmp;
-      } else {
-        Log.e("HaskellActivity", "Bluetooth Device object not found.");
-        mmServerSocket = null;
-      }
-    }
-
-    public void run () {
-      BluetoothSocket socket = null;
-
-      while (true) {
-        try {
-          Log.v("HaskellActivity", "accepting server socket...");
-          socket = mmServerSocket.accept();
-          Log.v("HaskellActivity", "server socket accepted.");
-        } catch (IOException e) {
-          Log.e("HaskellActivity", ("Socket accept failed: " + e));
-          isAcceptThreadInProgress = false;
-          break;
-        }
-
-        if (socket != null) {
-          Log.v("HaskellActivity", "connecting thread...");
-          ConnectedThread connectedThread = new ConnectedThread(socket);
-          Log.v("HaskellActivity", "running thread...");
-          try {
-            Thread.sleep(1000);
-          } catch(InterruptedException e) {
-            Log.v("HaskellActivity", "Thread.sleep exception thrown");
-          }
-          connectedThread.start();
-          try {
-            mmServerSocket.close();
-          } catch (IOException e) {
-            Log.e("HaskellActivity", ("Failed to close server socket: " + e));
-            isAcceptThreadInProgress = false;
-          }
-          break;
-        }
-      }
-    }
-
-    public void cancel() {
-      try {
-        mmServerSocket.close();
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
-        isAcceptThreadInProgress = false;
-      }
-    }
-  }
-
-  public void cancelBluetoothConnection() {
-    if (isAcceptThreadInProgress) {
-      try {
-        mmServerSocket.close();
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
-        isAcceptThreadInProgress = false;
-      }
-    }
-  }
-
-  private Handler handler; //fetches Bluetooth service info
-
-  private interface MessageConstants {
-    public static final int MESSAGE_READ = 0;
-    public static final int MESSAGE_WRITE = 1;
-    public static final int MESSAGE_TOAST = 2;
-  }
-
-  class ConnectedThread extends Thread {
-    private final BluetoothSocket mmSocket;
-    private final InputStream mmInStream;
-    // private final OutputStream mmOutStream;
-    private byte[] mmBuffer;
-
-    public ConnectedThread(BluetoothSocket socket) {
-      mmSocket = socket;
-      InputStream tmpIn = null;
-      OutputStream tmpOut = null;
-
-      try {
-        Log.v("HaskellActivity", "getting InputStream...");
-        tmpIn = socket.getInputStream();
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Error while creating input stream: " + e));
-        isAcceptThreadInProgress = false;
-      }
-      try{
-        Log.v("HaskellActivity", "getting OutputStream...");
-        tmpOut = socket.getOutputStream();
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Error while creating output stream: " + e));
-        isAcceptThreadInProgress = false;
-      }
-
-      Log.v("HaskellActivity", "steams secured, setting streams");
-      mmInStream = tmpIn;
-      mmOutStream = tmpOut;
-    }
-
-    public void run() {
-      int numBytes;
-
-      Log.v("HaskellActivity", "ready to read incoming bytes...");
-
-      while (true) {
-        try {
-          if (mmBuffer!= null) {
-            Log.v("HaskellActivity", "reading bytes...");
-            numBytes = mmInStream.read(mmBuffer);
-            Message readMsg = handler.obtainMessage(MessageConstants.MESSAGE_READ, numBytes, -1, mmBuffer);
-            Log.v("HaskellActivity", "sending message to target...");
-            readMsg.sendToTarget();
-            Log.v("HaskellActivity", "message sent.");
-          }
-        } catch (IOException e) {
-          Log.d("HaskellActivity", ("Input stream disconnected: " + e));
-          isAcceptThreadInProgress = false;
-          break;
-        }
-      }
-    }
-
-    public void cancel() {
-      try {
-        mmSocket.close();
-      } catch (IOException e) {
-        Log.e("HaskellActivity", ("Failed to close connection socket: " + e));
-        isAcceptThreadInProgress = false;
-      }
-    }
-  }
 }
 
