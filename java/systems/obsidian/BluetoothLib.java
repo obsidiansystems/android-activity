@@ -28,6 +28,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+* Library of convenient bluetooth functions.
+* This class embodies all the functions necessary to establish and RFComm connection between an APK
+* and another client/server via bluetooth.
+*/
 public class BluetoothLib {
 
   private Handler handler; //fetches Bluetooth service info
@@ -43,8 +48,8 @@ public class BluetoothLib {
   private BluetoothServerSocket mmServerSocket;
 
 	/**
-	* Enables bluetooth. 
-	* This method will attempt to enable bluetooth if it is not already enabled 
+	* Enables bluetooth.
+	* This method will attempt to enable bluetooth if it is not already enabled
 	*
 	* @param  ctx  Application Context
 	* @return      void
@@ -69,7 +74,15 @@ public class BluetoothLib {
     }
   }
 
-  // function that will return a list of Bluetooth device names
+	/**
+	* Scans for paired devices.
+	* This method will retreive a list of paired devices, delimit the device name and mac address with
+	* a '|' and add it to a list of connection ready devices.
+  *
+	* @param  ctx  Application Context
+	* @return      String of device names and macaddresses, delimited by '|' for further parsing
+	* @see         BluetoothAdapter.getBondedDevices
+	*/
   public String scanDevices(Context ctx) {
     BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     if (bluetoothAdapter == null) {
@@ -101,7 +114,15 @@ public class BluetoothLib {
     return String.join(",", deviceNameArray);
   }
 
-  //add to list of available devices as long as the device is set to be discoverable
+	/**
+	* Discover available devices.
+	* This method will retreive a list of discovered devices, delimit the device name and mac address with
+	* a '|' and add it to a list of connection ready devices.
+	*
+	* @param  ctx  Application Context
+	* @return      void
+	* @see         BluetoothAdapter.startDiscovery
+	*/
   public void discoverDevices(Context ctx) {
     BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     if (bluetoothAdapter == null) {
@@ -174,13 +195,32 @@ public class BluetoothLib {
     }
   };
 
+	/**
+	* Fetch list of connection ready devices.
+	* This method will retreive a list of connection ready devices, delimit the device name and mac address with
+	* a '|' and each device delimited with a ','.
+	*
+	* @param  ctx  Application Context
+	* @return      String
+	*/
   public String getDiscoveredDevices() {
     String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
     return String.join(",", deviceNameArray);
   }
 
-  // Establish bluetooth communication threads. 
+  // Establish bluetooth communication threads.
   // Note: Requires acceptance from Linux client/server
+	/**
+	* Establish radio frequency communication with specified bluetooth device.
+	* This method will initiate communication with a speficied bluetoth device and establish
+  * necessary input and output streams of communication with specified device. Once called,
+  * the function will wait forever in a parrallel thread to be accepted by the device specified
+  * until app cancellation or application termination.
+  *
+	* @param  ctx  String Bluetooth MAC Address
+	* @return      String Connection Status
+	* @see         AcceptThread
+	*/
   public String establishRFComm(String btDeviceName) {
     String status = null;
     if (! isAcceptThreadInProgress) {
@@ -203,7 +243,14 @@ public class BluetoothLib {
     return status.toString();
   }
 
-  //write to connected device assuming that establishrfcomm() was accepted by client/server
+	/**
+	* Write to connected device.
+	* This method will write the argument specified string to the established RFComm.
+  * This method works assuming a successful connection has been initiated using establishRFComm()
+	* @param  ctx  String input
+	* @return      void
+	* @see         establishRFComm
+	*/
   public void writeToConnectedDevice(String inputString) {
     byte[] bytes = inputString.getBytes();
     try {
@@ -215,6 +262,14 @@ public class BluetoothLib {
     }
   }
 
+	/**
+	* Cancel/Disconnect from any established or in progress bluetooth connections.
+	* This method will write the argument specified string to the established RFComm.
+  * This method works assuming a successful connection has been initiated using establishRFComm()
+	* @param  ctx  Application Context
+	* @return      void
+	* @see         ServerSocket.close
+	*/
   public void cancelBluetoothConnection(Context ctx) {
     if (isAcceptThreadInProgress) {
       try {
