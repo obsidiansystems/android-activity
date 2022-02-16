@@ -179,7 +179,17 @@ public class HaskellActivity extends Activity {
 
   // function that will return a list of Bluetooth device names
   public String scanDevices() {
-    return bluetoothLib.scanDevices(this.getApplicationContext());
+    Set<BluetoothDevice> pairedDevices = bluetoothLib.scanDevices(this.getApplicationContext());
+
+    ArrayList<String> deviceNames = new ArrayList<String>();
+    for (BluetoothDevice bt : pairedDevices) {
+      deviceNames.add(bt.getName() + "|" + bt.getAddress());
+    }
+
+    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
+
+    Log.v("BluetoothLib", "returning deviceNameArray...");
+    return String.join(",", deviceNameArray);
   }
 
   public void discoverDevices() {

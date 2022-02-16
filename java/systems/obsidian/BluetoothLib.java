@@ -76,14 +76,13 @@ public class BluetoothLib {
 
 	/**
 	* Scans for paired devices.
-	* This method will retreive a list of paired devices, delimit the device name and mac address with
-	* a '|' and add it to a list of connection ready devices.
+	* This method will retreive a set of paired devices.
   *
 	* @param  ctx  Application Context
-	* @return      String of device names and macaddresses, delimited by '|' for further parsing
+	* @return      Set<BluetoothDevice>
 	* @see         BluetoothAdapter.getBondedDevices
 	*/
-  public String scanDevices(Context ctx) {
+  public Set<BluetoothDevice> scanDevices(Context ctx) {
     BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     if (bluetoothAdapter == null) {
       Log.v("BluetoothLib", "bluetoothAdapter is null");
@@ -101,17 +100,15 @@ public class BluetoothLib {
       Log.v("BluetoothLib", "Bluetooth enabled");
     }
 
+    // Clear list before searching to avoid duplicate results
+    connectionReadyDevices.clear();
+
     Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-    ArrayList<String> deviceNames = new ArrayList<String>();
     for (BluetoothDevice bt : pairedDevices) {
-      deviceNames.add(bt.getName() + "|" + bt.getAddress());
       connectionReadyDevices.add(bt);
     }
 
-    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
-
-    Log.v("BluetoothLib", "returning deviceNameArray...");
-    return String.join(",", deviceNameArray);
+    return pairedDevices;
   }
 
 	/**
@@ -140,6 +137,10 @@ public class BluetoothLib {
     } else {
       Log.v("BluetoothLib", "Bluetooth enabled");
     }
+
+    // Clear list before searching to avoid duplicate results
+    discoveredDevices.clear();
+    connectionReadyDevices.clear();
 
     IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
     ctx.registerReceiver(receiver, filter);
@@ -206,6 +207,19 @@ public class BluetoothLib {
   public String getDiscoveredDevices() {
     String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
     return String.join(",", deviceNameArray);
+  }
+
+	/**
+	* Fetch list of connection ready devices.
+	* This method will retreive a list of devices that are ready to connect.
+  * This method is best used AFTER calling discoverDevices()
+	*
+	* @param  ctx  Application Context
+	* @return      Set<BluetoothDevice>
+  * @see         BluetoothDevice
+	*/
+  public ArrayList<BluetoothDevice> getAvailableBluetoothDevices() {
+    return connectionReadyDevices;
   }
 
   // Establish bluetooth communication threads.
