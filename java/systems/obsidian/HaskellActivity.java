@@ -208,7 +208,13 @@ public class HaskellActivity extends Activity {
   }
 
   public String getDiscoveredDevices() {
-    return bluetoothLib.getDiscoveredDevices();
+    ArrayList<BluetoothDevice> connectionReadyDevices = bluetoothLib.getAvailableBluetoothDevices();
+    ArrayList<String> discoveredDevices = new ArrayList<String>();
+    for (BluetoothDevice bt : connectionReadyDevices) {
+      discoveredDevices.add(bt.getName() + "|" + bt.getAddress());
+    }
+    String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
+    return String.join(",", deviceNameArray);
   }
 
   public String establishRFComm(String btDeviceName) {

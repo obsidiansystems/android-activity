@@ -74,6 +74,7 @@ public class BluetoothLib {
     }
   }
 
+
 	/**
 	* Scans for paired devices.
 	* This method will retreive a set of paired devices.
@@ -198,19 +199,6 @@ public class BluetoothLib {
 
 	/**
 	* Fetch list of connection ready devices.
-	* This method will retreive a list of connection ready devices, delimit the device name and mac address with
-	* a '|' and each device delimited with a ','.
-	*
-	* @param  ctx  Application Context
-	* @return      String
-	*/
-  public String getDiscoveredDevices() {
-    String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
-    return String.join(",", deviceNameArray);
-  }
-
-	/**
-	* Fetch list of connection ready devices.
 	* This method will retreive a list of devices that are ready to connect.
   * This method is best used AFTER calling discoverDevices()
 	*
@@ -323,7 +311,6 @@ public class BluetoothLib {
     public AcceptThread(String deviceAddr) {
       BluetoothServerSocket tmp = null;
 
-      // TODO: we should pass this adapter through the constructor
       BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
       if (bluetoothAdapter == null) {
         Log.v("BluetoothLib", "bluetoothAdapter is null");
