@@ -183,7 +183,7 @@ public class HaskellActivity extends Activity {
 
     ArrayList<String> deviceNames = new ArrayList<String>();
     for (BluetoothDevice bt : pairedDevices) {
-      deviceNames.add(bt.getName() + "|" + bt.getAddress());
+      deviceNames.add(bt.getName() + "." + bt.getAddress());
     }
 
     String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
@@ -203,7 +203,7 @@ public class HaskellActivity extends Activity {
   }
 
   public void writeToConnectedDevice(String inputString) {
-    bluetoothLib.writeToConnectedDevice(inputString);
+    bluetoothLib.writeToConnectedDevice(inputString.getBytes());
     return;
   }
 
@@ -212,7 +212,7 @@ public class HaskellActivity extends Activity {
     ArrayList<String> discoveredDevices = new ArrayList<String>();
     Log.v("HaskellActivity", "converting BluetoothDevice ArrayList to String ArrayList...");
     for (BluetoothDevice bt : connectionReadyDevices) {
-      discoveredDevices.add(bt.getName() + "|" + bt.getAddress());
+      discoveredDevices.add(bt.getName() + "." + bt.getAddress());
     }
     Log.v("HaskellActivity", "creating device name array...");
     String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
