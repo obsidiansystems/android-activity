@@ -219,16 +219,9 @@ public class HaskellActivity extends Activity {
       Log.v("HaskellActivity", ("discoveredDevices: adding " + devName + "." + devAddr + " to discoveredDevices"));
       discoveredDevices.add(devName + "." + devAddr);
     }
-    Log.v("HaskellActivity", "creating device name array...");
-    String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
-    Log.v("HaskellActivity", "joining...");
-    String devs = String.join(",", deviceNameArray);
-    Log.v("HaskellActivity", ("getDiscoveredDevices: value of returned is " + devs));
-    if (devs.isEmpty()) {
-      return "NODEVICEFOUND";
-    } else {
-      return devs;
-    }
+    String discDevString = discoveredDevices.toString();
+    Log.v("HaskellActivity", "returning discDevString");
+    return discDevString;
   }
 
   public String establishRFComm(String btDeviceName) {
