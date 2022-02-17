@@ -208,16 +208,27 @@ public class HaskellActivity extends Activity {
   }
 
   public String getDiscoveredDevices() {
+    Log.v("HaskellActivity", "start getDiscoveredDevices()...");
     ArrayList<BluetoothDevice> connectionReadyDevices = bluetoothLib.getAvailableBluetoothDevices();
+    Log.v("HaskellActivity", "getDiscoveredDevices() complete.");
     ArrayList<String> discoveredDevices = new ArrayList<String>();
     Log.v("HaskellActivity", "converting BluetoothDevice ArrayList to String ArrayList...");
     for (BluetoothDevice bt : connectionReadyDevices) {
-      discoveredDevices.add(bt.getName() + "." + bt.getAddress());
+      String devName = bt.getName();
+      String devAddr = bt.getAddress();
+      Log.v("HaskellActivity", ("discoveredDevices: adding " + devName + "." + devAddr + " to discoveredDevices"));
+      discoveredDevices.add(devName + "." + devAddr);
     }
     Log.v("HaskellActivity", "creating device name array...");
     String[] deviceNameArray = discoveredDevices.toArray(new String[discoveredDevices.size()]);
     Log.v("HaskellActivity", "joining...");
-    return String.join(",", deviceNameArray);
+    String devs = String.join(",", deviceNameArray);
+    Log.v("HaskellActivity", ("getDiscoveredDevices: value of returned is " + devs));
+    if (devs.isEmpty()) {
+      return "NODEVICEFOUND";
+    } else {
+      return devs;
+    }
   }
 
   public String establishRFComm(String btDeviceName) {

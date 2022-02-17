@@ -274,10 +274,17 @@ char *HaskellActivity_getDiscoveredDevices(jobject haskellActivity) {
   jmethodID getDiscoveredDevices = (*env)->GetMethodID(env, haskellActivityClass, "getDiscoveredDevices", "()Ljava/lang/String;");
   __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint3...");
   assert(getDiscoveredDevices);
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint4...");
 
   jobject discoveredDevices = (*env)->CallObjectMethod(env, haskellActivity, getDiscoveredDevices);
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint5...");
+  if((*env)->ExceptionOccurred(env)) {
+    __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity", "discoverDevices exception");
+    (*env)->ExceptionDescribe(env);
+  }
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint6...");
   if (!discoveredDevices) return NULL;
-  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint4...");
+  __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity_getDiscoveredDevices", "checkpoint7...");
 
   return copyToCString(env, discoveredDevices);
 }
