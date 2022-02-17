@@ -249,12 +249,11 @@ public class BluetoothLib {
 	* Write to connected device.
 	* This method will write the argument specified string to the established RFComm.
   * This method works assuming a successful connection has been initiated using establishRFComm()
-	* @param  ctx  String input
-	* @return      void
-	* @see         establishRFComm
+	* @param  byte[] input
+	* @return        void
+	* @see           establishRFComm
 	*/
-  public void writeToConnectedDevice(String inputString) {
-    byte[] bytes = inputString.getBytes();
+  public void writeToConnectedDevice(byte[] bytes) {
     try {
       mmOutStream.write(bytes);
     } catch (IOException e){
