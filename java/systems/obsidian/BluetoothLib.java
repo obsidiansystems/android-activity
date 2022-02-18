@@ -320,20 +320,25 @@ public class BluetoothLib {
       Log.v("BluetoothLib", "Getting Device info....");
       // Retreive bluetooth device information for use when establishing RFComm
       BluetoothDevice btDevice = getBluetoothDeviceInfo(deviceAddr, connectionReadyDevices);
-      Log.v("BluetoothLib", "Getting UUID info....");
-      ParcelUuid[] uuids = btDevice.getUuids();
-      if (!(uuids.length <= 0)) {
-        Log.v("BluetoothLib", "UUID info obtained.");
+      if (btDevice == null) {
+        Log.e("BluetoothLib", "Bluetooth Device object is null.");
+        mmServerSocket = null;
+      } else {
+        Log.v("BluetoothLib", "Getting UUID info....");
+        ParcelUuid[] uuids = btDevice.getUuids();
+        if (!(uuids.length <= 0)) {
+          Log.v("BluetoothLib", "UUID info obtained.");
 
-        try {
-          Log.v("BluetoothLib", ("listenUsingRfcommWithServiceRecord initiating with UUID: " + uuids[0].getUuid()));
-          tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
-        } catch (IOException e) {
-          Log.e("BluetoothLib", ("Socket listen failed" + e));
-          isAcceptThreadInProgress = false;
+          try {
+            Log.v("BluetoothLib", ("listenUsingRfcommWithServiceRecord initiating with UUID: " + uuids[0].getUuid()));
+            tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(btDevice.getName(), uuids[0].getUuid());
+          } catch (IOException e) {
+            Log.e("BluetoothLib", ("Socket listen failed" + e));
+            isAcceptThreadInProgress = false;
+          }
+          Log.v("BluetoothLib", "setting mmServerSocket...");
+          mmServerSocket = tmp;
         }
-        Log.v("BluetoothLib", "setting mmServerSocket...");
-        mmServerSocket = tmp;
       } else {
         Log.e("BluetoothLib", "Bluetooth Device object not found.");
         mmServerSocket = null;
