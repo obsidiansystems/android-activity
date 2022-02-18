@@ -216,6 +216,10 @@ char *HaskellActivity_establishRFComm(jobject haskellActivity, char *deviceName)
   assert(establishRFComm);
 
   jobject connectionStatus = (*env)->CallObjectMethod(env, haskellActivity, establishRFComm, dName);
+  if((*env)->ExceptionOccurred(env)) {
+    __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity", "establishRFComm exception");
+    (*env)->ExceptionDescribe(env);
+  }
   if (!connectionStatus) return NULL;
 
   return copyToCString(env, connectionStatus);
@@ -242,6 +246,10 @@ void *HaskellActivity_writeToConnectedDevice(jobject haskellActivity, char *inpu
   assert(writeToConnectedDevice);
 
   (*env)->CallVoidMethod(env, haskellActivity, writeToConnectedDevice, inpString);
+  if((*env)->ExceptionOccurred(env)) {
+    __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity", "establishRFComm exception");
+    (*env)->ExceptionDescribe(env);
+  }
 }
 
 char *HaskellActivity_scanDevices(jobject haskellActivity) {
