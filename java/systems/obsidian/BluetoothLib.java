@@ -338,11 +338,10 @@ public class BluetoothLib {
           }
           Log.v("BluetoothLib", "setting mmServerSocket...");
           mmServerSocket = tmp;
+        } else {
+          Log.e("BluetoothLib", "Bluetooth Device object not found.");
+          mmServerSocket = null;
         }
-      } else {
-        Log.e("BluetoothLib", "Bluetooth Device object not found.");
-        mmServerSocket = null;
-      }
     }
 
     public void run () {
