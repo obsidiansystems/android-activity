@@ -242,6 +242,10 @@ void *HaskellActivity_writeToConnectedDevice(jobject haskellActivity, char *inpu
   assert(writeToConnectedDevice);
 
   (*env)->CallVoidMethod(env, haskellActivity, writeToConnectedDevice, inpString);
+  if((*env)->ExceptionOccurred(env)) {
+    __android_log_write(ANDROID_LOG_DEBUG, "HaskellActivity", "writeToConnectedDevice exception");
+    (*env)->ExceptionDescribe(env);
+  }
 }
 
 char *HaskellActivity_scanDevices(jobject haskellActivity) {

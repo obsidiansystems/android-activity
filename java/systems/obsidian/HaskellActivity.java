@@ -203,8 +203,14 @@ public class HaskellActivity extends Activity {
   }
 
   public void writeToConnectedDevice(String inputString) {
-    bluetoothLib.writeToConnectedDevice(inputString.getBytes());
-    return;
+    if (inputString.isEmpty()) {
+      Log.v("HaskellActivity", "Warning: empty string passed to writeToConnectedDevice()");
+      return;
+    } else {
+      Log.v("HaskellActivity", "returning deviceNameArray...");
+      bluetoothLib.writeToConnectedDevice(inputString.getBytes());
+      return;
+    }
   }
 
   public String getDiscoveredDevices() {
