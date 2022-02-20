@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import android.webkit.ValueCallback;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CancellationException;
 
 public class HaskellActivity extends Activity {
   public native int haskellStartMain(SynchronousQueue<Long> setCallbacks);
@@ -177,30 +179,42 @@ public class HaskellActivity extends Activity {
     bluetoothLib.enableBluetooth(this.getApplicationContext());
   }
 
-  // function that will return a list of Bluetooth device names
-  public String scanDevices() {
-    Set<BluetoothDevice> pairedDevices = bluetoothLib.scanDevices(this.getApplicationContext());
-
-    ArrayList<String> deviceNames = new ArrayList<String>();
-    for (BluetoothDevice bt : pairedDevices) {
-      deviceNames.add(bt.getName() + "." + bt.getAddress());
-    }
-
-    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
-
-    Log.v("HaskellActivity", "returning deviceNameArray...");
-    return String.join(",", deviceNameArray);
-  }
+//  // function that will return a list of Bluetooth device names
+//  public String scanDevices() {
+//    Set<BluetoothDevice> pairedDevices = bluetoothLib.scanDevices(this.getApplicationContext());
+//
+//    ArrayList<String> deviceNames = new ArrayList<String>();
+//    for (BluetoothDevice bt : pairedDevices) {
+//      deviceNames.add(bt.getName() + "." + bt.getAddress());
+//    }
+//
+//    String[] deviceNameArray = deviceNames.toArray(new String[deviceNames.size()]);
+//
+//    Log.v("HaskellActivity", "returning deviceNameArray...");
+//    return String.join(",", deviceNameArray);
+//  }
 
   public void discoverDevices() {
     //make this device discoverable by a linux receiver app attempting to pair
+    //TODO: Move this into BluetoothLib; it needs access to the Activity to do this, though
     Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
     discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60);
     startActivityForResult(discoverableIntent, 1);
-    bluetoothLib.discoverDevices(this.getApplicationContext());
 
-    return;
+    try {
+      Log.v("HaskellActivity", "Discovering devices");
+      connectionReadyDevices = bluetoothLib.discoverDevices(this.getApplicationContext()).get();
+      Log.v("HaskellActivity", "Discovering devices finished successfully");
+    } catch(CancellationException e) {
+      Log.v("HaskellActivity", "Discovering devices was canceled");
+    } catch(ExecutionException e) {
+      Log.v("HaskellActivity", "Discovering devices failed with an exception");
+    } catch(InterruptedException e) {
+      Log.v("HaskellActivity", "Discovering devices was interrupted");
+    }
   }
+
+  private Set<BluetoothDevice> connectionReadyDevices;
 
   public void writeToConnectedDevice(String inputString) {
     if (inputString.isEmpty()) {
@@ -214,29 +228,41 @@ public class HaskellActivity extends Activity {
   }
 
   public String getDiscoveredDevices() {
-    Log.v("HaskellActivity", "start getDiscoveredDevices()...");
-    ArrayList<BluetoothDevice> connectionReadyDevices = bluetoothLib.getAvailableBluetoothDevices();
     Log.v("HaskellActivity", "getDiscoveredDevices() complete.");
     ArrayList<String> discoveredDevices = new ArrayList<String>();
     Log.v("HaskellActivity", "converting BluetoothDevice ArrayList to String ArrayList...");
-    for (BluetoothDevice bt : connectionReadyDevices) {
-      String devName = bt.getName();
-      String devAddr = bt.getAddress();
-      Log.v("HaskellActivity", ("discoveredDevices: adding " + devName + "." + devAddr + " to discoveredDevices"));
-      discoveredDevices.add(devName + "." + devAddr);
+    if(connectionReadyDevices != null) { // Note: We don't distinguish between null (meaning no discovery has completed) and empty (meaning discovery has completed finding nothing)
+      for (BluetoothDevice bt : connectionReadyDevices) {
+        String devName = bt.getName();
+        String devAddr = bt.getAddress();
+        Log.v("HaskellActivity", ("discoveredDevices: adding " + devName + "." + devAddr + " to discoveredDevices"));
+        discoveredDevices.add(devName + "." + devAddr);
+      }
     }
     String discDevString = discoveredDevices.toString();
     Log.v("HaskellActivity", "returning discDevString");
     return discDevString;
   }
 
-  public String establishRFComm(String btDeviceName) {
-    return bluetoothLib.establishRFComm(btDeviceName);
-  }
+  public String establishRFComm(String deviceAddr) {
+    // Retreive bluetooth device information for use when establishing RFComm
+    BluetoothDevice btDevice = null;
 
-  public void cancelBluetoothConnection() {
-    bluetoothLib.cancelBluetoothConnection(this.getApplicationContext());
-    return;
+    Log.v("BluetoothLib", ("getBluetoothDeviceInfo: LOOKING FOR " + deviceAddr));
+    for (BluetoothDevice dv : connectionReadyDevices) {
+      Log.v("BluetoothLib", ("LOOKING AT " + dv.getName() + " with mac address " + dv.getAddress()));
+      if (dv.getAddress().equals(deviceAddr)) {
+        Log.v("BluetoothLib", "bluetoothDevice hardware address found");
+        btDevice = dv;
+        break;
+      }
+    }
+    if(btDevice == null) {
+      Log.v("BluetoothLib", "bluetoothDevice hardware address not found");
+    }
+
+
+    return bluetoothLib.establishRFComm(btDevice);
   }
 
   // Proper separation of concerns is really a whole lot of work in Java, so
