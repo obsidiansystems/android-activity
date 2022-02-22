@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Android.HaskellActivity
   ( ActivityCallbacks (..)
   , HaskellActivity (..)
@@ -7,6 +10,28 @@ module Android.HaskellActivity
   , getCacheDir
   , continueWithCallbacks
   , traceActivityCallbacks
+  , JNINativeInterface_
+  , JNIEnv
+  , JNI (..)
+  , runJNI
+  , Jobject (..)
+  , Jclass (..)
+  , JmethodID (..)
+  , Jvalue (..)
+  , Jstring (..)
+  , ToJobject (..)
+  , ToJvalue (..)
+  , findClass
+  , getObjectClass
+  , getMethodID
+  , callObjectMethod
+  , callVoidMethod
+  , newGlobalRef
+  , deleteGlobalRef
+  , newStringUTF
+  , exceptionOccurred
+  , exceptionDescribe
+  , exceptionClear
   ) where
 
 import Control.Exception
@@ -17,10 +42,139 @@ import Foreign.C.String
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
+import Control.Monad.Reader
+import Control.Concurrent
+import Foreign.Marshal.Array
 
 #include "HaskellActivity.h"
 
 newtype HaskellActivity = HaskellActivity { unHaskellActivity :: Ptr HaskellActivity }
+
+data JNINativeInterface_
+
+type JNIEnv = Ptr JNINativeInterface_
+
+foreign import ccall safe "getJNIEnv" getJNIEnv :: IO (Ptr JNIEnv)
+
+newtype JNI a = JNI { unJNI :: ReaderT (Ptr JNIEnv) IO a } deriving (Functor, Applicative, Monad, MonadIO)
+
+--TODO: Manage references?
+runJNI :: JNI a -> IO a
+runJNI (JNI a) = runInBoundThread $ do -- JNIEnvs are bound to a specific OS thread
+  jniEnv <- getJNIEnv
+  runReaderT a jniEnv
+
+newtype Jobject = Jobject { unJobject :: Ptr () } deriving (Eq, Show, Storable)
+
+newtype Jclass = Jclass { unJclass :: Ptr () } deriving (Eq, Show, Storable)
+
+newtype JmethodID = JmethodID { unJmethodID :: Ptr () } deriving (Eq, Show, Storable)
+
+newtype Jvalue = Jvalue { unJvalue :: Ptr () } deriving (Eq, Show, Storable)
+
+newtype Jstring = Jstring { unJstring :: Ptr () } deriving (Eq, Show, Storable)
+
+class ToJobject a where
+  toJobject :: a -> Jobject
+
+instance ToJobject Jstring where
+  toJobject (Jstring a) = Jobject a
+
+class ToJvalue a where
+  toJvalue :: a -> Jvalue
+
+instance ToJvalue Jstring where
+  toJvalue (Jstring a) = Jvalue a
+
+instance ToJvalue Jobject where
+  toJvalue (Jobject a) = Jvalue a
+
+foreign import ccall "dynamic" funFindClass :: FunPtr (Ptr JNIEnv -> CString -> IO Jclass) -> Ptr JNIEnv -> CString -> IO Jclass
+
+findClass :: String -> JNI Jclass
+findClass name = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, FindClass} =<< peek env
+  --TODO: Technically we need to be using Java's "modified UTF-8" here
+  withCString name $ \nameRaw ->
+    funFindClass f env nameRaw
+
+foreign import ccall "dynamic" funGetObjectClass :: FunPtr (Ptr JNIEnv -> Jobject -> IO Jclass) -> Ptr JNIEnv -> Jobject -> IO Jclass
+
+getObjectClass :: Jobject -> JNI Jclass
+getObjectClass o = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, GetObjectClass} =<< peek env
+  funGetObjectClass f env o
+
+foreign import ccall "dynamic" funGetMethodID :: FunPtr (Ptr JNIEnv -> Jclass -> CString -> CString -> IO JmethodID) -> Ptr JNIEnv -> Jclass -> CString -> CString -> IO JmethodID
+
+getMethodID :: Jclass -> String -> String -> JNI JmethodID
+getMethodID c name sig = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, GetMethodID} =<< peek env
+  --TODO: Technically we need to be using Java's "modified UTF-8" here
+  withCString name $ \nameC ->
+    withCString sig $ \sigC ->
+      funGetMethodID f env c nameC sigC
+
+foreign import ccall "dynamic" funCallObjectMethodA :: FunPtr (Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO Jobject) -> Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO Jobject
+
+callObjectMethod :: Jobject -> JmethodID -> [Jvalue] -> JNI Jobject
+callObjectMethod o m args = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, CallObjectMethodA} =<< peek env
+  withArray args $ \argsRaw ->
+    funCallObjectMethodA f env o m argsRaw
+
+foreign import ccall "dynamic" funCallVoidMethodA :: FunPtr (Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO ()) -> Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO ()
+
+callVoidMethod :: Jobject -> JmethodID -> [Jvalue] -> JNI ()
+callVoidMethod o m args = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, CallVoidMethodA} =<< peek env
+  withArray args $ \argsRaw ->
+    funCallVoidMethodA f env o m argsRaw
+
+foreign import ccall "dynamic" funNewGlobalRef :: FunPtr (Ptr JNIEnv -> Jobject -> IO Jobject) -> Ptr JNIEnv -> Jobject -> IO Jobject
+
+newGlobalRef :: Jobject -> JNI Jobject
+newGlobalRef o = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, NewGlobalRef} =<< peek env
+  --TODO: Deal with failure
+  funNewGlobalRef f env o
+
+foreign import ccall "dynamic" funDeleteGlobalRef :: FunPtr (Ptr JNIEnv -> Jobject -> IO ()) -> Ptr JNIEnv -> Jobject -> IO ()
+
+deleteGlobalRef :: Jobject -> JNI ()
+deleteGlobalRef o = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, DeleteGlobalRef} =<< peek env
+  funDeleteGlobalRef f env o
+
+foreign import ccall "dynamic" funNewStringUTF :: FunPtr (Ptr JNIEnv -> CString -> IO Jstring) -> Ptr JNIEnv -> CString -> IO Jstring
+
+newStringUTF :: String -> JNI Jstring
+newStringUTF s = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, NewStringUTF} =<< peek env
+  --TODO: Technically we need to be using Java's "modified UTF-8" here
+  withCString s $ \sc ->
+    funNewStringUTF f env sc
+
+foreign import ccall "dynamic" funExceptionOccurred :: FunPtr (Ptr JNIEnv -> IO Bool) -> Ptr JNIEnv -> IO Bool
+
+exceptionOccurred :: JNI Bool
+exceptionOccurred = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, ExceptionOccurred} =<< peek env
+  funExceptionOccurred f env
+
+foreign import ccall "dynamic" funExceptionDescribe :: FunPtr (Ptr JNIEnv -> IO ()) -> Ptr JNIEnv -> IO ()
+
+exceptionDescribe :: JNI ()
+exceptionDescribe = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, ExceptionDescribe} =<< peek env
+  funExceptionDescribe f env
+
+foreign import ccall "dynamic" funExceptionClear :: FunPtr (Ptr JNIEnv -> IO ()) -> Ptr JNIEnv -> IO ()
+
+exceptionClear :: JNI ()
+exceptionClear = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, ExceptionClear} =<< peek env
+  funExceptionClear f env
 
 foreign import ccall unsafe "HaskellActivity_get" getHaskellActivity :: IO HaskellActivity
 

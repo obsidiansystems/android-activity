@@ -53,6 +53,10 @@ public class HaskellActivity extends Activity {
 
   private BluetoothLib bluetoothLib = new BluetoothLib();
 
+  public BluetoothLib getBluetoothLib() {
+    return bluetoothLib;
+  }
+
   // Apparently 'long' is the right way to store a C pointer in Java
   // See https://stackoverflow.com/questions/337268/what-is-the-correct-way-to-store-a-native-pointer-inside-a-java-object
   final long callbacks;
@@ -244,7 +248,7 @@ public class HaskellActivity extends Activity {
     return discDevString;
   }
 
-  public String establishRFComm(String deviceAddr) {
+  public BluetoothSocket establishRFComm(String deviceAddr) throws IOException {
     // Retreive bluetooth device information for use when establishing RFComm
     BluetoothDevice btDevice = null;
 
@@ -260,7 +264,6 @@ public class HaskellActivity extends Activity {
     if(btDevice == null) {
       Log.v("BluetoothLib", "bluetoothDevice hardware address not found");
     }
-
 
     return bluetoothLib.establishRFComm(btDevice);
   }
