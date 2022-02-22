@@ -26,6 +26,7 @@ module Android.HaskellActivity
   , getMethodID
   , callObjectMethod
   , callVoidMethod
+  , callIntMethod
   , newGlobalRef
   , deleteGlobalRef
   , newStringUTF
@@ -45,6 +46,7 @@ import Foreign.Storable
 import Control.Monad.Reader
 import Control.Concurrent
 import Foreign.Marshal.Array
+import Data.Int
 
 #include "HaskellActivity.h"
 
@@ -130,6 +132,14 @@ callVoidMethod o m args = JNI $ ReaderT $ \env -> do
   f <- #{peek struct JNINativeInterface_, CallVoidMethodA} =<< peek env
   withArray args $ \argsRaw ->
     funCallVoidMethodA f env o m argsRaw
+
+foreign import ccall "dynamic" funCallIntMethodA :: FunPtr (Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO Int32) -> Ptr JNIEnv -> Jobject -> JmethodID -> Ptr Jvalue -> IO Int32
+
+callIntMethod :: Jobject -> JmethodID -> [Jvalue] -> JNI Int32
+callIntMethod o m args = JNI $ ReaderT $ \env -> do
+  f <- #{peek struct JNINativeInterface_, CallIntMethodA} =<< peek env
+  withArray args $ \argsRaw ->
+    funCallIntMethodA f env o m argsRaw
 
 foreign import ccall "dynamic" funNewGlobalRef :: FunPtr (Ptr JNIEnv -> Jobject -> IO Jobject) -> Ptr JNIEnv -> Jobject -> IO Jobject
 
