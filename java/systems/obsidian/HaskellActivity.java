@@ -220,17 +220,6 @@ public class HaskellActivity extends Activity {
 
   private Set<BluetoothDevice> connectionReadyDevices;
 
-  public void writeToConnectedDevice(String inputString) {
-    if (inputString.isEmpty()) {
-      Log.v("HaskellActivity", "Warning: empty string passed to writeToConnectedDevice()");
-      return;
-    } else {
-      Log.v("HaskellActivity", "returning deviceNameArray...");
-      bluetoothLib.writeToConnectedDevice(inputString.getBytes());
-      return;
-    }
-  }
-
   public String getDiscoveredDevices() {
     Log.v("HaskellActivity", "getDiscoveredDevices() complete.");
     ArrayList<String> discoveredDevices = new ArrayList<String>();
