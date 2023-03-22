@@ -146,6 +146,10 @@ public class HaskellActivity extends Activity {
     }
   }
 
+  public void defaultOnBackPressed() {
+    super.onBackPressed();
+  }
+
   @Override
   public void onNewIntent(Intent intent) {
     super.onNewIntent(intent);

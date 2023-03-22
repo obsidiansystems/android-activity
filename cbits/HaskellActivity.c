@@ -184,6 +184,17 @@ char *HaskellActivity_getCacheDir(jobject haskellActivity) {
   return copyToCString(env, java_io_File_getPath(env, cacheDir));
 }
 
+void HaskellActivity_defaultOnBackPressed(jobject haskellActivity) {
+  assert(haskellActivity);
+  JNIEnv *env = getJNIEnv();
+
+  jclass haskellActivityClass = (*env)->GetObjectClass(env, haskellActivity);
+  jmethodID getCacheDir = (*env)->GetMethodID(env, haskellActivityClass, "defaultOnBackPressed", "()V");
+  assert(getCacheDir);
+
+  (*env)->CallVoidMethod(env, haskellActivity, getCacheDir);
+}
+
 // Continue constructing the HaskellActivity.
 // WARNING: This may only be invoked once per Haskell 'main' invocation
 void HaskellActivity_continueWithCallbacks(const ActivityCallbacks *callbacks) {

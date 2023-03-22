@@ -6,6 +6,7 @@ module Android.HaskellActivity
   , getFilesDir
   , getCacheDir
   , continueWithCallbacks
+  , defaultOnBackPressed
   , traceActivityCallbacks
   ) where
 
@@ -31,6 +32,10 @@ foreign import ccall unsafe "HaskellActivity_getFilesDir" getFilesDirCString
 foreign import ccall unsafe "HaskellActivity_getCacheDir" getCacheDirCString
   :: HaskellActivity
   -> IO CString
+
+foreign import ccall unsafe "HaskellActivity_defaultOnBackPressed" defaultOnBackPressed
+  :: HaskellActivity
+  -> IO ()
 
 -- | Copy a C string into Haskell returning 'Nothing' if it is NULL.
 peekMaybeCString :: CString -> IO (Maybe String)
