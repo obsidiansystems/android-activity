@@ -18,6 +18,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.HashMap;
 import java.util.HashSet;
 import android.webkit.ValueCallback;
+import android.webkit.CookieManager;
 
 public class HaskellActivity extends Activity {
   public native int haskellStartMain(SynchronousQueue<Long> setCallbacks);
@@ -111,6 +112,7 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnPause(callbacks);
     }
+    CookieManager.getInstance().flush();
   }
 
   @Override
@@ -119,6 +121,7 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnStop(callbacks);
     }
+    CookieManager.getInstance().flush();
   }
 
   @Override
