@@ -29,5 +29,5 @@ library
   exposed-modules:
     Android.HaskellActivity
   extra-libraries: log
-  ghc-options: -Wall -Werror -fPIC
+  ghc-options: -Wall -fPIC
   cc-options: -fPIC
