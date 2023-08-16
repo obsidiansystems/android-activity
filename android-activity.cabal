@@ -11,6 +11,7 @@ category: Mobile
 build-type: Simple
 extra-source-files:
   java/systems/obsidian/HaskellActivity.java
+  java/systems/obsidian/LocalFirebaseMessagingService.java
 cabal-version: >=1.10
 
 library
@@ -26,3 +27,5 @@ library
   exposed-modules:
     Android.HaskellActivity
   extra-libraries: log
+  ghc-options: -Wall -Werror -fPIC
+  cc-options: -fPIC

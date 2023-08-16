@@ -1,21 +1,24 @@
 package systems.obsidian;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
-import android.content.Intent;
-import android.app.PendingIntent;
 import android.app.Notification;
-import android.os.Bundle;
-import android.util.Log;
-import java.util.concurrent.SynchronousQueue;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.Manifest;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.util.Log;
 import android.webkit.PermissionRequest;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Arrays;
+import java.util.concurrent.SynchronousQueue;
+import java.util.HashMap;
 import java.util.HashSet;
-import android.annotation.TargetApi;
-import android.os.Build;
+import android.webkit.ValueCallback;
+import android.webkit.CookieManager;
 
 public class HaskellActivity extends Activity {
   public native int haskellStartMain(SynchronousQueue<Long> setCallbacks);
@@ -28,6 +31,8 @@ public class HaskellActivity extends Activity {
   public native void haskellOnRestart(long callbacks);
   public native void haskellOnBackPressed(long callbacks);
   public native void haskellOnNewIntent(long callbacks, String intent, String intentdata);
+
+  public static final int REQUEST_CODE_FILE_PICKER = 51426;
 
   // Apparently 'long' is the right way to store a C pointer in Java
   // See https://stackoverflow.com/questions/337268/what-is-the-correct-way-to-store-a-native-pointer-inside-a-java-object
@@ -58,7 +63,7 @@ public class HaskellActivity extends Activity {
   }
 
   // This can be called by the Haskell application to unblock the construction
-  // of the HaskellActivity and proced with the given callbacks
+  // of the HaskellActivity and proceed with the given callbacks.
 
   // NOTE: This shouldn't be an instance method, because it must be called *before*
   // the constructor returns (it *causes* the constructor to return).
@@ -107,6 +112,7 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnPause(callbacks);
     }
+    CookieManager.getInstance().flush();
   }
 
   @Override
@@ -115,6 +121,7 @@ public class HaskellActivity extends Activity {
     if(callbacks != 0) {
       haskellOnStop(callbacks);
     }
+    CookieManager.getInstance().flush();
   }
 
   @Override
@@ -154,89 +161,136 @@ public class HaskellActivity extends Activity {
   // we simply handle PermissionRequests directly here - it is just sooo much
   // easier. Java makes it really hard to write good code.
   public void requestWebViewPermissions(final PermissionRequest request) {
-      try {
-        String[] resources = request.getResources();
-        ArrayList<String> sysResourcesToRequestList = new ArrayList<String>();
-        for(int i=0; i < resources.length; i++) {
-            String manifestRequest = null;
-            switch(resources[i]) {
-                case PermissionRequest.RESOURCE_AUDIO_CAPTURE:
-                    manifestRequest =  Manifest.permission.RECORD_AUDIO;
-                    break;
-                case PermissionRequest.RESOURCE_VIDEO_CAPTURE:
-                    manifestRequest = Manifest.permission.CAMERA;
-                    break;
-            }
-            if(manifestRequest != null && checkSelfPermission(manifestRequest) != PackageManager.PERMISSION_GRANTED)
-                sysResourcesToRequestList.add(manifestRequest);
+    try {
+      String[] resources = request.getResources();
+      ArrayList<String> sysResourcesToRequestList = new ArrayList<String>();
+      for(int i=0; i < resources.length; i++) {
+        String manifestRequest = null;
+        switch(resources[i]) {
+          case PermissionRequest.RESOURCE_AUDIO_CAPTURE:
+            manifestRequest =  Manifest.permission.RECORD_AUDIO;
+            break;
+          case PermissionRequest.RESOURCE_VIDEO_CAPTURE:
+            manifestRequest = Manifest.permission.CAMERA;
+            break;
         }
-        String[] sysResourcesToRequest = sysResourcesToRequestList.toArray(new String[0]);
-        if(sysResourcesToRequest.length > 0) {
-            permissionRequests.put(nextRequestCode, request);
-            requestPermissions(sysResourcesToRequest, nextRequestCode++);
-        }
-        else {
-            runOnUiThread(new Runnable() {
-                    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                    @Override
-                    public void run() {
-                        request.grant(request.getResources());
-                    }
-                });
-        }
-      } catch (NoSuchMethodError e) { // Compatibility for older Android versions (Android 5 and below)
-          runOnUiThread(new Runnable() {
-                  @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                  @Override
-                  public void run() {
-                      request.grant(request.getResources());
-                  }
-              });
+        if(manifestRequest != null && checkSelfPermission(manifestRequest) != PackageManager.PERMISSION_GRANTED)
+          sysResourcesToRequestList.add(manifestRequest);
       }
+      String[] sysResourcesToRequest = sysResourcesToRequestList.toArray(new String[0]);
+      if(sysResourcesToRequest.length > 0) {
+        permissionRequests.put(nextRequestCode, request);
+        requestPermissions(sysResourcesToRequest, nextRequestCode++);
+      }
+      else {
+        runOnUiThread(new Runnable() {
+          @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+          @Override
+          public void run() {
+            request.grant(request.getResources());
+          }
+        });
+      }
+    } catch (NoSuchMethodError e) { // Compatibility for older Android versions (Android 5 and below)
+      runOnUiThread(new Runnable() {
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        @Override
+        public void run() {
+          request.grant(request.getResources());
+        }
+      });
+    }
   }
 
   @Override
-  public void onRequestPermissionsResult(int requestCode,
-                                         String permissions[], int[] grantResults) {
-      final PermissionRequest request = permissionRequests.get(requestCode);
-      permissionRequests.remove(requestCode);
+  public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+    final PermissionRequest request = permissionRequests.get(requestCode);
+    permissionRequests.remove(requestCode);
 
-      String[] requestedPermissions = request.getResources();
-      final HashSet<String> grantedPermissions = new HashSet<String>(Arrays.asList(requestedPermissions));
+    String[] requestedPermissions = request.getResources();
+    final HashSet<String> grantedPermissions = new HashSet<String>(Arrays.asList(requestedPermissions));
 
-      // We assume grantResults and permissions have same length ... obviously.
-      for(int i = 0; i< permissions.length; i++) {
-          if(grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-              String permission = null;
-              switch(permissions[i]) {
-                  case Manifest.permission.RECORD_AUDIO:
-                      Log.d("HaskellActivity", "Granting RESOURCE_AUDIO_CAPTURE!");
-                      permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE;
-                      break;
-                  case Manifest.permission.CAMERA:
-                      Log.d("HaskellActivity", "Granting RESOURCE_VIDEO_CAPTURE!");
-                      permission = PermissionRequest.RESOURCE_VIDEO_CAPTURE;
-                      break;
-              }
-              if(permission != null && grantResults[i] != PackageManager.PERMISSION_GRANTED)
-                  grantedPermissions.remove(permission);
-          }
+    // We assume grantResults and permissions have same length ... obviously.
+    for(int i = 0; i< permissions.length; i++) {
+      if(grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+        String permission = null;
+        switch(permissions[i]) {
+          case Manifest.permission.RECORD_AUDIO:
+            Log.d("HaskellActivity", "Granting RESOURCE_AUDIO_CAPTURE!");
+            permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE;
+            break;
+          case Manifest.permission.CAMERA:
+            Log.d("HaskellActivity", "Granting RESOURCE_VIDEO_CAPTURE!");
+            permission = PermissionRequest.RESOURCE_VIDEO_CAPTURE;
+            break;
+        }
+        if(permission != null && grantResults[i] != PackageManager.PERMISSION_GRANTED)
+          grantedPermissions.remove(permission);
       }
-      runOnUiThread(new Runnable() {
-              @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-              @Override
-              public void run() {
-                if(grantedPermissions.size() > 0) {
-                    Log.d("HaskellActivity", "Granting permissions!");
-                    request.grant(grantedPermissions.toArray(new String[0]));
-                }
-                else {
-                    request.deny();
+    }
+    runOnUiThread(new Runnable() {
+      @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+      @Override
+      public void run() {
+        if(grantedPermissions.size() > 0) {
+          Log.d("HaskellActivity", "Granting permissions!");
+          request.grant(grantedPermissions.toArray(new String[0]));
+        }
+        else {
+          request.deny();
+        }
+      }
+    });
+  }
+
+  // File uploads don't work out of the box.
+  // You have to start an 'Intent' from 'onShowFileChooser' by setting the callback with
+  // 'setFileUploadCallback'. The callback will be handled here.
+  @Override
+  public void onActivityResult(final int requestCode, final int resultCode, final Intent intent) {
+    if (requestCode == REQUEST_CODE_FILE_PICKER) {
+      if (resultCode == Activity.RESULT_OK) {
+        if (intent != null) {
+          if (fileUploadCallback != null) {
+            Uri[] dataUris = null;
+
+            try {
+              if (intent.getDataString() != null) {
+                dataUris = new Uri[] { Uri.parse(intent.getDataString()) };
+              }
+              else {
+                if (intent.getClipData() != null) {
+                  final int numSelectedFiles = intent.getClipData().getItemCount();
+                  dataUris = new Uri[numSelectedFiles];
+                  for (int i = 0; i < numSelectedFiles; i++) {
+                    dataUris[i] = intent.getClipData().getItemAt(i).getUri();
+                  }
                 }
               }
-          });
+            }
+            catch (Exception ignored) { }
+
+            fileUploadCallback.onReceiveValue(dataUris);
+            fileUploadCallback = null;
+          }
+        }
+      }
+      else if (fileUploadCallback != null) {
+        fileUploadCallback.onReceiveValue(null);
+        fileUploadCallback = null;
+      }
+    }
+  }
+
+  // Set the file upload callback to be used by 'onActivityResult'.
+  public void setFileUploadCallback(ValueCallback<Uri[]> cb) {
+    if (fileUploadCallback != null) {
+      fileUploadCallback.onReceiveValue(null);
+    }
+    fileUploadCallback = cb;
   }
 
   private HashMap<Integer, PermissionRequest> permissionRequests;
   private int nextRequestCode = 0;
+  private ValueCallback<Uri[]> fileUploadCallback;
 }

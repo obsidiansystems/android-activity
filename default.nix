@@ -1,11 +1,17 @@
-{ mkDerivation, base, data-default, jdk, stdenv }:
-mkDerivation {
-  pname = "android-activity";
-  version = "0.1";
-  src = builtins.filterSource (path: type: !(builtins.any (x: x == baseNameOf path) [".git"])) ./.;
-  libraryHaskellDepends = [ base data-default ];
-  librarySystemDepends = [ jdk ];
-  homepage = "https://github.com/obsidiansystems/android-activity";
-  description = "Turn regular Haskell programs into Android Activities";
-  license = stdenv.lib.licenses.bsd3;
-}
+{ callPackage, callCabal2nix, jdk }:
+let
+  pkgs = callPackage ({ pkgs }: pkgs) {};
+  inherit (pkgs) lib;
+  src = builtins.filterSource
+    (path: type: let
+      baseName = baseNameOf path;
+    in ! lib.elem baseName [ ".git" "default.nix" ])
+    ./.;
+  pkg = callCabal2nix "android-activity" src {
+    # prevent Nix from trying to provide the "log" package
+    log = null;
+  };
+in
+  pkgs.haskell.lib.overrideCabal pkg (drv: {
+    librarySystemDepends = (drv.librarySystemDepends or []) ++ [jdk];
+  })
