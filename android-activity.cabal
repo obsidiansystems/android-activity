@@ -1,5 +1,5 @@
 name: android-activity
-version: 0.1
+version: 0.2.0.0
 synopsis: Turn regular Haskell programs into Android Activities
 homepage: https://github.com/obsidiansystems/android-activity
 license: BSD3
