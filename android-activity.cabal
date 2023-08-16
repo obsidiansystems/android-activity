@@ -12,6 +12,8 @@ build-type: Simple
 extra-source-files:
   java/systems/obsidian/HaskellActivity.java
   java/systems/obsidian/LocalFirebaseMessagingService.java
+  readme.md
+  changelog.md
 cabal-version: >=1.10
 
 library
