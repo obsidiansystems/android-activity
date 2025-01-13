@@ -1,5 +1,9 @@
 # Changelog for android-activity
 
+## 0.2.0.1
+
+* Support GHC 9.10
+
 ## 0.2
 
 * Support firebase (needed for push notifications)
